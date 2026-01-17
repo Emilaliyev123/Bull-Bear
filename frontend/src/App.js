@@ -2311,11 +2311,11 @@ const AdminPage = () => {
                         </select>
                         <button
                           onClick={() => toggleSignalPin(signal.id, signal.is_pinned)}
-                          className={`p-2 rounded ${signal.is_pinned ? 'text-amber-500' : 'text-zinc-500 hover:text-amber-500'}`}
+                          className={`p-2 rounded-lg transition-colors ${signal.is_pinned ? 'bg-amber-500/20 text-amber-500' : 'bg-zinc-700 text-zinc-500 hover:text-amber-500'}`}
                         >
                           <Crown size={18} />
                         </button>
-                        <button onClick={() => deleteSignal(signal.id)} className="text-red-500 hover:text-red-400 p-2">
+                        <button onClick={() => deleteSignal(signal.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors">
                           <Trash2 size={18} />
                         </button>
                       </div>
