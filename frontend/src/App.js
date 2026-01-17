@@ -1109,7 +1109,7 @@ const BookPage = () => {
             {/* Book Cover */}
             <div className="aspect-[3/4] bg-gradient-to-br from-amber-500/20 to-yellow-500/20 rounded-xl flex items-center justify-center">
               {book?.cover_url ? (
-                <img src={book.cover_url} alt="Book Cover" className="w-full h-full object-cover rounded-xl" />
+                <img src={getMediaUrl(book.cover_url)} alt="Book Cover" className="w-full h-full object-cover rounded-xl" />
               ) : (
                 <div className="text-center p-8">
                   <BookOpen className="text-amber-500 mx-auto mb-4" size={80} />
