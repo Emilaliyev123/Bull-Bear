@@ -838,7 +838,7 @@ const CoursesPage = () => {
             <Card3D key={course.id} onClick={() => setSelectedCourse(course)}>
               <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
                 {course.thumbnail ? (
-                  <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                  <img src={getMediaUrl(course.thumbnail)} alt={course.title} className="w-full h-full object-cover" />
                 ) : (
                   <BookOpen className="text-zinc-600" size={48} />
                 )}
