@@ -1,0 +1,61 @@
+{
+  "summary": "Fixed video playback and PDF access issues. Root cause: /uploads/ path was being handled by frontend (React) instead of backend. Solution: Changed static file mount from /uploads to /api/uploads in backend, and updated frontend getMediaUrl() to convert URLs to /api/uploads/ path.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/test_backend_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Video file is 730MB .mov format - large file takes time to buffer. Consider converting to MP4 for better browser compatibility and smaller file size.",
+    "Old URLs stored in database still have wrong preview hostname - getMediaUrl() handles conversion but ideally URLs should be stored as relative paths only"
+  ],
+  "updated_files": [
+    "/app/backend/server.py - Changed static file mount from /uploads to /api/uploads, updated upload endpoints to return /api/uploads/ URLs",
+    "/app/frontend/src/App.js - Updated getMediaUrl() to convert /uploads/ paths to /api/uploads/"
+  ],
+  "success_rate": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None - used existing data",
+  "test_credentials": {
+    "admin_email": "admin@bullbear.com",
+    "admin_password": "admin123"
+  },
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Video and PDF files are now accessible via /api/uploads/ path. The getMediaUrl() helper function in frontend converts old URLs with wrong preview hostnames to correct URLs. Video file is 730MB .mov which takes time to load - this is expected behavior, not a bug.",
+  "fixes_applied": [
+    {
+      "issue": "Video playback not working - FFmpegDemuxer error",
+      "root_cause": "/uploads/ path was being served by frontend (React) returning HTML instead of video file",
+      "fix": "Changed backend static file mount from /uploads to /api/uploads, updated frontend getMediaUrl() to use /api/uploads/ path"
+    },
+    {
+      "issue": "PDF access not working",
+      "root_cause": "Same as video - /uploads/ path not routed to backend",
+      "fix": "Same fix - now uses /api/uploads/ path"
+    }
+  ],
+  "verified_features": [
+    "Admin login works (admin@bullbear.com / admin123)",
+    "Admin panel accessible with all tabs (Dashboard, Courses, Book/PDF, Signals, News, Users)",
+    "Book saving in admin panel - title, description, PDF URL, cover URL, price all save correctly",
+    "Video URL correctly converted to /api/uploads/ path",
+    "PDF URL correctly converted to /api/uploads/ path",
+    "Video file accessible (730MB .mov, content-type: video/quicktime)",
+    "PDF file accessible (30MB, content-type: application/pdf)",
+    "Book page shows 'You own this book' for admin",
+    "Read Book button opens correct PDF URL",
+    "Course modal shows video player with correct URL"
+  ]
+}
