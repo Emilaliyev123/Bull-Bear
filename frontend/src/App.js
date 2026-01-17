@@ -2347,12 +2347,33 @@ const AdminPage = () => {
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white h-32"
                   required
                 />
-                <input
-                  placeholder="Image URL (optional)"
-                  value={newsForm.image_url}
-                  onChange={e => setNewsForm({...newsForm, image_url: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                />
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block">Article Image</label>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleNewsImageUpload}
+                      className="hidden"
+                      id="news-image-upload"
+                    />
+                    <label
+                      htmlFor="news-image-upload"
+                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
+                    >
+                      {uploading ? 'Uploading...' : '🖼️ Upload Image from Device'}
+                    </label>
+                    <input
+                      placeholder="Or paste image URL here"
+                      value={newsForm.image_url}
+                      onChange={e => setNewsForm({...newsForm, image_url: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
+                    />
+                    {newsForm.image_url && (
+                      <p className="text-emerald-500 text-xs">✓ Image set</p>
+                    )}
+                  </div>
+                </div>
                 <input
                   placeholder="Tags (comma separated): Forex, Crypto, Analysis"
                   value={newsForm.tags}
@@ -2370,7 +2391,10 @@ const AdminPage = () => {
                     <p className="text-white font-medium">{article.title}</p>
                     <p className="text-zinc-500 text-sm">{new Date(article.created_at).toLocaleDateString()}</p>
                   </div>
-                  <button onClick={() => deleteNews(article.id)} className="text-red-500 hover:text-red-400">
+                  <button 
+                    onClick={() => deleteNews(article.id)} 
+                    className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors"
+                  >
                     <Trash2 size={18} />
                   </button>
                 </Card3D>
