@@ -1588,7 +1588,7 @@ const AdminPage = () => {
     if (!file) return;
     const url = await uploadFile(file, 'video');
     if (url) {
-      setCourseForm({...courseForm, video_url: url});
+      setCourseForm(prev => ({...prev, video_url: url}));
       alert('Video uploaded successfully!');
     }
   };
@@ -1598,7 +1598,7 @@ const AdminPage = () => {
     if (!file) return;
     const url = await uploadFile(file, 'image');
     if (url) {
-      setCourseForm({...courseForm, thumbnail: url});
+      setCourseForm(prev => ({...prev, thumbnail: url}));
       alert('Image uploaded successfully!');
     }
   };
@@ -1608,7 +1608,7 @@ const AdminPage = () => {
     if (!file) return;
     const url = await uploadFile(file, 'pdf');
     if (url) {
-      setBookForm({...bookForm, pdf_url: url});
+      setBookForm(prev => ({...prev, pdf_url: url}));
       alert('PDF uploaded successfully!');
     }
   };
@@ -1618,7 +1618,7 @@ const AdminPage = () => {
     if (!file) return;
     const url = await uploadFile(file, 'image');
     if (url) {
-      setBookForm({...bookForm, cover_url: url});
+      setBookForm(prev => ({...prev, cover_url: url}));
       alert('Cover image uploaded successfully!');
     }
   };
@@ -1628,7 +1628,7 @@ const AdminPage = () => {
     if (!file) return;
     const url = await uploadFile(file, 'image');
     if (url) {
-      setNewsForm({...newsForm, image_url: url});
+      setNewsForm(prev => ({...prev, image_url: url}));
       alert('Image uploaded successfully!');
     }
   };
