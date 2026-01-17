@@ -2178,7 +2178,7 @@ const AdminPage = () => {
                   <p className="text-zinc-400 text-sm mb-3">Preview:</p>
                   <div className="flex gap-4 items-center">
                     {bookForm.cover_url && (
-                      <img src={bookForm.cover_url} alt="Cover" className="w-20 h-28 object-cover rounded" />
+                      <img src={getMediaUrl(bookForm.cover_url)} alt="Cover" className="w-20 h-28 object-cover rounded" />
                     )}
                     <div>
                       <p className="text-white font-medium">{bookForm.title || 'Untitled'}</p>
