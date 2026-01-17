@@ -2512,7 +2512,6 @@ function App() {
             </Routes>
           </div>
           <Footer />
-          </Routes>
         </BrowserRouter>
       </div>
     </AuthProvider>
