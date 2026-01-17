@@ -1694,7 +1694,8 @@ const AdminPage = () => {
       await api.delete(`/news/${id}`, token);
       loadData();
     } catch (e) {
-      alert('Failed to delete');
+      console.error('Delete news error:', e);
+      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
     }
   };
 
