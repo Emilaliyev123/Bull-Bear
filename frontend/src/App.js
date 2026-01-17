@@ -1522,6 +1522,7 @@ const AdminPage = () => {
   const [news, setNews] = useState([]);
   const [book, setBook] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [uploading, setUploading] = useState(false);
   
   // Form states
   const [courseForm, setCourseForm] = useState({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
@@ -1530,7 +1531,7 @@ const AdminPage = () => {
   const [bookForm, setBookForm] = useState({ title: '', description: '', cover_url: '', pdf_url: '', price: 29.90 });
 
   useEffect(() => {
-    if (loading) return; // Wait for auth to load
+    if (loading) return;
     if (user?.is_admin) {
       loadData();
     }
@@ -1547,6 +1548,79 @@ const AdminPage = () => {
       </PageWrapper>
     );
   }
+
+  // File upload helper
+  const uploadFile = async (file, type) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    setUploading(true);
+    try {
+      const response = await axios.post(`${API}/upload/${type}`, formData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      setUploading(false);
+      return BACKEND_URL + response.data.url;
+    } catch (e) {
+      setUploading(false);
+      console.error('Upload error:', e);
+      alert('Upload failed: ' + (e.response?.data?.detail || e.message));
+      return null;
+    }
+  };
+
+  const handleVideoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'video');
+    if (url) {
+      setCourseForm({...courseForm, video_url: url});
+      alert('Video uploaded successfully!');
+    }
+  };
+
+  const handleThumbnailUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'image');
+    if (url) {
+      setCourseForm({...courseForm, thumbnail: url});
+      alert('Image uploaded successfully!');
+    }
+  };
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'pdf');
+    if (url) {
+      setBookForm({...bookForm, pdf_url: url});
+      alert('PDF uploaded successfully!');
+    }
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'image');
+    if (url) {
+      setBookForm({...bookForm, cover_url: url});
+      alert('Cover image uploaded successfully!');
+    }
+  };
+
+  const handleNewsImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = await uploadFile(file, 'image');
+    if (url) {
+      setNewsForm({...newsForm, image_url: url});
+      alert('Image uploaded successfully!');
+    }
+  };
 
   const loadData = async () => {
     try {
