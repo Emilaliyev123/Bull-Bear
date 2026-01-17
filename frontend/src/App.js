@@ -1736,13 +1736,12 @@ const AdminPage = () => {
   };
 
   const deleteSignal = async (id) => {
-    if (!window.confirm('Delete this signal?')) return;
     try {
       await api.delete(`/signals/${id}`, token);
-      loadData();
+      setSignals(signals.filter(s => s.id !== id));
     } catch (e) {
       console.error('Delete signal error:', e);
-      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
+      alert('Failed to delete');
     }
   };
 
