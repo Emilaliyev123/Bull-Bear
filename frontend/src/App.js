@@ -2039,7 +2039,7 @@ const AdminPage = () => {
                     <div className="flex gap-4">
                       <div className="w-24 h-16 bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
                         {course.thumbnail ? (
-                          <img src={course.thumbnail} alt="" className="w-full h-full object-cover rounded-lg" />
+                          <img src={getMediaUrl(course.thumbnail)} alt="" className="w-full h-full object-cover rounded-lg" />
                         ) : (
                           <Video className="text-zinc-600" size={24} />
                         )}
