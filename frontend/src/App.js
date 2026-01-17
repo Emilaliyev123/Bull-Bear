@@ -1761,13 +1761,12 @@ const AdminPage = () => {
   };
 
   const deleteNews = async (id) => {
-    if (!window.confirm('Delete this article?')) return;
     try {
       await api.delete(`/news/${id}`, token);
-      loadData();
+      setNews(news.filter(n => n.id !== id));
     } catch (e) {
       console.error('Delete news error:', e);
-      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
+      alert('Failed to delete');
     }
   };
 
