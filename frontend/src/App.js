@@ -1193,7 +1193,7 @@ const NewsPage = () => {
             <Card3D key={article.id} onClick={() => setSelectedArticle(article)}>
               {article.image_url && (
                 <div className="aspect-video bg-zinc-800 rounded-lg mb-4 overflow-hidden">
-                  <img src={article.image_url} alt="" className="w-full h-full object-cover" />
+                  <img src={getMediaUrl(article.image_url)} alt="" className="w-full h-full object-cover" />
                 </div>
               )}
               <div className="flex flex-wrap gap-2 mb-3">
