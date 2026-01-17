@@ -1142,7 +1142,7 @@ const BookPage = () => {
                     You own this book
                   </div>
                   {book?.pdf_url && (
-                    <GoldButton onClick={() => window.open(book.pdf_url, '_blank')} className="w-full">
+                    <GoldButton onClick={() => window.open(getMediaUrl(book.pdf_url), '_blank')} className="w-full">
                       <BookOpen size={18} /> Read Book
                     </GoldButton>
                   )}
