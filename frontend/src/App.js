@@ -1244,7 +1244,7 @@ const NewsPage = () => {
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-4">{selectedArticle.title}</h2>
                 {selectedArticle.image_url && (
-                  <img src={selectedArticle.image_url} alt="" className="w-full rounded-lg mb-4" />
+                  <img src={getMediaUrl(selectedArticle.image_url)} alt="" className="w-full rounded-lg mb-4" />
                 )}
                 <p className="text-zinc-300 whitespace-pre-wrap">{selectedArticle.content}</p>
                 <p className="text-zinc-600 text-sm mt-6">{new Date(selectedArticle.created_at).toLocaleString()}</p>
