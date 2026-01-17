@@ -1573,7 +1573,8 @@ const AdminPage = () => {
       });
       console.log('Upload response:', response.data);
       setUploading(false);
-      return BACKEND_URL + response.data.url;
+      // Store relative URL to avoid hardcoding preview URLs that may change
+      return response.data.url;
     } catch (e) {
       setUploading(false);
       console.error('Upload error:', e);
