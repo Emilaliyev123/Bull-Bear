@@ -1462,11 +1462,9 @@ const AdminPage = () => {
 
   useEffect(() => {
     if (loading) return; // Wait for auth to load
-    if (!user?.is_admin) {
-      navigate('/');
-      return;
+    if (user?.is_admin) {
+      loadData();
     }
-    loadData();
   }, [user, loading]);
 
   // Show loading state while checking auth
