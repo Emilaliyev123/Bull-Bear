@@ -501,8 +501,8 @@ async def upload_video(file: UploadFile = File(...), admin: dict = Depends(requi
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Return the URL
-    file_url = f"/uploads/videos/{unique_filename}"
+    # Return the URL with /api prefix for proper routing
+    file_url = f"/api/uploads/videos/{unique_filename}"
     return {"url": file_url, "filename": unique_filename}
 
 @api_router.post("/upload/pdf")
@@ -521,8 +521,8 @@ async def upload_pdf(file: UploadFile = File(...), admin: dict = Depends(require
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Return the URL
-    file_url = f"/uploads/pdfs/{unique_filename}"
+    # Return the URL with /api prefix for proper routing
+    file_url = f"/api/uploads/pdfs/{unique_filename}"
     return {"url": file_url, "filename": unique_filename}
 
 @api_router.post("/upload/image")
@@ -542,8 +542,8 @@ async def upload_image(file: UploadFile = File(...), admin: dict = Depends(requi
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Return the URL
-    file_url = f"/uploads/images/{unique_filename}"
+    # Return the URL with /api prefix for proper routing
+    file_url = f"/api/uploads/images/{unique_filename}"
     return {"url": file_url, "filename": unique_filename}
 
 # Include router
