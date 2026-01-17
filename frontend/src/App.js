@@ -2359,17 +2359,17 @@ const AdminPage = () => {
                   <div className="space-y-2">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
                       onChange={handleNewsImageUpload}
-                      className="hidden"
-                      id="news-image-upload"
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
+                      disabled={uploading}
                     />
-                    <label
-                      htmlFor="news-image-upload"
-                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
-                    >
-                      {uploading ? 'Uploading...' : '🖼️ Upload Image from Device'}
-                    </label>
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                        Uploading...
+                      </div>
+                    )}
                     <input
                       placeholder="Or paste image URL here"
                       value={newsForm.image_url}
