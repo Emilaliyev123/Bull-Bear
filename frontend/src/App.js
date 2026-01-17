@@ -1551,21 +1551,33 @@ const AdminPage = () => {
 
   // File upload helper
   const uploadFile = async (file, type) => {
+    if (!file) {
+      alert('No file selected');
+      return null;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     
     setUploading(true);
     try {
+      console.log(`Uploading ${type}:`, file.name, file.size);
       const response = await axios.post(`${API}/upload/${type}`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          console.log(`Upload progress: ${percentCompleted}%`);
         }
       });
+      console.log('Upload response:', response.data);
       setUploading(false);
       return BACKEND_URL + response.data.url;
     } catch (e) {
       setUploading(false);
       console.error('Upload error:', e);
+      console.error('Error response:', e.response?.data);
       alert('Upload failed: ' + (e.response?.data?.detail || e.message));
       return null;
     }
