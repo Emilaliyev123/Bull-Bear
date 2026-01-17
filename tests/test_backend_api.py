@@ -288,17 +288,16 @@ class TestStaticFiles:
     """Test static file serving"""
     
     def test_video_file_headers(self):
-        """Test that video files are served with correct headers"""
-        # This tests the internal endpoint
-        response = requests.head(f"{BASE_URL}/uploads/videos/e4d1e078-5290-4735-a5f2-d577a8758cd8.mov")
-        # Note: This may return 200 or redirect depending on ingress config
-        # The important thing is it doesn't return 404
-        assert response.status_code in [200, 301, 302, 307, 308]
+        """Test that video files are served with correct headers via /api/uploads/"""
+        response = requests.head(f"{BASE_URL}/api/uploads/videos/e4d1e078-5290-4735-a5f2-d577a8758cd8.mov")
+        assert response.status_code == 200
+        assert response.headers.get('content-type') == 'video/quicktime'
     
     def test_pdf_file_headers(self):
-        """Test that PDF files are served with correct headers"""
-        response = requests.head(f"{BASE_URL}/uploads/pdfs/6e534a92-b51e-4bbc-9673-3806b83a1d89.pdf")
-        assert response.status_code in [200, 301, 302, 307, 308]
+        """Test that PDF files are served with correct headers via /api/uploads/"""
+        response = requests.head(f"{BASE_URL}/api/uploads/pdfs/6e534a92-b51e-4bbc-9673-3806b83a1d89.pdf")
+        assert response.status_code == 200
+        assert response.headers.get('content-type') == 'application/pdf'
 
 
 if __name__ == "__main__":
