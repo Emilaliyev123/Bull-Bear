@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useRef } from "react";
 import "@/App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
@@ -7,7 +7,8 @@ import {
   TrendingUp, TrendingDown, BookOpen, Signal, Newspaper, User, LogOut,
   Menu, X, ChevronRight, Play, Lock, CheckCircle, AlertCircle, Crown,
   BarChart3, Shield, Brain, Target, DollarSign, Clock, ArrowUpRight, ArrowDownRight,
-  Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff
+  Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
+  Video, Package, Sparkles
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -85,7 +86,7 @@ const api = {
 
 // =============== COMPONENTS ===============
 
-const GoldButton = ({ children, onClick, className = "", variant = "primary", disabled = false, ...props }) => {
+const GoldButton = ({ children, onClick, className = "", variant = "primary", disabled = false, type = "button", ...props }) => {
   const baseClasses = "font-semibold px-6 py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2";
   const variants = {
     primary: "bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:from-amber-400 hover:to-yellow-400 shadow-lg shadow-amber-500/25",
@@ -98,6 +99,7 @@ const GoldButton = ({ children, onClick, className = "", variant = "primary", di
       whileTap={{ scale: disabled ? 1 : 0.98 }}
       onClick={onClick}
       disabled={disabled}
+      type={type}
       className={`${baseClasses} ${variants[variant]} ${disabled ? 'opacity-50 cursor-not-allowed' : ''} ${className}`}
       {...props}
     >
@@ -147,6 +149,7 @@ const Navbar = () => {
 
   const navLinks = [
     { path: "/", label: "Home", icon: BarChart3 },
+    { path: "/products", label: "Products", icon: Package },
     { path: "/courses", label: "Courses", icon: BookOpen },
     { path: "/signals", label: "Signals", icon: Signal },
     { path: "/book", label: "Book", icon: BookOpen },
@@ -267,6 +270,209 @@ const PageWrapper = ({ children }) => (
   </motion.div>
 );
 
+// =============== PRODUCTS PAGE ===============
+
+const ProductsPage = () => {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+
+  const handlePurchase = async (productType) => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    try {
+      await api.post(`/purchase/${productType}`, {}, token);
+      alert(`Successfully purchased ${productType}!`);
+      window.location.reload();
+    } catch (e) {
+      alert('Purchase failed');
+    }
+  };
+
+  const products = [
+    {
+      id: 'course',
+      title: 'Trading Courses',
+      subtitle: 'Complete Education System',
+      description: 'Master the markets with our comprehensive video course library. From beginner basics to advanced strategies.',
+      price: 49.90,
+      priceType: 'one-time',
+      icon: Video,
+      color: 'from-blue-500 to-cyan-500',
+      features: [
+        '50+ HD Video Lessons',
+        'Beginner to Advanced Content',
+        'Technical Analysis Mastery',
+        'Risk Management Strategies',
+        'Trading Psychology',
+        'Lifetime Access',
+        'Certificate of Completion'
+      ],
+      hasAccess: user?.course_access || user?.is_admin,
+      link: '/courses'
+    },
+    {
+      id: 'book',
+      title: 'Trading Book',
+      subtitle: 'Bull & Bear Trading Mastery',
+      description: 'The complete written guide to professional trading. PDF format with over 200 pages of premium content.',
+      price: 29.90,
+      priceType: 'one-time',
+      icon: BookOpen,
+      color: 'from-purple-500 to-pink-500',
+      features: [
+        '200+ Page PDF Guide',
+        'Complete Trading Methodology',
+        'Chart Analysis Examples',
+        'Risk Management Framework',
+        'Trading Journal Templates',
+        'Lifetime Updates',
+        'Offline Reading'
+      ],
+      hasAccess: user?.book_access || user?.is_admin,
+      link: '/book'
+    },
+    {
+      id: 'signals',
+      title: 'Private Signals',
+      subtitle: 'Premium Trading Signals',
+      description: 'Receive high-probability trade setups directly from our expert analysts. Real-time alerts with exact entry, SL & TP.',
+      price: 19.90,
+      priceType: 'monthly',
+      icon: Signal,
+      color: 'from-amber-500 to-yellow-500',
+      features: [
+        'Daily Trade Signals',
+        'Forex, Crypto & Indices',
+        'Exact Entry & Exit Levels',
+        'Risk Management Notes',
+        'Real-time Notifications',
+        'Signal Performance Stats',
+        '24/7 Support'
+      ],
+      hasAccess: user?.signals_subscription || user?.is_admin,
+      link: '/signals',
+      popular: true
+    }
+  ];
+
+  return (
+    <PageWrapper>
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6"
+          >
+            <Sparkles className="text-amber-500" size={16} />
+            <span className="text-amber-500 text-sm font-medium">Premium Products</span>
+          </motion.div>
+          
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Choose Your <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Trading Journey</span>
+          </h1>
+          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
+            Everything you need to become a professional trader. Courses, books, and live signals - all in one place.
+          </p>
+        </div>
+
+        {/* Products Grid */}
+        <div className="grid md:grid-cols-3 gap-8">
+          {products.map((product, index) => (
+            <motion.div
+              key={product.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
+            >
+              {product.popular && (
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
+                  MOST POPULAR
+                </div>
+              )}
+              
+              <div className={`p-8 ${product.popular ? 'pt-14' : ''}`}>
+                {/* Icon */}
+                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-6`}>
+                  <product.icon className="text-white" size={32} />
+                </div>
+
+                {/* Title */}
+                <h3 className="text-2xl font-bold text-white mb-1">{product.title}</h3>
+                <p className="text-amber-500 text-sm mb-4">{product.subtitle}</p>
+                <p className="text-zinc-400 text-sm mb-6">{product.description}</p>
+
+                {/* Price */}
+                <div className="mb-6">
+                  <span className="text-4xl font-bold text-white">${product.price}</span>
+                  <span className="text-zinc-500 ml-2">/ {product.priceType}</span>
+                </div>
+
+                {/* Features */}
+                <ul className="space-y-3 mb-8">
+                  {product.features.map((feature, i) => (
+                    <li key={i} className="flex items-center gap-3 text-zinc-300 text-sm">
+                      <CheckCircle className="text-emerald-500 flex-shrink-0" size={16} />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA Button */}
+                {product.hasAccess ? (
+                  <div className="space-y-3">
+                    <div className="bg-emerald-500/20 text-emerald-500 px-4 py-3 rounded-lg flex items-center justify-center gap-2">
+                      <CheckCircle size={18} />
+                      Access Granted
+                    </div>
+                    <GoldButton variant="secondary" onClick={() => navigate(product.link)} className="w-full">
+                      View Content <ChevronRight size={18} />
+                    </GoldButton>
+                  </div>
+                ) : (
+                  <GoldButton onClick={() => handlePurchase(product.id)} className="w-full">
+                    <Lock size={18} /> Get Access
+                  </GoldButton>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Bundle Offer */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-16"
+        >
+          <Card3D className="relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-yellow-500/10" />
+            <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 p-4">
+              <div>
+                <span className="inline-block bg-amber-500 text-black text-xs font-bold px-3 py-1 rounded-full mb-4">BEST VALUE</span>
+                <h3 className="text-2xl font-bold text-white mb-2">Complete Trading Bundle</h3>
+                <p className="text-zinc-400">Get all products together and save 20%! Courses + Book + 3 Months Signals</p>
+              </div>
+              <div className="text-center">
+                <p className="text-zinc-500 line-through">$139.60</p>
+                <p className="text-4xl font-bold text-amber-500 mb-4">$99.90</p>
+                <GoldButton onClick={() => alert('Bundle purchase coming soon!')}>
+                  <Package size={18} /> Get Bundle
+                </GoldButton>
+              </div>
+            </div>
+          </Card3D>
+        </motion.div>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // =============== PAGES ===============
 
 const HomePage = () => {
@@ -325,7 +531,7 @@ const HomePage = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <GoldButton onClick={() => navigate('/courses')} className="text-lg px-8 py-4">
+              <GoldButton onClick={() => navigate('/products')} className="text-lg px-8 py-4">
                 <Play size={20} /> Start Learning
               </GoldButton>
               <GoldButton variant="secondary" onClick={() => navigate('/signals')} className="text-lg px-8 py-4">
@@ -440,8 +646,8 @@ const HomePage = () => {
           <div className="relative">
             <h2 className="text-3xl font-bold text-white mb-4">Ready to Start Trading Professionally?</h2>
             <p className="text-zinc-400 mb-8 max-w-xl mx-auto">Join our community of successful traders and get access to premium education, signals, and market analysis.</p>
-            <GoldButton onClick={() => navigate(user ? '/courses' : '/register')} className="text-lg px-8 py-4">
-              {user ? 'Browse Courses' : 'Get Started Now'} <ChevronRight size={20} />
+            <GoldButton onClick={() => navigate('/products')} className="text-lg px-8 py-4">
+              View All Products <ChevronRight size={20} />
             </GoldButton>
           </div>
         </Card3D>
@@ -1234,7 +1440,8 @@ const ProfilePage = () => {
   );
 };
 
-// Admin Page will be in a separate file due to length
+// =============== ENHANCED ADMIN PAGE ===============
+
 const AdminPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -1244,11 +1451,14 @@ const AdminPage = () => {
   const [courses, setCourses] = useState([]);
   const [signals, setSignals] = useState([]);
   const [news, setNews] = useState([]);
+  const [book, setBook] = useState(null);
+  const [editingCourse, setEditingCourse] = useState(null);
   
   // Form states
-  const [courseForm, setCourseForm] = useState({ title: '', description: '', category: 'beginner', video_url: '', is_free: false });
-  const [signalForm, setSignalForm] = useState({ asset: '', direction: 'BUY', entry_price: '', stop_loss: '', take_profit_1: '', risk_note: '' });
-  const [newsForm, setNewsForm] = useState({ title: '', content: '', tags: '' });
+  const [courseForm, setCourseForm] = useState({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
+  const [signalForm, setSignalForm] = useState({ asset: '', direction: 'BUY', entry_price: '', stop_loss: '', take_profit_1: '', take_profit_2: '', take_profit_3: '', risk_note: '', is_pinned: false });
+  const [newsForm, setNewsForm] = useState({ title: '', content: '', image_url: '', tags: '' });
+  const [bookForm, setBookForm] = useState({ title: '', description: '', cover_url: '', pdf_url: '', price: 29.90 });
 
   useEffect(() => {
     if (!user?.is_admin) {
@@ -1260,18 +1470,27 @@ const AdminPage = () => {
 
   const loadData = async () => {
     try {
-      const [statsRes, usersRes, coursesRes, signalsRes, newsRes] = await Promise.all([
+      const [statsRes, usersRes, coursesRes, signalsRes, newsRes, bookRes] = await Promise.all([
         api.get('/admin/stats', token),
         api.get('/admin/users', token),
         api.get('/courses', token),
         api.get('/signals', token),
-        api.get('/news')
+        api.get('/news'),
+        api.get('/book', token)
       ]);
       setStats(statsRes.data);
       setUsers(usersRes.data);
       setCourses(coursesRes.data);
       setSignals(signalsRes.data.signals || []);
       setNews(newsRes.data);
+      setBook(bookRes.data);
+      setBookForm({
+        title: bookRes.data?.title || 'Bull & Bear Trading Mastery',
+        description: bookRes.data?.description || '',
+        cover_url: bookRes.data?.cover_url || '',
+        pdf_url: bookRes.data?.pdf_url || '',
+        price: bookRes.data?.price || 29.90
+      });
     } catch (e) {
       console.error(e);
     }
@@ -1281,21 +1500,48 @@ const AdminPage = () => {
     e.preventDefault();
     try {
       await api.post('/courses', courseForm, token);
-      setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', is_free: false });
+      setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
       loadData();
+      alert('Course added successfully!');
     } catch (e) {
       alert('Failed to add course');
     }
   };
 
+  const updateCourse = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/courses/${editingCourse.id}`, courseForm, token);
+      setEditingCourse(null);
+      setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
+      loadData();
+      alert('Course updated successfully!');
+    } catch (e) {
+      alert('Failed to update course');
+    }
+  };
+
   const deleteCourse = async (id) => {
-    if (!confirm('Delete this course?')) return;
+    if (!window.confirm('Delete this course?')) return;
     try {
       await api.delete(`/courses/${id}`, token);
       loadData();
     } catch (e) {
       alert('Failed to delete');
     }
+  };
+
+  const startEditCourse = (course) => {
+    setEditingCourse(course);
+    setCourseForm({
+      title: course.title,
+      description: course.description,
+      category: course.category,
+      video_url: course.video_url || '',
+      thumbnail: course.thumbnail || '',
+      duration: course.duration || '',
+      is_free: course.is_free
+    });
   };
 
   const addSignal = async (e) => {
@@ -1305,10 +1551,13 @@ const AdminPage = () => {
         ...signalForm,
         entry_price: parseFloat(signalForm.entry_price),
         stop_loss: parseFloat(signalForm.stop_loss),
-        take_profit_1: parseFloat(signalForm.take_profit_1)
+        take_profit_1: parseFloat(signalForm.take_profit_1),
+        take_profit_2: signalForm.take_profit_2 ? parseFloat(signalForm.take_profit_2) : null,
+        take_profit_3: signalForm.take_profit_3 ? parseFloat(signalForm.take_profit_3) : null
       }, token);
-      setSignalForm({ asset: '', direction: 'BUY', entry_price: '', stop_loss: '', take_profit_1: '', risk_note: '' });
+      setSignalForm({ asset: '', direction: 'BUY', entry_price: '', stop_loss: '', take_profit_1: '', take_profit_2: '', take_profit_3: '', risk_note: '', is_pinned: false });
       loadData();
+      alert('Signal posted successfully!');
     } catch (e) {
       alert('Failed to add signal');
     }
@@ -1323,8 +1572,17 @@ const AdminPage = () => {
     }
   };
 
+  const toggleSignalPin = async (id, currentPinned) => {
+    try {
+      await api.put(`/signals/${id}`, { is_pinned: !currentPinned }, token);
+      loadData();
+    } catch (e) {
+      alert('Failed to update');
+    }
+  };
+
   const deleteSignal = async (id) => {
-    if (!confirm('Delete this signal?')) return;
+    if (!window.confirm('Delete this signal?')) return;
     try {
       await api.delete(`/signals/${id}`, token);
       loadData();
@@ -1340,20 +1598,32 @@ const AdminPage = () => {
         ...newsForm,
         tags: newsForm.tags.split(',').map(t => t.trim()).filter(Boolean)
       }, token);
-      setNewsForm({ title: '', content: '', tags: '' });
+      setNewsForm({ title: '', content: '', image_url: '', tags: '' });
       loadData();
+      alert('News article posted!');
     } catch (e) {
       alert('Failed to add news');
     }
   };
 
   const deleteNews = async (id) => {
-    if (!confirm('Delete this article?')) return;
+    if (!window.confirm('Delete this article?')) return;
     try {
       await api.delete(`/news/${id}`, token);
       loadData();
     } catch (e) {
       alert('Failed to delete');
+    }
+  };
+
+  const updateBook = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put('/book', bookForm, token);
+      loadData();
+      alert('Book updated successfully!');
+    } catch (e) {
+      alert('Failed to update book');
     }
   };
 
@@ -1370,7 +1640,8 @@ const AdminPage = () => {
 
   const tabs = [
     { id: 'stats', label: 'Dashboard', icon: BarChart3 },
-    { id: 'courses', label: 'Courses', icon: BookOpen },
+    { id: 'courses', label: 'Courses', icon: Video },
+    { id: 'book', label: 'Book/PDF', icon: FileText },
     { id: 'signals', label: 'Signals', icon: Signal },
     { id: 'news', label: 'News', icon: Newspaper },
     { id: 'users', label: 'Users', icon: Users },
@@ -1407,158 +1678,409 @@ const AdminPage = () => {
           </div>
         )}
 
-        {/* Courses Tab */}
+        {/* Courses Tab - Enhanced */}
         {activeTab === 'courses' && (
-          <div className="grid lg:grid-cols-2 gap-6">
+          <div className="space-y-8">
             <Card3D>
-              <h3 className="text-lg font-semibold text-white mb-4">Add New Course</h3>
-              <form onSubmit={addCourse} className="space-y-4">
-                <input
-                  placeholder="Course Title"
-                  value={courseForm.title}
-                  onChange={e => setCourseForm({...courseForm, title: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                  required
-                />
-                <textarea
-                  placeholder="Description"
-                  value={courseForm.description}
-                  onChange={e => setCourseForm({...courseForm, description: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white h-24"
-                  required
-                />
-                <select
-                  value={courseForm.category}
-                  onChange={e => setCourseForm({...courseForm, category: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                >
-                  <option value="beginner">Beginner</option>
-                  <option value="advanced">Advanced</option>
-                  <option value="psychology">Psychology</option>
-                  <option value="risk-management">Risk Management</option>
-                  <option value="technical-analysis">Technical Analysis</option>
-                </select>
-                <input
-                  placeholder="Video URL"
-                  value={courseForm.video_url}
-                  onChange={e => setCourseForm({...courseForm, video_url: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                />
-                <label className="flex items-center gap-2 text-zinc-400">
-                  <input
-                    type="checkbox"
-                    checked={courseForm.is_free}
-                    onChange={e => setCourseForm({...courseForm, is_free: e.target.checked})}
-                    className="rounded"
+              <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                <Video className="text-amber-500" /> {editingCourse ? 'Edit Course' : 'Add New Course'}
+              </h3>
+              <form onSubmit={editingCourse ? updateCourse : addCourse} className="space-y-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Course Title *</label>
+                    <input
+                      placeholder="e.g., Introduction to Forex Trading"
+                      value={courseForm.title}
+                      onChange={e => setCourseForm({...courseForm, title: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Category *</label>
+                    <select
+                      value={courseForm.category}
+                      onChange={e => setCourseForm({...courseForm, category: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    >
+                      <option value="beginner">Beginner</option>
+                      <option value="advanced">Advanced</option>
+                      <option value="psychology">Psychology</option>
+                      <option value="risk-management">Risk Management</option>
+                      <option value="technical-analysis">Technical Analysis</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block">Description *</label>
+                  <textarea
+                    placeholder="Describe what students will learn in this course..."
+                    value={courseForm.description}
+                    onChange={e => setCourseForm({...courseForm, description: e.target.value})}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white h-24"
+                    required
                   />
-                  Free Preview
-                </label>
-                <GoldButton type="submit"><PlusCircle size={18} /> Add Course</GoldButton>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
+                      <Upload size={16} /> Video URL
+                    </label>
+                    <input
+                      placeholder="https://youtube.com/watch?v=... or direct video URL"
+                      value={courseForm.video_url}
+                      onChange={e => setCourseForm({...courseForm, video_url: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    />
+                    <p className="text-zinc-600 text-xs mt-1">YouTube, Vimeo, or direct MP4 link</p>
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Thumbnail URL</label>
+                    <input
+                      placeholder="https://example.com/thumbnail.jpg"
+                      value={courseForm.thumbnail}
+                      onChange={e => setCourseForm({...courseForm, thumbnail: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Duration</label>
+                    <input
+                      placeholder="e.g., 45 minutes"
+                      value={courseForm.duration}
+                      onChange={e => setCourseForm({...courseForm, duration: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <label className="flex items-center gap-3 text-zinc-400 cursor-pointer bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 w-full">
+                      <input
+                        type="checkbox"
+                        checked={courseForm.is_free}
+                        onChange={e => setCourseForm({...courseForm, is_free: e.target.checked})}
+                        className="rounded w-5 h-5"
+                      />
+                      <span>Free Preview (visible to all)</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <GoldButton type="submit">
+                    {editingCourse ? <><Edit size={18} /> Update Course</> : <><PlusCircle size={18} /> Add Course</>}
+                  </GoldButton>
+                  {editingCourse && (
+                    <GoldButton type="button" variant="secondary" onClick={() => {
+                      setEditingCourse(null);
+                      setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
+                    }}>
+                      Cancel
+                    </GoldButton>
+                  )}
+                </div>
               </form>
             </Card3D>
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Existing Courses ({courses.length})</h3>
-              {courses.map(course => (
-                <Card3D key={course.id} className="flex justify-between items-center">
-                  <div>
-                    <p className="text-white font-medium">{course.title}</p>
-                    <p className="text-zinc-500 text-sm">{course.category}</p>
-                  </div>
-                  <button onClick={() => deleteCourse(course.id)} className="text-red-500 hover:text-red-400">
-                    <Trash2 size={18} />
-                  </button>
-                </Card3D>
-              ))}
+
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">Existing Courses ({courses.length})</h3>
+              <div className="grid md:grid-cols-2 gap-4">
+                {courses.map(course => (
+                  <Card3D key={course.id}>
+                    <div className="flex gap-4">
+                      <div className="w-24 h-16 bg-zinc-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                        {course.thumbnail ? (
+                          <img src={course.thumbnail} alt="" className="w-full h-full object-cover rounded-lg" />
+                        ) : (
+                          <Video className="text-zinc-600" size={24} />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-white font-medium truncate">{course.title}</p>
+                            <p className="text-zinc-500 text-sm">{course.category?.replace('-', ' ')}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            {course.is_free && <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded">FREE</span>}
+                            {course.video_url && <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-1 rounded">VIDEO</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button onClick={() => startEditCourse(course)} className="text-amber-500 hover:text-amber-400 p-1">
+                            <Edit size={16} />
+                          </button>
+                          <button onClick={() => deleteCourse(course.id)} className="text-red-500 hover:text-red-400 p-1">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card3D>
+                ))}
+              </div>
             </div>
           </div>
         )}
 
-        {/* Signals Tab */}
-        {activeTab === 'signals' && (
-          <div className="grid lg:grid-cols-2 gap-6">
-            <Card3D>
-              <h3 className="text-lg font-semibold text-white mb-4">Post New Signal</h3>
-              <form onSubmit={addSignal} className="space-y-4">
+        {/* Book/PDF Tab - New */}
+        {activeTab === 'book' && (
+          <Card3D>
+            <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+              <FileText className="text-amber-500" /> Manage Trading Book
+            </h3>
+            <form onSubmit={updateBook} className="space-y-4">
+              <div>
+                <label className="text-zinc-400 text-sm mb-2 block">Book Title</label>
                 <input
-                  placeholder="Asset (e.g., EUR/USD)"
-                  value={signalForm.asset}
-                  onChange={e => setSignalForm({...signalForm, asset: e.target.value})}
+                  placeholder="Bull & Bear Trading Mastery"
+                  value={bookForm.title}
+                  onChange={e => setBookForm({...bookForm, title: e.target.value})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                  required
                 />
-                <select
-                  value={signalForm.direction}
-                  onChange={e => setSignalForm({...signalForm, direction: e.target.value})}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                >
-                  <option value="BUY">BUY</option>
-                  <option value="SELL">SELL</option>
-                </select>
-                <div className="grid grid-cols-3 gap-4">
+              </div>
+              
+              <div>
+                <label className="text-zinc-400 text-sm mb-2 block">Description</label>
+                <textarea
+                  placeholder="Describe your book..."
+                  value={bookForm.description}
+                  onChange={e => setBookForm({...bookForm, description: e.target.value})}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white h-32"
+                />
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
+                    <Upload size={16} /> Book Cover Image URL
+                  </label>
                   <input
-                    placeholder="Entry"
-                    type="number"
-                    step="any"
-                    value={signalForm.entry_price}
-                    onChange={e => setSignalForm({...signalForm, entry_price: e.target.value})}
+                    placeholder="https://example.com/cover.jpg"
+                    value={bookForm.cover_url}
+                    onChange={e => setBookForm({...bookForm, cover_url: e.target.value})}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                    required
-                  />
-                  <input
-                    placeholder="Stop Loss"
-                    type="number"
-                    step="any"
-                    value={signalForm.stop_loss}
-                    onChange={e => setSignalForm({...signalForm, stop_loss: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                    required
-                  />
-                  <input
-                    placeholder="Take Profit"
-                    type="number"
-                    step="any"
-                    value={signalForm.take_profit_1}
-                    onChange={e => setSignalForm({...signalForm, take_profit_1: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                    required
                   />
                 </div>
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
+                    <FileText size={16} /> PDF File URL
+                  </label>
+                  <input
+                    placeholder="https://example.com/book.pdf"
+                    value={bookForm.pdf_url}
+                    onChange={e => setBookForm({...bookForm, pdf_url: e.target.value})}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                  />
+                  <p className="text-zinc-600 text-xs mt-1">Direct link to PDF file (Google Drive, Dropbox, etc.)</p>
+                </div>
+              </div>
+
+              <div className="w-48">
+                <label className="text-zinc-400 text-sm mb-2 block">Price ($)</label>
                 <input
-                  placeholder="Risk Note"
-                  value={signalForm.risk_note}
-                  onChange={e => setSignalForm({...signalForm, risk_note: e.target.value})}
+                  type="number"
+                  step="0.01"
+                  placeholder="29.90"
+                  value={bookForm.price}
+                  onChange={e => setBookForm({...bookForm, price: parseFloat(e.target.value)})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
                 />
-                <GoldButton type="submit"><PlusCircle size={18} /> Post Signal</GoldButton>
-              </form>
-            </Card3D>
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Active Signals ({signals.length})</h3>
-              {signals.slice(0, 10).map(signal => (
-                <Card3D key={signal.id}>
-                  <div className="flex justify-between items-start">
+              </div>
+
+              {/* Preview */}
+              {(bookForm.cover_url || bookForm.pdf_url) && (
+                <div className="bg-zinc-800/50 rounded-lg p-4 mt-4">
+                  <p className="text-zinc-400 text-sm mb-3">Preview:</p>
+                  <div className="flex gap-4 items-center">
+                    {bookForm.cover_url && (
+                      <img src={bookForm.cover_url} alt="Cover" className="w-20 h-28 object-cover rounded" />
+                    )}
                     <div>
-                      <p className="text-white font-medium">{signal.asset} - {signal.direction}</p>
-                      <p className="text-zinc-500 text-sm">Entry: {signal.entry_price}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={signal.status}
-                        onChange={e => updateSignalStatus(signal.id, e.target.value)}
-                        className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-white text-sm"
-                      >
-                        <option value="active">Active</option>
-                        <option value="tp_hit">TP Hit</option>
-                        <option value="sl_hit">SL Hit</option>
-                        <option value="closed">Closed</option>
-                      </select>
-                      <button onClick={() => deleteSignal(signal.id)} className="text-red-500 hover:text-red-400">
-                        <Trash2 size={18} />
-                      </button>
+                      <p className="text-white font-medium">{bookForm.title || 'Untitled'}</p>
+                      <p className="text-amber-500">${bookForm.price}</p>
+                      {bookForm.pdf_url && <p className="text-emerald-500 text-sm mt-1">✓ PDF Uploaded</p>}
                     </div>
                   </div>
-                </Card3D>
-              ))}
+                </div>
+              )}
+
+              <GoldButton type="submit">
+                <Upload size={18} /> Save Book Settings
+              </GoldButton>
+            </form>
+          </Card3D>
+        )}
+
+        {/* Signals Tab - Enhanced */}
+        {activeTab === 'signals' && (
+          <div className="space-y-8">
+            <Card3D>
+              <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                <Signal className="text-amber-500" /> Post New Signal
+              </h3>
+              <form onSubmit={addSignal} className="space-y-4">
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Asset *</label>
+                    <input
+                      placeholder="e.g., EUR/USD, BTC/USD, XAU/USD"
+                      value={signalForm.asset}
+                      onChange={e => setSignalForm({...signalForm, asset: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Direction *</label>
+                    <select
+                      value={signalForm.direction}
+                      onChange={e => setSignalForm({...signalForm, direction: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    >
+                      <option value="BUY">🟢 BUY (Long)</option>
+                      <option value="SELL">🔴 SELL (Short)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Entry Price *</label>
+                    <input
+                      placeholder="1.0850"
+                      type="number"
+                      step="any"
+                      value={signalForm.entry_price}
+                      onChange={e => setSignalForm({...signalForm, entry_price: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Stop Loss *</label>
+                    <input
+                      placeholder="1.0800"
+                      type="number"
+                      step="any"
+                      value={signalForm.stop_loss}
+                      onChange={e => setSignalForm({...signalForm, stop_loss: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Take Profit 1 *</label>
+                    <input
+                      placeholder="1.0900"
+                      type="number"
+                      step="any"
+                      value={signalForm.take_profit_1}
+                      onChange={e => setSignalForm({...signalForm, take_profit_1: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Take Profit 2</label>
+                    <input
+                      placeholder="1.0950 (optional)"
+                      type="number"
+                      step="any"
+                      value={signalForm.take_profit_2}
+                      onChange={e => setSignalForm({...signalForm, take_profit_2: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-zinc-400 text-sm mb-2 block">Take Profit 3</label>
+                    <input
+                      placeholder="1.1000 (optional)"
+                      type="number"
+                      step="any"
+                      value={signalForm.take_profit_3}
+                      onChange={e => setSignalForm({...signalForm, take_profit_3: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block">Risk Note</label>
+                  <input
+                    placeholder="e.g., High volatility expected, manage risk accordingly"
+                    value={signalForm.risk_note}
+                    onChange={e => setSignalForm({...signalForm, risk_note: e.target.value})}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                  />
+                </div>
+
+                <label className="flex items-center gap-3 text-zinc-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={signalForm.is_pinned}
+                    onChange={e => setSignalForm({...signalForm, is_pinned: e.target.checked})}
+                    className="rounded w-5 h-5"
+                  />
+                  <span>📌 Pin this signal (highlighted at top)</span>
+                </label>
+
+                <GoldButton type="submit">
+                  <PlusCircle size={18} /> Post Signal
+                </GoldButton>
+              </form>
+            </Card3D>
+
+            <div>
+              <h3 className="text-xl font-semibold text-white mb-4">Active Signals ({signals.length})</h3>
+              <div className="space-y-3">
+                {signals.map(signal => (
+                  <Card3D key={signal.id} className={signal.is_pinned ? 'border-amber-500/50' : ''}>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${signal.direction === 'BUY' ? 'bg-emerald-500/20' : 'bg-red-500/20'}`}>
+                          {signal.direction === 'BUY' ? <TrendingUp className="text-emerald-500" /> : <TrendingDown className="text-red-500" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-white font-bold text-lg">{signal.asset}</p>
+                            {signal.is_pinned && <Crown className="text-amber-500" size={16} />}
+                          </div>
+                          <p className="text-zinc-500 text-sm">
+                            Entry: {signal.entry_price} | SL: {signal.stop_loss} | TP: {signal.take_profit_1}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <select
+                          value={signal.status}
+                          onChange={e => updateSignalStatus(signal.id, e.target.value)}
+                          className="bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-white text-sm"
+                        >
+                          <option value="active">🟡 Active</option>
+                          <option value="tp_hit">🟢 TP Hit</option>
+                          <option value="sl_hit">🔴 SL Hit</option>
+                          <option value="closed">⚪ Closed</option>
+                        </select>
+                        <button
+                          onClick={() => toggleSignalPin(signal.id, signal.is_pinned)}
+                          className={`p-2 rounded ${signal.is_pinned ? 'text-amber-500' : 'text-zinc-500 hover:text-amber-500'}`}
+                        >
+                          <Crown size={18} />
+                        </button>
+                        <button onClick={() => deleteSignal(signal.id)} className="text-red-500 hover:text-red-400 p-2">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  </Card3D>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1570,21 +2092,27 @@ const AdminPage = () => {
               <h3 className="text-lg font-semibold text-white mb-4">Post News Article</h3>
               <form onSubmit={addNews} className="space-y-4">
                 <input
-                  placeholder="Title"
+                  placeholder="Article Title"
                   value={newsForm.title}
                   onChange={e => setNewsForm({...newsForm, title: e.target.value})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
                   required
                 />
                 <textarea
-                  placeholder="Content"
+                  placeholder="Article content..."
                   value={newsForm.content}
                   onChange={e => setNewsForm({...newsForm, content: e.target.value})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white h-32"
                   required
                 />
                 <input
-                  placeholder="Tags (comma separated)"
+                  placeholder="Image URL (optional)"
+                  value={newsForm.image_url}
+                  onChange={e => setNewsForm({...newsForm, image_url: e.target.value})}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
+                />
+                <input
+                  placeholder="Tags (comma separated): Forex, Crypto, Analysis"
                   value={newsForm.tags}
                   onChange={e => setNewsForm({...newsForm, tags: e.target.value})}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
@@ -1684,6 +2212,7 @@ function App() {
           <Navbar />
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/products" element={<ProductsPage />} />
             <Route path="/courses" element={<CoursesPage />} />
             <Route path="/signals" element={<SignalsPage />} />
             <Route path="/book" element={<BookPage />} />
