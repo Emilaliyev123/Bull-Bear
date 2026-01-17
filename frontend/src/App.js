@@ -1649,7 +1649,21 @@ const AdminPage = () => {
     }
   };
 
-  if (!user?.is_admin) return null;
+  // Show access denied if not admin (after loading is complete)
+  if (!loading && !user?.is_admin) {
+    return (
+      <PageWrapper>
+        <div className="max-w-md mx-auto px-4 text-center py-20">
+          <Lock className="text-amber-500 mx-auto mb-4\" size={64} />
+          <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+          <p className="text-zinc-400 mb-6">You need admin privileges to access this page.</p>
+          <GoldButton onClick={() => navigate('/login')}>
+            Login as Admin
+          </GoldButton>
+        </div>
+      </PageWrapper>
+    );
+  }
 
   const tabs = [
     { id: 'stats', label: 'Dashboard', icon: BarChart3 },
