@@ -1469,6 +1469,18 @@ const AdminPage = () => {
     loadData();
   }, [user, loading]);
 
+  // Show loading state while checking auth
+  if (loading) {
+    return (
+      <PageWrapper>
+        <div className="max-w-7xl mx-auto px-4 text-center py-20">
+          <div className="animate-spin w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p className="text-zinc-400">Loading...</p>
+        </div>
+      </PageWrapper>
+    );
+  }
+
   const loadData = async () => {
     try {
       const [statsRes, usersRes, coursesRes, signalsRes, newsRes, bookRes] = await Promise.all([
