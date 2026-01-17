@@ -2296,6 +2296,199 @@ const AdminPage = () => {
   );
 };
 
+// =============== SUPPORT PAGE ===============
+
+const SupportPage = () => {
+  const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Open email client with pre-filled info
+    const mailtoLink = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(formData.subject)}&body=${encodeURIComponent(`Name: ${formData.name}\nEmail: ${formData.email}\n\nMessage:\n${formData.message}`)}`;
+    window.location.href = mailtoLink;
+    setSubmitted(true);
+  };
+
+  const faqs = [
+    {
+      q: "How do I access the courses after purchase?",
+      a: "After purchase, all courses are immediately unlocked in your account. Simply log in and navigate to the Courses section to start learning."
+    },
+    {
+      q: "How do I receive trading signals?",
+      a: "Once subscribed, all signals appear in real-time on the Signals page. Make sure you're logged in to see the full signal details including entry, SL, and TP levels."
+    },
+    {
+      q: "Can I cancel my signals subscription?",
+      a: "Yes, you can manage your subscription from your Profile page. Cancellations take effect at the end of your current billing period."
+    },
+    {
+      q: "How do I download the trading book?",
+      a: "After purchasing the book, go to the Book section and click 'Read Book' to access the PDF. You can read it online or download it for offline reading."
+    },
+    {
+      q: "What payment methods do you accept?",
+      a: "We accept all major credit/debit cards. Crypto payments are also available upon request."
+    },
+    {
+      q: "How can I become an admin/contributor?",
+      a: "Please contact us via email with your background and experience. We're always looking for talented traders to join our team."
+    }
+  ];
+
+  return (
+    <PageWrapper>
+      <div className="max-w-6xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6"
+          >
+            <HelpCircle className="text-amber-500" size={16} />
+            <span className="text-amber-500 text-sm font-medium">Help & Support</span>
+          </motion.div>
+          
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">How Can We Help?</h1>
+          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
+            Have questions? We're here to help. Reach out to us anytime.
+          </p>
+        </div>
+
+        {/* Contact Cards */}
+        <div className="grid md:grid-cols-2 gap-8 mb-16">
+          {/* Email Contact */}
+          <Card3D className="text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/20 flex items-center justify-center">
+              <Mail className="text-amber-500" size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Email Support</h3>
+            <p className="text-zinc-400 mb-4">Send us an email and we'll respond within 24 hours.</p>
+            <a 
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-lg font-semibold"
+            >
+              <Mail size={20} />
+              {SUPPORT_EMAIL}
+            </a>
+          </Card3D>
+
+          {/* Response Time */}
+          <Card3D className="text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-green-500/20 flex items-center justify-center">
+              <MessageCircle className="text-emerald-500" size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Quick Response</h3>
+            <p className="text-zinc-400 mb-4">We typically respond to all inquiries within 24 hours.</p>
+            <div className="flex items-center justify-center gap-2 text-emerald-500">
+              <Clock size={20} />
+              <span className="font-semibold">Average: 2-4 hours</span>
+            </div>
+          </Card3D>
+        </div>
+
+        {/* Contact Form */}
+        <Card3D className="mb-16">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+            <Mail className="text-amber-500" /> Send Us a Message
+          </h2>
+          
+          {submitted ? (
+            <div className="text-center py-12">
+              <CheckCircle className="text-emerald-500 mx-auto mb-4" size={64} />
+              <h3 className="text-xl font-bold text-white mb-2">Email Client Opened!</h3>
+              <p className="text-zinc-400">Please send the email from your mail application. We'll get back to you soon!</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block">Your Name</label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    placeholder="John Doe"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-zinc-400 text-sm mb-2 block">Your Email</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData({...formData, email: e.target.value})}
+                    placeholder="john@example.com"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-zinc-400 text-sm mb-2 block">Subject</label>
+                <input
+                  type="text"
+                  value={formData.subject}
+                  onChange={e => setFormData({...formData, subject: e.target.value})}
+                  placeholder="How can we help you?"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-zinc-400 text-sm mb-2 block">Message</label>
+                <textarea
+                  value={formData.message}
+                  onChange={e => setFormData({...formData, message: e.target.value})}
+                  placeholder="Tell us more about your question or issue..."
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-amber-500 h-32"
+                  required
+                />
+              </div>
+              <GoldButton type="submit" className="w-full md:w-auto">
+                <Mail size={18} /> Send Message
+              </GoldButton>
+            </form>
+          )}
+        </Card3D>
+
+        {/* FAQ Section */}
+        <div className="mb-16">
+          <h2 className="text-2xl font-bold text-white mb-8 text-center">Frequently Asked Questions</h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            {faqs.map((faq, index) => (
+              <Card3D key={index}>
+                <h3 className="text-lg font-semibold text-white mb-3 flex items-start gap-2">
+                  <HelpCircle className="text-amber-500 flex-shrink-0 mt-1" size={18} />
+                  {faq.q}
+                </h3>
+                <p className="text-zinc-400 text-sm pl-6">{faq.a}</p>
+              </Card3D>
+            ))}
+          </div>
+        </div>
+
+        {/* Direct Email CTA */}
+        <Card3D className="text-center py-8 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-yellow-500/5" />
+          <div className="relative">
+            <h3 className="text-2xl font-bold text-white mb-4">Still Need Help?</h3>
+            <p className="text-zinc-400 mb-6">Our team is ready to assist you with any questions.</p>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>
+              <GoldButton>
+                <Mail size={18} /> Email Us Directly
+              </GoldButton>
+            </a>
+          </div>
+        </Card3D>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // Main App
 function App() {
   return (
