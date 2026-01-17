@@ -1461,12 +1461,13 @@ const AdminPage = () => {
   const [bookForm, setBookForm] = useState({ title: '', description: '', cover_url: '', pdf_url: '', price: 29.90 });
 
   useEffect(() => {
+    if (loading) return; // Wait for auth to load
     if (!user?.is_admin) {
       navigate('/');
       return;
     }
     loadData();
-  }, [user]);
+  }, [user, loading]);
 
   const loadData = async () => {
     try {
