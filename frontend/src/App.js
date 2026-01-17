@@ -1676,13 +1676,12 @@ const AdminPage = () => {
   };
 
   const deleteCourse = async (id) => {
-    if (!window.confirm('Delete this course?')) return;
     try {
       await api.delete(`/courses/${id}`, token);
-      loadData();
+      setCourses(courses.filter(c => c.id !== id));
     } catch (e) {
       console.error('Delete course error:', e);
-      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
+      alert('Failed to delete');
     }
   };
 
