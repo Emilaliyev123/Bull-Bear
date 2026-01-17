@@ -17,6 +17,25 @@ const SUPPORT_EMAIL = "bullbearacademy.su@gmail.com";
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Helper function to get full media URL (handles both relative and absolute URLs)
+const getMediaUrl = (url) => {
+  if (!url) return '';
+  // If it's already a full URL (http/https), return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Check if it's a relative path stored with old preview URL - extract just the path
+    if (url.includes('/uploads/')) {
+      const uploadPath = url.substring(url.indexOf('/uploads/'));
+      return `${BACKEND_URL}${uploadPath}`;
+    }
+    return url;
+  }
+  // If it's a relative URL starting with /, prepend BACKEND_URL
+  if (url.startsWith('/')) {
+    return `${BACKEND_URL}${url}`;
+  }
+  return url;
+};
+
 // Auth Context
 const AuthContext = createContext(null);
 
