@@ -39,8 +39,8 @@ app = FastAPI(title="Bull & Bear Trading Academy API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer(auto_error=False)
 
-# Serve uploaded files
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
+# Serve uploaded files - mount under /api/uploads for proper routing through ingress
+app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # ============ MODELS ============
 
