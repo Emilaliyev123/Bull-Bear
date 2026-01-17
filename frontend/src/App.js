@@ -1909,21 +1909,19 @@ const AdminPage = () => {
                       <Video size={16} /> Course Video
                     </label>
                     <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="file"
-                          accept="video/*"
-                          onChange={handleVideoUpload}
-                          className="hidden"
-                          id="video-upload"
-                        />
-                        <label
-                          htmlFor="video-upload"
-                          className="flex-1 bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
-                        >
-                          {uploading ? 'Uploading...' : '📁 Upload Video from Device'}
-                        </label>
-                      </div>
+                      <input
+                        type="file"
+                        accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+                        onChange={handleVideoUpload}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
+                        disabled={uploading}
+                      />
+                      {uploading && (
+                        <div className="flex items-center gap-2 text-amber-500">
+                          <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                          Uploading video...
+                        </div>
+                      )}
                       <input
                         placeholder="Or paste video URL here"
                         value={courseForm.video_url}
@@ -1931,28 +1929,26 @@ const AdminPage = () => {
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
                       />
                       {courseForm.video_url && (
-                        <p className="text-emerald-500 text-xs">✓ Video set</p>
+                        <p className="text-emerald-500 text-xs">✓ Video set: {courseForm.video_url.substring(0, 50)}...</p>
                       )}
                     </div>
                   </div>
                   <div>
                     <label className="text-zinc-400 text-sm mb-2 block">Course Thumbnail</label>
                     <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleThumbnailUpload}
-                          className="hidden"
-                          id="thumbnail-upload"
-                        />
-                        <label
-                          htmlFor="thumbnail-upload"
-                          className="flex-1 bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
-                        >
-                          {uploading ? 'Uploading...' : '🖼️ Upload Image'}
-                        </label>
-                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
+                        onChange={handleThumbnailUpload}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
+                        disabled={uploading}
+                      />
+                      {uploading && (
+                        <div className="flex items-center gap-2 text-amber-500">
+                          <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                          Uploading image...
+                        </div>
+                      )}
                       <input
                         placeholder="Or paste image URL here"
                         value={courseForm.thumbnail}
