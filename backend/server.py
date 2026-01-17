@@ -482,6 +482,70 @@ async def get_market_data():
 async def root():
     return {"message": "Bull & Bear Trading Academy API", "version": "1.0.0"}
 
+# ============ FILE UPLOAD ROUTES ============
+
+@api_router.post("/upload/video")
+async def upload_video(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    """Upload a video file"""
+    allowed_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+    file_ext = Path(file.filename).suffix.lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {allowed_extensions}")
+    
+    # Generate unique filename
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = UPLOADS_DIR / "videos" / unique_filename
+    
+    # Save file
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Return the URL
+    file_url = f"/uploads/videos/{unique_filename}"
+    return {"url": file_url, "filename": unique_filename}
+
+@api_router.post("/upload/pdf")
+async def upload_pdf(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    """Upload a PDF file"""
+    file_ext = Path(file.filename).suffix.lower()
+    
+    if file_ext != '.pdf':
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    # Generate unique filename
+    unique_filename = f"{uuid.uuid4()}.pdf"
+    file_path = UPLOADS_DIR / "pdfs" / unique_filename
+    
+    # Save file
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Return the URL
+    file_url = f"/uploads/pdfs/{unique_filename}"
+    return {"url": file_url, "filename": unique_filename}
+
+@api_router.post("/upload/image")
+async def upload_image(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    """Upload an image file"""
+    allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+    file_ext = Path(file.filename).suffix.lower()
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {allowed_extensions}")
+    
+    # Generate unique filename
+    unique_filename = f"{uuid.uuid4()}{file_ext}"
+    file_path = UPLOADS_DIR / "images" / unique_filename
+    
+    # Save file
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    # Return the URL
+    file_url = f"/uploads/images/{unique_filename}"
+    return {"url": file_url, "filename": unique_filename}
+
 # Include router
 app.include_router(api_router)
 
