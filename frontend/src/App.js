@@ -8,8 +8,11 @@ import {
   Menu, X, ChevronRight, Play, Lock, CheckCircle, AlertCircle, Crown,
   BarChart3, Shield, Brain, Target, DollarSign, Clock, ArrowUpRight, ArrowDownRight,
   Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
-  Video, Package, Sparkles
+  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle
 } from "lucide-react";
+
+// Support Email
+const SUPPORT_EMAIL = "bullbearacademy.su@gmail.com";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
