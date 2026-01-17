@@ -1607,7 +1607,8 @@ const AdminPage = () => {
       await api.delete(`/courses/${id}`, token);
       loadData();
     } catch (e) {
-      alert('Failed to delete');
+      console.error('Delete course error:', e);
+      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
     }
   };
 
