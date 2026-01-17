@@ -1558,8 +1558,7 @@ const AdminPage = () => {
     try {
       const response = await axios.post(`${API}/upload/${type}`, formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          'Authorization': `Bearer ${token}`
         }
       });
       setUploading(false);
