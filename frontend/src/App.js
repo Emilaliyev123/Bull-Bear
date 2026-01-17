@@ -157,6 +157,7 @@ const Navbar = () => {
     { path: "/signals", label: "Signals", icon: Signal },
     { path: "/book", label: "Book", icon: BookOpen },
     { path: "/news", label: "News", icon: Newspaper },
+    { path: "/support", label: "Support", icon: HelpCircle },
   ];
 
   return (
