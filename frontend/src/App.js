@@ -2065,26 +2065,61 @@ const AdminPage = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
-                    <Upload size={16} /> Book Cover Image URL
+                    <Upload size={16} /> Book Cover Image
                   </label>
-                  <input
-                    placeholder="https://example.com/cover.jpg"
-                    value={bookForm.cover_url}
-                    onChange={e => setBookForm({...bookForm, cover_url: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                  />
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleCoverUpload}
+                      className="hidden"
+                      id="cover-upload"
+                    />
+                    <label
+                      htmlFor="cover-upload"
+                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
+                    >
+                      {uploading ? 'Uploading...' : '🖼️ Upload Cover Image from Device'}
+                    </label>
+                    <input
+                      placeholder="Or paste image URL here"
+                      value={bookForm.cover_url}
+                      onChange={e => setBookForm({...bookForm, cover_url: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
+                    />
+                    {bookForm.cover_url && (
+                      <p className="text-emerald-500 text-xs">✓ Cover image set</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
-                    <FileText size={16} /> PDF File URL
+                    <FileText size={16} /> Book PDF File
                   </label>
-                  <input
-                    placeholder="https://example.com/book.pdf"
-                    value={bookForm.pdf_url}
-                    onChange={e => setBookForm({...bookForm, pdf_url: e.target.value})}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                  />
-                  <p className="text-zinc-600 text-xs mt-1">Direct link to PDF file (Google Drive, Dropbox, etc.)</p>
+                  <div className="space-y-2">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handlePdfUpload}
+                      className="hidden"
+                      id="pdf-upload"
+                    />
+                    <label
+                      htmlFor="pdf-upload"
+                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
+                    >
+                      {uploading ? 'Uploading...' : '📄 Upload PDF from Device'}
+                    </label>
+                    <input
+                      placeholder="Or paste PDF URL here"
+                      value={bookForm.pdf_url}
+                      onChange={e => setBookForm({...bookForm, pdf_url: e.target.value})}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
+                    />
+                    {bookForm.pdf_url && (
+                      <p className="text-emerald-500 text-xs">✓ PDF set</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
