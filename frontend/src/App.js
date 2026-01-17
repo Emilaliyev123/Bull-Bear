@@ -891,7 +891,7 @@ const CoursesPage = () => {
                   
                   {(hasAccess || selectedCourse.is_free) && selectedCourse.video_url ? (
                     <div className="aspect-video bg-black rounded-lg mb-4">
-                      <video controls className="w-full h-full rounded-lg" src={selectedCourse.video_url} />
+                      <video controls className="w-full h-full rounded-lg" src={getMediaUrl(selectedCourse.video_url)} />
                     </div>
                   ) : (
                     <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
