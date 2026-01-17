@@ -1664,25 +1664,31 @@ const AdminPage = () => {
   const addCourse = async (e) => {
     e.preventDefault();
     try {
-      await api.post('/courses', courseForm, token);
+      console.log('Adding course with data:', courseForm);
+      const response = await api.post('/courses', courseForm, token);
+      console.log('Course added:', response.data);
       setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
       loadData();
       alert('Course added successfully!');
     } catch (e) {
-      alert('Failed to add course');
+      console.error('Add course error:', e);
+      console.error('Error response:', e.response?.data);
+      alert('Failed to add course: ' + (e.response?.data?.detail || e.message));
     }
   };
 
   const updateCourse = async (e) => {
     e.preventDefault();
     try {
+      console.log('Updating course with data:', courseForm);
       await api.put(`/courses/${editingCourse.id}`, courseForm, token);
       setEditingCourse(null);
       setCourseForm({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
       loadData();
       alert('Course updated successfully!');
     } catch (e) {
-      alert('Failed to update course');
+      console.error('Update course error:', e);
+      alert('Failed to update course: ' + (e.response?.data?.detail || e.message));
     }
   };
 
