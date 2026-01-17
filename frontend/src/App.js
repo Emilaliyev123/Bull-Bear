@@ -2077,17 +2077,17 @@ const AdminPage = () => {
                   <div className="space-y-2">
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
                       onChange={handleCoverUpload}
-                      className="hidden"
-                      id="cover-upload"
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
+                      disabled={uploading}
                     />
-                    <label
-                      htmlFor="cover-upload"
-                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
-                    >
-                      {uploading ? 'Uploading...' : '🖼️ Upload Cover Image from Device'}
-                    </label>
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                        Uploading...
+                      </div>
+                    )}
                     <input
                       placeholder="Or paste image URL here"
                       value={bookForm.cover_url}
@@ -2106,17 +2106,17 @@ const AdminPage = () => {
                   <div className="space-y-2">
                     <input
                       type="file"
-                      accept=".pdf"
+                      accept=".pdf,application/pdf"
                       onChange={handlePdfUpload}
-                      className="hidden"
-                      id="pdf-upload"
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
+                      disabled={uploading}
                     />
-                    <label
-                      htmlFor="pdf-upload"
-                      className="block bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
-                    >
-                      {uploading ? 'Uploading...' : '📄 Upload PDF from Device'}
-                    </label>
+                    {uploading && (
+                      <div className="flex items-center gap-2 text-amber-500">
+                        <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                        Uploading PDF...
+                      </div>
+                    )}
                     <input
                       placeholder="Or paste PDF URL here"
                       value={bookForm.pdf_url}
