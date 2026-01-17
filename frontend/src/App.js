@@ -2493,20 +2493,25 @@ const SupportPage = () => {
 function App() {
   return (
     <AuthProvider>
-      <div className="App bg-black min-h-screen">
+      <div className="App bg-black min-h-screen flex flex-col">
         <BrowserRouter>
           <Navbar />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/courses" element={<CoursesPage />} />
-            <Route path="/signals" element={<SignalsPage />} />
-            <Route path="/book" element={<BookPage />} />
-            <Route path="/news" element={<NewsPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/admin" element={<AdminPage />} />
+          <div className="flex-1">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/courses" element={<CoursesPage />} />
+              <Route path="/signals" element={<SignalsPage />} />
+              <Route path="/book" element={<BookPage />} />
+              <Route path="/news" element={<NewsPage />} />
+              <Route path="/support" element={<SupportPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/admin" element={<AdminPage />} />
+            </Routes>
+          </div>
+          <Footer />
           </Routes>
         </BrowserRouter>
       </div>
