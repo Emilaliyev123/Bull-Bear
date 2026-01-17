@@ -2019,10 +2019,10 @@ const AdminPage = () => {
                           </div>
                         </div>
                         <div className="flex gap-2 mt-3">
-                          <button onClick={() => startEditCourse(course)} className="text-amber-500 hover:text-amber-400 p-1">
+                          <button onClick={() => startEditCourse(course)} className="bg-amber-500/20 hover:bg-amber-500/40 text-amber-500 p-2 rounded-lg transition-colors">
                             <Edit size={16} />
                           </button>
-                          <button onClick={() => deleteCourse(course.id)} className="text-red-500 hover:text-red-400 p-1">
+                          <button onClick={() => deleteCourse(course.id)} className="bg-red-500/20 hover:bg-red-500/40 text-red-500 p-2 rounded-lg transition-colors">
                             <Trash2 size={16} />
                           </button>
                         </div>
