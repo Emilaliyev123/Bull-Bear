@@ -1668,7 +1668,8 @@ const AdminPage = () => {
       await api.delete(`/signals/${id}`, token);
       loadData();
     } catch (e) {
-      alert('Failed to delete');
+      console.error('Delete signal error:', e);
+      alert('Failed to delete: ' + (e.response?.data?.detail || e.message));
     }
   };
 
