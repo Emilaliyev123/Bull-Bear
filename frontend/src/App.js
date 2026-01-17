@@ -1895,24 +1895,63 @@ const AdminPage = () => {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-zinc-400 text-sm mb-2 block flex items-center gap-2">
-                      <Upload size={16} /> Video URL
+                      <Video size={16} /> Course Video
                     </label>
-                    <input
-                      placeholder="https://youtube.com/watch?v=... or direct video URL"
-                      value={courseForm.video_url}
-                      onChange={e => setCourseForm({...courseForm, video_url: e.target.value})}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                    />
-                    <p className="text-zinc-600 text-xs mt-1">YouTube, Vimeo, or direct MP4 link</p>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="file"
+                          accept="video/*"
+                          onChange={handleVideoUpload}
+                          className="hidden"
+                          id="video-upload"
+                        />
+                        <label
+                          htmlFor="video-upload"
+                          className="flex-1 bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
+                        >
+                          {uploading ? 'Uploading...' : '📁 Upload Video from Device'}
+                        </label>
+                      </div>
+                      <input
+                        placeholder="Or paste video URL here"
+                        value={courseForm.video_url}
+                        onChange={e => setCourseForm({...courseForm, video_url: e.target.value})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
+                      />
+                      {courseForm.video_url && (
+                        <p className="text-emerald-500 text-xs">✓ Video set</p>
+                      )}
+                    </div>
                   </div>
                   <div>
-                    <label className="text-zinc-400 text-sm mb-2 block">Thumbnail URL</label>
-                    <input
-                      placeholder="https://example.com/thumbnail.jpg"
-                      value={courseForm.thumbnail}
-                      onChange={e => setCourseForm({...courseForm, thumbnail: e.target.value})}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white"
-                    />
+                    <label className="text-zinc-400 text-sm mb-2 block">Course Thumbnail</label>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleThumbnailUpload}
+                          className="hidden"
+                          id="thumbnail-upload"
+                        />
+                        <label
+                          htmlFor="thumbnail-upload"
+                          className="flex-1 bg-amber-500/20 border border-amber-500/50 text-amber-500 rounded-lg px-4 py-3 cursor-pointer hover:bg-amber-500/30 transition-colors text-center"
+                        >
+                          {uploading ? 'Uploading...' : '🖼️ Upload Image'}
+                        </label>
+                      </div>
+                      <input
+                        placeholder="Or paste image URL here"
+                        value={courseForm.thumbnail}
+                        onChange={e => setCourseForm({...courseForm, thumbnail: e.target.value})}
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white text-sm"
+                      />
+                      {courseForm.thumbnail && (
+                        <p className="text-emerald-500 text-xs">✓ Thumbnail set</p>
+                      )}
+                    </div>
                   </div>
                 </div>
 
