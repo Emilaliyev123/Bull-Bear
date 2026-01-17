@@ -1443,7 +1443,7 @@ const ProfilePage = () => {
 // =============== ENHANCED ADMIN PAGE ===============
 
 const AdminPage = () => {
-  const { user, token } = useAuth();
+  const { user, token, loading } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('stats');
   const [stats, setStats] = useState(null);
