@@ -20,17 +20,25 @@ const API = `${BACKEND_URL}/api`;
 // Helper function to get full media URL (handles both relative and absolute URLs)
 const getMediaUrl = (url) => {
   if (!url) return '';
-  // If it's already a full URL (http/https), return as-is
+  // If it's already a full URL (http/https), check if it needs conversion
   if (url.startsWith('http://') || url.startsWith('https://')) {
     // Check if it's a relative path stored with old preview URL - extract just the path
     if (url.includes('/uploads/')) {
-      const uploadPath = url.substring(url.indexOf('/uploads/'));
+      let uploadPath = url.substring(url.indexOf('/uploads/'));
+      // Ensure path has /api prefix for proper routing
+      if (!uploadPath.startsWith('/api/uploads/')) {
+        uploadPath = '/api' + uploadPath;
+      }
       return `${BACKEND_URL}${uploadPath}`;
     }
     return url;
   }
   // If it's a relative URL starting with /, prepend BACKEND_URL
   if (url.startsWith('/')) {
+    // Ensure path has /api prefix for proper routing
+    if (url.startsWith('/uploads/')) {
+      return `${BACKEND_URL}/api${url}`;
+    }
     return `${BACKEND_URL}${url}`;
   }
   return url;
