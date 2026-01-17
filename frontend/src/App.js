@@ -1790,11 +1790,15 @@ const AdminPage = () => {
   const updateBook = async (e) => {
     e.preventDefault();
     try {
-      await api.put('/book', bookForm, token);
+      console.log('Updating book with data:', bookForm);
+      const response = await api.put('/book', bookForm, token);
+      console.log('Book updated:', response.data);
       loadData();
       alert('Book updated successfully!');
     } catch (e) {
-      alert('Failed to update book');
+      console.error('Update book error:', e);
+      console.error('Error response:', e.response?.data);
+      alert('Failed to update book: ' + (e.response?.data?.detail || e.message));
     }
   };
 
