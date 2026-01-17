@@ -261,6 +261,71 @@ const Navbar = () => {
   );
 };
 
+// Footer Component
+const Footer = () => (
+  <footer className="bg-zinc-950 border-t border-zinc-800 py-12 mt-16">
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="grid md:grid-cols-4 gap-8">
+        {/* Brand */}
+        <div className="md:col-span-1">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center">
+              <TrendingUp className="text-black" size={24} />
+            </div>
+            <span className="text-xl font-bold text-white">Bull & Bear</span>
+          </div>
+          <p className="text-zinc-500 text-sm">Professional trading education, signals, and market analysis for serious traders.</p>
+        </div>
+
+        {/* Quick Links */}
+        <div>
+          <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+          <ul className="space-y-2">
+            <li><Link to="/products" className="text-zinc-400 hover:text-amber-500 text-sm">Products</Link></li>
+            <li><Link to="/courses" className="text-zinc-400 hover:text-amber-500 text-sm">Courses</Link></li>
+            <li><Link to="/signals" className="text-zinc-400 hover:text-amber-500 text-sm">Signals</Link></li>
+            <li><Link to="/book" className="text-zinc-400 hover:text-amber-500 text-sm">Book</Link></li>
+            <li><Link to="/news" className="text-zinc-400 hover:text-amber-500 text-sm">News</Link></li>
+          </ul>
+        </div>
+
+        {/* Support */}
+        <div>
+          <h4 className="text-white font-semibold mb-4">Support</h4>
+          <ul className="space-y-2">
+            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">Help Center</Link></li>
+            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">Contact Us</Link></li>
+            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">FAQ</Link></li>
+          </ul>
+        </div>
+
+        {/* Contact */}
+        <div>
+          <h4 className="text-white font-semibold mb-4">Contact Us</h4>
+          <a 
+            href={`mailto:${SUPPORT_EMAIL}`}
+            className="flex items-center gap-2 text-amber-500 hover:text-amber-400 mb-4"
+          >
+            <Mail size={18} />
+            {SUPPORT_EMAIL}
+          </a>
+          <p className="text-zinc-500 text-sm">We typically respond within 24 hours.</p>
+        </div>
+      </div>
+
+      {/* Bottom */}
+      <div className="border-t border-zinc-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p className="text-zinc-500 text-sm">© 2025 Bull & Bear Academy. All rights reserved.</p>
+        <div className="flex items-center gap-4">
+          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-zinc-400 hover:text-amber-500">
+            <Mail size={20} />
+          </a>
+        </div>
+      </div>
+    </div>
+  </footer>
+);
+
 const PageWrapper = ({ children }) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
