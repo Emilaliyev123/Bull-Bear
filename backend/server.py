@@ -394,6 +394,15 @@ async def get_news_article(news_id: str):
 async def create_news(data: NewsCreate, admin: dict = Depends(require_admin)):
     article = NewsArticle(**data.model_dump())
     await db.news.insert_one(article.model_dump())
+    
+    # Create notification for all users
+    await create_notification_for_all_users(
+        notification_type="news",
+        title="New Market Analysis",
+        message=article.title[:100],
+        link="/news"
+    )
+    
     return article.model_dump()
 
 @api_router.delete("/news/{news_id}")
