@@ -488,6 +488,7 @@ const ProductsPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(null);
+  const [useCrypto, setUseCrypto] = useState(false);
 
   const handlePurchase = async (productType) => {
     if (!user) {
@@ -500,7 +501,8 @@ const ProductsPage = () => {
       // Create Stripe checkout session
       const response = await api.post('/checkout/create', {
         product_type: productType,
-        origin_url: window.location.origin
+        origin_url: window.location.origin,
+        use_crypto: useCrypto
       }, token);
       
       // Redirect to Stripe checkout
