@@ -602,9 +602,30 @@ const ProductsPage = () => {
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
             Choose Your <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Trading Journey</span>
           </h1>
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
+          <p className="text-xl text-zinc-400 max-w-2xl mx-auto mb-6">
             Everything you need to become a professional trader. Courses, books, and live signals - all in one place.
           </p>
+          
+          {/* Crypto Payment Toggle */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <button
+              onClick={() => setUseCrypto(false)}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${!useCrypto ? 'bg-amber-500 text-black font-semibold' : 'bg-zinc-800 text-zinc-400'}`}
+            >
+              <DollarSign size={18} /> Card Payment
+            </button>
+            <button
+              onClick={() => setUseCrypto(true)}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${useCrypto ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400'}`}
+            >
+              <Shield size={18} /> USDC Crypto
+            </button>
+          </div>
+          {useCrypto && (
+            <p className="text-sm text-zinc-500 mb-4">
+              Pay with USDC on Ethereum, Base, or Polygon • 1.5% fee
+            </p>
+          )}
         </div>
 
         {/* Products Grid */}
