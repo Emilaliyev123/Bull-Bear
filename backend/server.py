@@ -193,6 +193,7 @@ class PaymentTransaction(BaseModel):
 class CheckoutRequest(BaseModel):
     product_type: str  # course, book, signals
     origin_url: str  # Frontend URL for redirects
+    use_crypto: bool = False  # Enable crypto/USDC payments
 
 # ============ AUTH HELPERS ============
 
