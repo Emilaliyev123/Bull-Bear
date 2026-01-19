@@ -9,6 +9,7 @@ import logging
 import shutil
 import subprocess
 import asyncio
+import resend
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict
