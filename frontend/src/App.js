@@ -2014,6 +2014,7 @@ const AdminPage = () => {
     { id: 'book', label: 'Book/PDF', icon: FileText },
     { id: 'signals', label: 'Signals', icon: Signal },
     { id: 'news', label: 'News', icon: Newspaper },
+    { id: 'videos', label: 'Video Manager', icon: Play },
     { id: 'users', label: 'Users', icon: Users },
   ];
 
