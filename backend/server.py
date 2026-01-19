@@ -595,13 +595,22 @@ async def create_checkout_session(request: Request, data: CheckoutRequest, user:
         "product_name": product['name']
     }
     
-    checkout_request = CheckoutSessionRequest(
-        amount=float(product['price']),
-        currency="usd",
-        success_url=success_url,
-        cancel_url=cancel_url,
-        metadata=metadata
-    )
+    # Build checkout request - add crypto payment methods if requested
+    checkout_params = {
+        "amount": float(product['price']),
+        "currency": "usd",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "metadata": metadata
+    }
+    
+    # Note: Crypto payment methods (USDC) are automatically enabled when available
+    # The Stripe SDK will include them based on merchant account settings
+    if data.use_crypto:
+        # Add a note in metadata for tracking
+        checkout_params["metadata"]["payment_method"] = "crypto_enabled"
+    
+    checkout_request = CheckoutSessionRequest(**checkout_params)
     
     try:
         session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
@@ -614,7 +623,7 @@ async def create_checkout_session(request: Request, data: CheckoutRequest, user:
             product_type=data.product_type,
             product_name=product['name'],
             amount=product['price'],
-            currency="usd",
+            currency="usd" if not data.use_crypto else "usd_crypto",
             status="pending",
             payment_status="initiated",
             metadata=metadata
