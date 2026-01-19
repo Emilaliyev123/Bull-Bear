@@ -794,6 +794,102 @@ async def stripe_webhook(request: Request):
 
 # ============ ADMIN ROUTES ============
 
+# Video conversion status tracking
+video_conversion_status = {}
+
+def convert_video_sync(input_path: str, output_path: str, task_id: str):
+    """Synchronous video conversion using ffmpeg (runs in background)"""
+    try:
+        video_conversion_status[task_id] = {"status": "processing", "progress": 0}
+        
+        # FFmpeg command to convert to MP4 with H.264 codec
+        cmd = [
+            'ffmpeg', '-y', '-i', input_path,
+            '-c:v', 'libx264', '-preset', 'medium', '-crf', '23',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart',
+            output_path
+        ]
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30 min timeout
+        
+        if result.returncode == 0:
+            video_conversion_status[task_id] = {"status": "completed", "output_path": output_path}
+            # Delete original file
+            os.remove(input_path)
+            logger.info(f"Video conversion completed: {output_path}")
+        else:
+            video_conversion_status[task_id] = {"status": "failed", "error": result.stderr[:500]}
+            logger.error(f"Video conversion failed: {result.stderr[:500]}")
+    except Exception as e:
+        video_conversion_status[task_id] = {"status": "failed", "error": str(e)}
+        logger.error(f"Video conversion error: {str(e)}")
+
+@api_router.post("/admin/convert-video")
+async def convert_video(background_tasks: BackgroundTasks, data: dict, admin: dict = Depends(require_admin)):
+    """Convert a video file from MOV to MP4"""
+    video_url = data.get('video_url', '')
+    
+    # Extract filename from URL
+    if '/api/uploads/videos/' in video_url:
+        filename = video_url.split('/api/uploads/videos/')[-1]
+    elif '/uploads/videos/' in video_url:
+        filename = video_url.split('/uploads/videos/')[-1]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid video URL")
+    
+    input_path = str(UPLOADS_DIR / 'videos' / filename)
+    
+    if not os.path.exists(input_path):
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    # Check if already MP4
+    if filename.lower().endswith('.mp4'):
+        return {"message": "Video is already MP4", "status": "completed"}
+    
+    # Generate output path
+    output_filename = os.path.splitext(filename)[0] + '.mp4'
+    output_path = str(UPLOADS_DIR / 'videos' / output_filename)
+    
+    # Create task ID
+    task_id = str(uuid.uuid4())
+    
+    # Start background conversion
+    background_tasks.add_task(convert_video_sync, input_path, output_path, task_id)
+    
+    return {
+        "task_id": task_id,
+        "status": "started",
+        "output_url": f"/api/uploads/videos/{output_filename}"
+    }
+
+@api_router.get("/admin/convert-video/status/{task_id}")
+async def get_conversion_status(task_id: str, admin: dict = Depends(require_admin)):
+    """Check video conversion status"""
+    if task_id not in video_conversion_status:
+        return {"status": "unknown"}
+    return video_conversion_status[task_id]
+
+@api_router.get("/admin/videos")
+async def get_all_videos(admin: dict = Depends(require_admin)):
+    """Get list of all video files with their formats"""
+    videos_dir = UPLOADS_DIR / 'videos'
+    videos = []
+    
+    if videos_dir.exists():
+        for file in videos_dir.iterdir():
+            if file.is_file():
+                stat = file.stat()
+                videos.append({
+                    "filename": file.name,
+                    "url": f"/api/uploads/videos/{file.name}",
+                    "size_mb": round(stat.st_size / (1024 * 1024), 2),
+                    "format": file.suffix.lower(),
+                    "needs_conversion": file.suffix.lower() in ['.mov', '.avi', '.wmv', '.mkv']
+                })
+    
+    return {"videos": videos}
+
 @api_router.get("/admin/users")
 async def get_users(admin: dict = Depends(require_admin)):
     users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
