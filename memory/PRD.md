@@ -73,7 +73,7 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 ## Pending/Future Tasks
 
 ### P1 - High Priority
-- [ ] Implement Stripe payment integration for courses, book, and signals subscriptions
+- [x] ~~Implement Stripe payment integration~~ ✅ DONE
 - [ ] Add push notifications for new signals and market news
 
 ### P2 - Medium Priority
@@ -82,7 +82,7 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - [ ] Convert large .mov videos to MP4 for better browser compatibility
 
 ### P3 - Low Priority
-- [ ] Crypto payment support
+- [ ] Crypto payment support (Stripe supports USDC)
 - [ ] Real-time market data integration (replace mock data)
 
 ## API Endpoints
