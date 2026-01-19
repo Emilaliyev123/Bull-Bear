@@ -1362,6 +1362,24 @@ async def stream_video(filename: str, request: Request):
         
         return StreamingResponse(iter_full_file(), headers=headers, media_type='video/mp4')
 
+@api_router.head("/stream/video/{filename}")
+async def stream_video_head(filename: str):
+    """HEAD request for video metadata"""
+    video_path = UPLOADS_DIR / 'videos' / filename
+    
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    file_size = video_path.stat().st_size
+    
+    headers = {
+        'Accept-Ranges': 'bytes',
+        'Content-Length': str(file_size),
+        'Content-Type': 'video/mp4',
+    }
+    
+    return Response(content=b'', headers=headers, media_type='video/mp4')
+
 # ============ DOWNLOAD ROUTES ============
 
 from fastapi.responses import FileResponse
