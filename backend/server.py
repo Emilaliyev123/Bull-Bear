@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import asyncio
 import resend
+import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import List, Optional, Dict
