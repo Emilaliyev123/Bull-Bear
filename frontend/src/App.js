@@ -2364,8 +2364,13 @@ const AdminPage = () => {
       console.log('Updating book with data:', bookForm);
       const response = await api.put('/book', bookForm, token);
       console.log('Book updated:', response.data);
+      // Show success message before reloading
+      const successMsg = document.createElement('div');
+      successMsg.innerHTML = '✓ Book saved successfully!';
+      successMsg.style.cssText = 'position:fixed;top:20px;right:20px;background:#10b981;color:white;padding:16px 24px;border-radius:8px;z-index:9999;font-weight:bold;';
+      document.body.appendChild(successMsg);
+      setTimeout(() => successMsg.remove(), 3000);
       loadData();
-      alert('Book updated successfully!');
     } catch (e) {
       console.error('Update book error:', e);
       console.error('Error response:', e.response?.data);
