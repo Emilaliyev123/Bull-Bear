@@ -543,6 +543,51 @@ async def delete_news(news_id: str, admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Article not found")
     return {"success": True}
 
+# ============ EMAIL PREFERENCES ============
+
+class EmailPreferences(BaseModel):
+    receive_signal_emails: bool = True
+    receive_news_emails: bool = True
+
+@api_router.get("/user/email-preferences")
+async def get_email_preferences(user: dict = Depends(get_current_user)):
+    """Get user's email notification preferences"""
+    return {
+        "receive_signal_emails": user.get('receive_signal_emails', True),
+        "receive_news_emails": user.get('receive_news_emails', True)
+    }
+
+@api_router.put("/user/email-preferences")
+async def update_email_preferences(prefs: EmailPreferences, user: dict = Depends(get_current_user)):
+    """Update user's email notification preferences"""
+    await db.users.update_one(
+        {"id": user['id']},
+        {"$set": {
+            "receive_signal_emails": prefs.receive_signal_emails,
+            "receive_news_emails": prefs.receive_news_emails
+        }}
+    )
+    return {"success": True}
+
+@api_router.post("/admin/test-email")
+async def send_test_email(admin: dict = Depends(require_admin)):
+    """Send a test email to verify email configuration"""
+    if not RESEND_API_KEY:
+        raise HTTPException(status_code=400, detail="Email not configured")
+    
+    try:
+        html = """
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #18181b; padding: 24px; border-radius: 12px;">
+            <h1 style="color: #f59e0b; text-align: center;">🐂 Bull & Bear Academy</h1>
+            <p style="color: white; text-align: center;">Email configuration is working correctly!</p>
+            <p style="color: #71717a; text-align: center; font-size: 12px;">This is a test email.</p>
+        </div>
+        """
+        await send_email_notification([admin['email']], "✅ Bull & Bear - Email Test", html)
+        return {"success": True, "message": f"Test email sent to {admin['email']}"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ============ NOTIFICATION ROUTES ============
 
 async def create_notification_for_all_users(notification_type: str, title: str, message: str, link: str = ""):
