@@ -44,6 +44,97 @@ const getMediaUrl = (url) => {
   return url;
 };
 
+// Push Notification Helper
+const usePushNotifications = () => {
+  const [isSupported, setIsSupported] = useState(false);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [permission, setPermission] = useState('default');
+
+  useEffect(() => {
+    // Check if push notifications are supported
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+    setIsSupported(supported);
+    
+    if (supported) {
+      setPermission(Notification.permission);
+      
+      // Register service worker
+      navigator.serviceWorker.register('/sw.js')
+        .then(registration => {
+          console.log('Service Worker registered:', registration);
+          
+          // Check if already subscribed
+          registration.pushManager.getSubscription().then(subscription => {
+            setIsSubscribed(!!subscription);
+          });
+        })
+        .catch(err => console.error('Service Worker registration failed:', err));
+    }
+  }, []);
+
+  const requestPermission = async () => {
+    if (!isSupported) return false;
+    
+    try {
+      const result = await Notification.requestPermission();
+      setPermission(result);
+      return result === 'granted';
+    } catch (err) {
+      console.error('Permission request failed:', err);
+      return false;
+    }
+  };
+
+  const subscribe = async () => {
+    if (!isSupported || permission !== 'granted') return null;
+    
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(
+          // This is a placeholder VAPID key - in production, generate your own
+          'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U'
+        )
+      });
+      
+      setIsSubscribed(true);
+      console.log('Push subscription:', subscription);
+      return subscription;
+    } catch (err) {
+      console.error('Subscription failed:', err);
+      return null;
+    }
+  };
+
+  const unsubscribe = async () => {
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+        setIsSubscribed(false);
+      }
+    } catch (err) {
+      console.error('Unsubscribe failed:', err);
+    }
+  };
+
+  return { isSupported, isSubscribed, permission, requestPermission, subscribe, unsubscribe };
+};
+
+// Helper function for VAPID key conversion
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 // Auth Context
 const AuthContext = createContext(null);
 
