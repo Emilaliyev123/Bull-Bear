@@ -2602,6 +2602,11 @@ const AdminPage = () => {
           </div>
         )}
 
+        {/* Video Manager Tab */}
+        {activeTab === 'videos' && (
+          <VideoManagerTab token={token} />
+        )}
+
         {/* Users Tab */}
         {activeTab === 'users' && (
           <Card3D>
