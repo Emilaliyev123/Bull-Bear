@@ -56,6 +56,103 @@ security = HTTPBearer(auto_error=False)
 # Serve uploaded files - mount under /api/uploads for proper routing through ingress
 app.mount("/api/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
+# ============ EMAIL CONFIGURATION ============
+
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+
+# Initialize Resend
+if RESEND_API_KEY:
+    resend.api_key = RESEND_API_KEY
+
+async def send_email_notification(to_emails: List[str], subject: str, html_content: str):
+    """Send email notification to multiple recipients (non-blocking)"""
+    if not RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not configured, skipping email")
+        return
+    
+    try:
+        for email in to_emails:
+            params = {
+                "from": SENDER_EMAIL,
+                "to": [email],
+                "subject": subject,
+                "html": html_content
+            }
+            await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"Email sent to {email}")
+    except Exception as e:
+        logger.error(f"Failed to send email: {str(e)}")
+
+def create_signal_email_html(signal: dict) -> str:
+    """Create HTML email for new trading signal"""
+    direction_color = "#10b981" if signal.get('direction') == 'BUY' else "#ef4444"
+    return f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #18181b; padding: 24px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="color: #f59e0b; margin: 0;">🐂 Bull & Bear Academy</h1>
+            <p style="color: #71717a; margin: 8px 0 0 0;">New Trading Signal Alert</p>
+        </div>
+        
+        <div style="background: #27272a; padding: 20px; border-radius: 8px; margin-bottom: 16px;">
+            <h2 style="color: white; margin: 0 0 16px 0;">{signal.get('asset', 'N/A')}</h2>
+            <div style="display: inline-block; background: {direction_color}; color: white; padding: 8px 16px; border-radius: 4px; font-weight: bold;">
+                {signal.get('direction', 'N/A')}
+            </div>
+        </div>
+        
+        <div style="background: #27272a; padding: 20px; border-radius: 8px;">
+            <table style="width: 100%; color: #a1a1aa;">
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Entry Price:</strong></td>
+                    <td style="text-align: right; color: white;">${signal.get('entry_price', 'N/A')}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Stop Loss:</strong></td>
+                    <td style="text-align: right; color: #ef4444;">${signal.get('stop_loss', 'N/A')}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0;"><strong>Take Profit 1:</strong></td>
+                    <td style="text-align: right; color: #10b981;">${signal.get('take_profit_1', 'N/A')}</td>
+                </tr>
+            </table>
+        </div>
+        
+        <p style="color: #71717a; font-size: 12px; text-align: center; margin-top: 24px;">
+            This is a premium signal from Bull & Bear Trading Academy.<br>
+            Trade responsibly and manage your risk.
+        </p>
+    </div>
+    """
+
+def create_news_email_html(article: dict) -> str:
+    """Create HTML email for new market analysis"""
+    return f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #18181b; padding: 24px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h1 style="color: #f59e0b; margin: 0;">🐂 Bull & Bear Academy</h1>
+            <p style="color: #71717a; margin: 8px 0 0 0;">New Market Analysis</p>
+        </div>
+        
+        <div style="background: #27272a; padding: 20px; border-radius: 8px;">
+            <h2 style="color: white; margin: 0 0 16px 0;">{article.get('title', 'New Analysis')}</h2>
+            <p style="color: #a1a1aa; line-height: 1.6;">
+                {article.get('content', '')[:300]}...
+            </p>
+        </div>
+        
+        <div style="text-align: center; margin-top: 24px;">
+            <a href="#" style="display: inline-block; background: linear-gradient(to right, #f59e0b, #eab308); color: black; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+                Read Full Analysis
+            </a>
+        </div>
+        
+        <p style="color: #71717a; font-size: 12px; text-align: center; margin-top: 24px;">
+            Bull & Bear Trading Academy - Professional Trading Education
+        </p>
+    </div>
+    """
+
 # ============ MODELS ============
 
 class UserCreate(BaseModel):
