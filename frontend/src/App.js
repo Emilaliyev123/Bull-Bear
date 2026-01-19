@@ -544,8 +544,16 @@ const ProductsPage = () => {
                     </GoldButton>
                   </div>
                 ) : (
-                  <GoldButton onClick={() => handlePurchase(product.id)} className="w-full">
-                    <Lock size={18} /> Get Access
+                  <GoldButton 
+                    onClick={() => handlePurchase(product.id)} 
+                    className="w-full"
+                    disabled={loading === product.id}
+                  >
+                    {loading === product.id ? (
+                      <>Processing...</>
+                    ) : (
+                      <><DollarSign size={18} /> Pay ${product.price}</>
+                    )}
                   </GoldButton>
                 )}
               </div>
