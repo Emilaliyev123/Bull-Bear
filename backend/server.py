@@ -507,7 +507,7 @@ async def get_news_article(news_id: str):
     return article
 
 @api_router.post("/news")
-async def create_news(data: NewsCreate, admin: dict = Depends(require_admin)):
+async def create_news(background_tasks: BackgroundTasks, data: NewsCreate, admin: dict = Depends(require_admin)):
     article = NewsArticle(**data.model_dump())
     await db.news.insert_one(article.model_dump())
     
@@ -518,6 +518,21 @@ async def create_news(data: NewsCreate, admin: dict = Depends(require_admin)):
         message=article.title[:100],
         link="/news"
     )
+    
+    # Send email notifications to all users (background task)
+    async def send_news_emails():
+        # Get all users with email
+        users = await db.users.find(
+            {"email": {"$exists": True}},
+            {"_id": 0, "email": 1}
+        ).to_list(10000)
+        
+        if users:
+            emails = [u['email'] for u in users]
+            html = create_news_email_html(article.model_dump())
+            await send_email_notification(emails, f"📊 New Analysis: {article.title}", html)
+    
+    background_tasks.add_task(asyncio.create_task, send_news_emails())
     
     return article.model_dump()
 
