@@ -141,6 +141,21 @@ class NewsCreate(BaseModel):
     image_url: str = ""
     tags: List[str] = []
 
+class Notification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    type: str  # signal, news, system
+    title: str
+    message: str
+    link: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class UserNotification(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    notification_id: str
+    read: bool = False
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
 class BookInfo(BaseModel):
     id: str = "main-book"
     title: str = "Bull & Bear Trading Mastery"
