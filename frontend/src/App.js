@@ -1332,9 +1332,23 @@ const BookPage = () => {
                     You own this book
                   </div>
                   {book?.pdf_url && (
-                    <GoldButton onClick={() => window.open(getMediaUrl(book.pdf_url), '_blank')} className="w-full">
-                      <BookOpen size={18} /> Read Book
-                    </GoldButton>
+                    <div className="space-y-3">
+                      <GoldButton onClick={() => window.open(getMediaUrl(book.pdf_url), '_blank')} className="w-full">
+                        <BookOpen size={18} /> Read Online
+                      </GoldButton>
+                      <GoldButton 
+                        variant="secondary" 
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = getMediaUrl(book.pdf_url);
+                          link.download = `${book.title || 'BullBear-Trading-Book'}.pdf`;
+                          link.click();
+                        }} 
+                        className="w-full"
+                      >
+                        <FileText size={18} /> Download for Offline
+                      </GoldButton>
+                    </div>
                   )}
                 </div>
               ) : (
