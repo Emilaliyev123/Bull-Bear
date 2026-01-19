@@ -3208,8 +3208,62 @@ const PaymentCancelPage = () => {
   );
 };
 
+// Content Protection Hook
+const useContentProtection = () => {
+  useEffect(() => {
+    // Disable right-click context menu on protected content
+    const handleContextMenu = (e) => {
+      if (e.target.closest('.protected-content') || e.target.closest('video')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    // Disable keyboard shortcuts for screenshots/dev tools
+    const handleKeyDown = (e) => {
+      // Disable PrintScreen
+      if (e.key === 'PrintScreen') {
+        e.preventDefault();
+        return false;
+      }
+      
+      // Disable common screenshot shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'S' || e.key === 's' || e.key === '4' || e.key === '3')) {
+        e.preventDefault();
+        return false;
+      }
+      
+      // Allow dev tools for development, but could disable in production
+      // if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'I' || e.key === 'i')) {
+      //   e.preventDefault();
+      //   return false;
+      // }
+    };
+
+    // Blur content when window loses focus (potential screen share detection)
+    const handleVisibilityChange = () => {
+      const videos = document.querySelectorAll('video');
+      if (document.hidden) {
+        videos.forEach(v => v.pause());
+      }
+    };
+
+    document.addEventListener('contextmenu', handleContextMenu);
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('contextmenu', handleContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+};
+
 // Main App
 function App() {
+  useContentProtection();
+  
   return (
     <AuthProvider>
       <div className="App bg-black min-h-screen flex flex-col">
