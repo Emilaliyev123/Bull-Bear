@@ -371,18 +371,32 @@ const PageWrapper = ({ children }) => (
 const ProductsPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(null);
 
   const handlePurchase = async (productType) => {
     if (!user) {
       navigate('/login');
       return;
     }
+    
+    setLoading(productType);
     try {
-      await api.post(`/purchase/${productType}`, {}, token);
-      alert(`Successfully purchased ${productType}!`);
-      window.location.reload();
+      // Create Stripe checkout session
+      const response = await api.post('/checkout/create', {
+        product_type: productType,
+        origin_url: window.location.origin
+      }, token);
+      
+      // Redirect to Stripe checkout
+      if (response.data.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
     } catch (e) {
-      alert('Purchase failed');
+      console.error('Payment error:', e);
+      alert('Payment initialization failed. Please try again.');
+      setLoading(null);
     }
   };
 
