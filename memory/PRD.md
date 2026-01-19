@@ -124,15 +124,19 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - [x] ~~Convert videos (.mov to .mp4)~~ ✅ DONE (Video Manager)
 - [x] ~~Content protection~~ ✅ DONE
 - [x] ~~Crypto payments (USDC)~~ ✅ DONE
+- [x] ~~Offline reading for book PDF~~ ✅ DONE
+- [x] ~~Email notifications (Resend)~~ ✅ DONE
+- [x] ~~Browser push notifications~~ ✅ DONE
+- [x] ~~Real-time market data (Alpha Vantage)~~ ✅ DONE
 
 ### P2 - Medium Priority
-- [ ] Offline reading for book PDF (download for offline access)
-- [ ] Email notifications (in addition to in-app)
-- [ ] Browser push notifications (Web Push API with service worker)
+- [ ] Advanced content watermarking with user info
+- [ ] User referral system with rewards
+- [ ] Multi-language support
 
 ### P3 - Low Priority
-- [ ] Real-time market data integration (replace mock data)
-- [ ] Advanced content watermarking with user info
+- [ ] Mobile app (React Native)
+- [ ] Social trading / copy trading features
 
 ## API Endpoints
 
