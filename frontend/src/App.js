@@ -1338,11 +1338,22 @@ const BookPage = () => {
                       </GoldButton>
                       <GoldButton 
                         variant="secondary" 
-                        onClick={() => {
-                          const link = document.createElement('a');
-                          link.href = getMediaUrl(book.pdf_url);
-                          link.download = `${book.title || 'BullBear-Trading-Book'}.pdf`;
-                          link.click();
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`${BACKEND_URL}/api/download/book`, {
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            if (!response.ok) throw new Error('Download failed');
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = `${book.title || 'BullBear-Trading-Book'}.pdf`;
+                            link.click();
+                            window.URL.revokeObjectURL(url);
+                          } catch (e) {
+                            alert('Download failed. Please try again.');
+                          }
                         }} 
                         className="w-full"
                       >
