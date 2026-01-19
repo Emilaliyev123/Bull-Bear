@@ -27,3 +27,4 @@ typer>=0.9.0
 emergentintegrations==0.1.0
 python-multipart==0.0.21
 emergentintegrations==0.1.0
+resend==2.19.0
