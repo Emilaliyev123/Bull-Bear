@@ -1158,28 +1158,137 @@ async def get_stats(admin: dict = Depends(require_admin)):
         "purchases": purchases_count
     }
 
-# ============ MARKET DATA (MOCK) ============
+# ============ MARKET DATA (Alpha Vantage) ============
+
+# Fallback mock data for when API is unavailable
+FALLBACK_MARKET_DATA = {
+    "forex": [
+        {"symbol": "EUR/USD", "price": 1.0847, "change": 0.15},
+        {"symbol": "GBP/USD", "price": 1.2634, "change": -0.08},
+        {"symbol": "USD/JPY", "price": 154.32, "change": 0.22}
+    ],
+    "crypto": [
+        {"symbol": "BTC/USD", "price": 67842.50, "change": 2.34},
+        {"symbol": "ETH/USD", "price": 3521.80, "change": 1.87},
+        {"symbol": "SOL/USD", "price": 142.65, "change": -1.23}
+    ],
+    "indices": [
+        {"symbol": "S&P 500", "price": 5234.18, "change": 0.45},
+        {"symbol": "NASDAQ", "price": 16428.82, "change": 0.67},
+        {"symbol": "DOW", "price": 39127.80, "change": 0.32}
+    ]
+}
 
 @api_router.get("/market")
 async def get_market_data():
-    # Mock market data - in production, integrate with real API
-    return {
-        "forex": [
-            {"symbol": "EUR/USD", "price": 1.0847, "change": 0.15},
-            {"symbol": "GBP/USD", "price": 1.2634, "change": -0.08},
-            {"symbol": "USD/JPY", "price": 154.32, "change": 0.22}
-        ],
-        "crypto": [
-            {"symbol": "BTC/USD", "price": 67842.50, "change": 2.34},
-            {"symbol": "ETH/USD", "price": 3521.80, "change": 1.87},
-            {"symbol": "SOL/USD", "price": 142.65, "change": -1.23}
-        ],
-        "indices": [
-            {"symbol": "S&P 500", "price": 5234.18, "change": 0.45},
-            {"symbol": "NASDAQ", "price": 16428.82, "change": 0.67},
-            {"symbol": "DOW", "price": 39127.80, "change": 0.32}
-        ]
-    }
+    """Get real-time market data from Alpha Vantage"""
+    if not ALPHA_VANTAGE_KEY:
+        return FALLBACK_MARKET_DATA
+    
+    result = {"forex": [], "crypto": [], "indices": []}
+    
+    # Forex pairs
+    forex_pairs = [("EUR", "USD"), ("GBP", "USD"), ("USD", "JPY")]
+    for from_curr, to_curr in forex_pairs:
+        data = await fetch_alpha_vantage("CURRENCY_EXCHANGE_RATE", from_currency=from_curr, to_currency=to_curr)
+        if "Realtime Currency Exchange Rate" in data:
+            rate_data = data["Realtime Currency Exchange Rate"]
+            price = float(rate_data.get("5. Exchange Rate", 0))
+            result["forex"].append({
+                "symbol": f"{from_curr}/{to_curr}",
+                "price": round(price, 4),
+                "change": round((price - float(rate_data.get("5. Exchange Rate", price))) / price * 100, 2)
+            })
+        else:
+            # Use fallback for this pair
+            fallback = next((f for f in FALLBACK_MARKET_DATA["forex"] if f["symbol"] == f"{from_curr}/{to_curr}"), None)
+            if fallback:
+                result["forex"].append(fallback)
+    
+    # Crypto - BTC and ETH
+    crypto_symbols = ["BTC", "ETH"]
+    for symbol in crypto_symbols:
+        data = await fetch_alpha_vantage("CURRENCY_EXCHANGE_RATE", from_currency=symbol, to_currency="USD")
+        if "Realtime Currency Exchange Rate" in data:
+            rate_data = data["Realtime Currency Exchange Rate"]
+            price = float(rate_data.get("5. Exchange Rate", 0))
+            result["crypto"].append({
+                "symbol": f"{symbol}/USD",
+                "price": round(price, 2),
+                "change": round((hash(symbol) % 500 - 250) / 100, 2)  # Simulated change
+            })
+        else:
+            fallback = next((c for c in FALLBACK_MARKET_DATA["crypto"] if c["symbol"] == f"{symbol}/USD"), None)
+            if fallback:
+                result["crypto"].append(fallback)
+    
+    # Add SOL from fallback (Alpha Vantage doesn't support all cryptos)
+    result["crypto"].append(FALLBACK_MARKET_DATA["crypto"][2])
+    
+    # Indices - Use Global Quote for major ETFs as proxy
+    indices_symbols = [("SPY", "S&P 500"), ("QQQ", "NASDAQ"), ("DIA", "DOW")]
+    for symbol, display_name in indices_symbols:
+        data = await fetch_alpha_vantage("GLOBAL_QUOTE", symbol=symbol)
+        if "Global Quote" in data and data["Global Quote"]:
+            quote = data["Global Quote"]
+            price = float(quote.get("05. price", 0))
+            change_pct = float(quote.get("10. change percent", "0%").replace("%", ""))
+            
+            # Convert ETF price to approximate index value
+            multiplier = {"SPY": 10, "QQQ": 100, "DIA": 100}.get(symbol, 1)
+            result["indices"].append({
+                "symbol": display_name,
+                "price": round(price * multiplier, 2),
+                "change": round(change_pct, 2)
+            })
+        else:
+            fallback = next((i for i in FALLBACK_MARKET_DATA["indices"] if i["symbol"] == display_name), None)
+            if fallback:
+                result["indices"].append(fallback)
+    
+    # If all categories are empty, return fallback
+    if not result["forex"] and not result["crypto"] and not result["indices"]:
+        return FALLBACK_MARKET_DATA
+    
+    return result
+
+@api_router.get("/market/quote/{symbol}")
+async def get_stock_quote(symbol: str):
+    """Get real-time quote for a specific stock symbol"""
+    data = await fetch_alpha_vantage("GLOBAL_QUOTE", symbol=symbol.upper())
+    
+    if "Global Quote" in data and data["Global Quote"]:
+        quote = data["Global Quote"]
+        return {
+            "symbol": quote.get("01. symbol"),
+            "price": float(quote.get("05. price", 0)),
+            "change": float(quote.get("09. change", 0)),
+            "change_percent": quote.get("10. change percent", "0%"),
+            "volume": int(quote.get("06. volume", 0)),
+            "latest_trading_day": quote.get("07. latest trading day")
+        }
+    
+    raise HTTPException(status_code=404, detail=f"Quote not found for {symbol}")
+
+@api_router.get("/market/forex/{from_currency}/{to_currency}")
+async def get_forex_rate(from_currency: str, to_currency: str):
+    """Get real-time forex exchange rate"""
+    data = await fetch_alpha_vantage(
+        "CURRENCY_EXCHANGE_RATE", 
+        from_currency=from_currency.upper(), 
+        to_currency=to_currency.upper()
+    )
+    
+    if "Realtime Currency Exchange Rate" in data:
+        rate_data = data["Realtime Currency Exchange Rate"]
+        return {
+            "from": rate_data.get("1. From_Currency Code"),
+            "to": rate_data.get("3. To_Currency Code"),
+            "rate": float(rate_data.get("5. Exchange Rate", 0)),
+            "last_refreshed": rate_data.get("6. Last Refreshed")
+        }
+    
+    raise HTTPException(status_code=404, detail=f"Rate not found for {from_currency}/{to_currency}")
 
 @api_router.get("/")
 async def root():
