@@ -960,6 +960,45 @@ async def get_market_data():
 async def root():
     return {"message": "Bull & Bear Trading Academy API", "version": "1.0.0"}
 
+# ============ DOWNLOAD ROUTES ============
+
+from fastapi.responses import FileResponse
+
+@api_router.get("/download/book")
+async def download_book(user: dict = Depends(get_current_user)):
+    """Download the book PDF for offline reading"""
+    # Check if user has book access
+    if not user.get('book_access') and not user.get('is_admin'):
+        raise HTTPException(status_code=403, detail="You don't have access to this book")
+    
+    # Get book info
+    book = await db.book.find_one({"id": "main-book"}, {"_id": 0})
+    if not book or not book.get('pdf_url'):
+        raise HTTPException(status_code=404, detail="Book PDF not found")
+    
+    # Extract filename from URL
+    pdf_url = book['pdf_url']
+    if '/api/uploads/pdfs/' in pdf_url:
+        filename = pdf_url.split('/api/uploads/pdfs/')[-1]
+    elif '/uploads/pdfs/' in pdf_url:
+        filename = pdf_url.split('/uploads/pdfs/')[-1]
+    else:
+        raise HTTPException(status_code=404, detail="Invalid PDF URL")
+    
+    file_path = UPLOADS_DIR / 'pdfs' / filename
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="PDF file not found")
+    
+    # Return file with download headers
+    download_name = f"{book.get('title', 'BullBear-Trading-Book').replace(' ', '-')}.pdf"
+    return FileResponse(
+        path=str(file_path),
+        media_type='application/pdf',
+        filename=download_name,
+        headers={"Content-Disposition": f"attachment; filename={download_name}"}
+    )
+
 # ============ FILE UPLOAD ROUTES ============
 
 @api_router.post("/upload/video")
