@@ -96,16 +96,19 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 
 ### P1 - High Priority
 - [x] ~~Implement Stripe payment integration~~ ✅ DONE
-- [ ] Add push notifications for new signals and market news
+- [x] ~~Add push notifications~~ ✅ DONE (in-app notifications)
+- [x] ~~Convert videos (.mov to .mp4)~~ ✅ DONE (Video Manager)
+- [x] ~~Content protection~~ ✅ DONE
+- [x] ~~Crypto payments (USDC)~~ ✅ DONE
 
 ### P2 - Medium Priority
-- [ ] Content protection (screen recording prevention)
-- [ ] Offline reading for book PDF
-- [ ] Convert large .mov videos to MP4 for better browser compatibility
+- [ ] Offline reading for book PDF (download for offline access)
+- [ ] Email notifications (in addition to in-app)
+- [ ] Browser push notifications (Web Push API with service worker)
 
 ### P3 - Low Priority
-- [ ] Crypto payment support (Stripe supports USDC)
 - [ ] Real-time market data integration (replace mock data)
+- [ ] Advanced content watermarking with user info
 
 ## API Endpoints
 
