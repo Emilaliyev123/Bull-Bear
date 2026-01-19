@@ -345,6 +345,15 @@ async def get_signals(user: dict = Depends(get_optional_user)):
 async def create_signal(data: SignalCreate, admin: dict = Depends(require_admin)):
     signal = Signal(**data.model_dump())
     await db.signals.insert_one(signal.model_dump())
+    
+    # Create notification for all users
+    await create_notification_for_all_users(
+        notification_type="signal",
+        title=f"New Signal: {signal.asset}",
+        message=f"{signal.direction} signal for {signal.asset}",
+        link="/signals"
+    )
+    
     return signal.model_dump()
 
 @api_router.put("/signals/{signal_id}")
