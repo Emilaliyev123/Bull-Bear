@@ -57,6 +57,14 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Support page with email contact
 - Site-wide footer with support email
 
+### Stripe Payment Integration (Jan 19, 2026)
+- ✅ Stripe Checkout for one-time payments (Courses $49.90, Book $29.90)
+- ✅ Stripe Checkout for monthly subscriptions (Signals $19.90/month)
+- ✅ Payment success/cancel pages with status polling
+- ✅ Automatic access granting after successful payment
+- ✅ Payment transaction tracking in database
+- ✅ Webhook handling for payment confirmations
+
 ### Bug Fixes Applied (This Session)
 1. **Video Playback Fixed**: Added `getMediaUrl()` helper to convert old preview URLs to correct current URLs
 2. **Book Saving Fixed**: Backend working correctly; changed to store relative URLs for portability
