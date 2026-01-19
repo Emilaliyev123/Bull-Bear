@@ -104,3 +104,7 @@ backend/uploads/videos/e4d1e078-5290-4735-a5f2-d577a8758cd8.mov
 *.env.*
 backend/uploads/videos/12cac758-53fe-4e83-9bd5-f5c30d60883d.mov
 backend/uploads/videos/e4d1e078-test.mp4
+-e 
+# Environment files
+*.env
+*.env.*
