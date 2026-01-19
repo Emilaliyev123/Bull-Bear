@@ -1131,11 +1131,16 @@ const BookPage = () => {
       return;
     }
     try {
-      await api.post('/purchase/book', {}, token);
-      alert('Book purchased successfully!');
-      window.location.reload();
+      const response = await api.post('/checkout/create', {
+        product_type: 'book',
+        origin_url: window.location.origin
+      }, token);
+      
+      if (response.data.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      }
     } catch (e) {
-      alert('Purchase failed');
+      alert('Payment initialization failed');
     }
   };
 
