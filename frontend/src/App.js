@@ -1722,6 +1722,8 @@ const ProfilePage = () => {
   const { user, logout, token } = useAuth();
   const navigate = useNavigate();
   const [purchases, setPurchases] = useState([]);
+  const [emailPrefs, setEmailPrefs] = useState({ receive_signal_emails: true, receive_news_emails: true });
+  const { isSupported, isSubscribed, permission, requestPermission, subscribe, unsubscribe } = usePushNotifications();
 
   useEffect(() => {
     if (!user) {
@@ -1729,6 +1731,7 @@ const ProfilePage = () => {
       return;
     }
     loadPurchases();
+    loadEmailPrefs();
   }, [user]);
 
   const loadPurchases = async () => {
@@ -1737,6 +1740,40 @@ const ProfilePage = () => {
       setPurchases(res.data);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const loadEmailPrefs = async () => {
+    try {
+      const res = await api.get('/user/email-preferences', token);
+      setEmailPrefs(res.data);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const updateEmailPref = async (key, value) => {
+    const newPrefs = { ...emailPrefs, [key]: value };
+    setEmailPrefs(newPrefs);
+    try {
+      await api.put('/user/email-preferences', newPrefs, token);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handlePushToggle = async () => {
+    if (isSubscribed) {
+      await unsubscribe();
+    } else {
+      if (permission !== 'granted') {
+        const granted = await requestPermission();
+        if (!granted) {
+          alert('Please enable notifications in your browser settings');
+          return;
+        }
+      }
+      await subscribe();
     }
   };
 
