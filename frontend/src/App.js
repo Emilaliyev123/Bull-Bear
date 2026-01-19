@@ -815,11 +815,16 @@ const CoursesPage = () => {
       return;
     }
     try {
-      await api.post('/purchase/course', {}, token);
-      alert('Course purchased successfully!');
-      window.location.reload();
+      const response = await api.post('/checkout/create', {
+        product_type: 'course',
+        origin_url: window.location.origin
+      }, token);
+      
+      if (response.data.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      }
     } catch (e) {
-      alert('Purchase failed');
+      alert('Payment initialization failed');
     }
   };
 
