@@ -1157,9 +1157,12 @@ const CoursesPage = () => {
                   {(hasAccess || selectedCourse.is_free) && selectedCourse.video_url ? (
                     <div className="aspect-video bg-black rounded-lg mb-4">
                       <video 
+                        key={selectedCourse.video_url}
                         controls 
                         controlsList="nodownload noplaybackrate" 
                         disablePictureInPicture
+                        preload="metadata"
+                        playsInline
                         className="w-full h-full rounded-lg protected-video" 
                         src={getMediaUrl(selectedCourse.video_url)} 
                       />
