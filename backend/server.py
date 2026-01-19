@@ -158,6 +158,25 @@ class Purchase(BaseModel):
     status: str = "completed"
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
+class PaymentTransaction(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    session_id: str
+    user_id: str
+    user_email: str
+    product_type: str
+    product_name: str
+    amount: float
+    currency: str = "usd"
+    status: str = "pending"  # pending, paid, failed, expired
+    payment_status: str = "initiated"  # initiated, processing, paid, failed
+    metadata: Dict[str, str] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+class CheckoutRequest(BaseModel):
+    product_type: str  # course, book, signals
+    origin_url: str  # Frontend URL for redirects
+
 # ============ AUTH HELPERS ============
 
 def hash_password(password: str) -> str:
