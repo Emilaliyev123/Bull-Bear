@@ -450,6 +450,233 @@ async def get_purchases(user: dict = Depends(get_current_user)):
     purchases = await db.purchases.find({"user_id": user['id']}, {"_id": 0}).to_list(100)
     return purchases
 
+# ============ STRIPE PAYMENT ROUTES ============
+
+@api_router.post("/checkout/create")
+async def create_checkout_session(request: Request, data: CheckoutRequest, user: dict = Depends(get_current_user)):
+    """Create a Stripe checkout session for a product"""
+    
+    # Validate product type
+    if data.product_type not in PRODUCTS:
+        raise HTTPException(status_code=400, detail="Invalid product type")
+    
+    product = PRODUCTS[data.product_type]
+    
+    # Build URLs from frontend origin (NEVER hardcode)
+    success_url = f"{data.origin_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{data.origin_url}/payment/cancel"
+    
+    # Initialize Stripe with webhook URL
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    # Create checkout session with server-defined amount
+    metadata = {
+        "user_id": user['id'],
+        "user_email": user['email'],
+        "product_type": data.product_type,
+        "product_name": product['name']
+    }
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=float(product['price']),
+        currency="usd",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata=metadata
+    )
+    
+    try:
+        session: CheckoutSessionResponse = await stripe_checkout.create_checkout_session(checkout_request)
+        
+        # Create payment transaction record BEFORE redirect
+        transaction = PaymentTransaction(
+            session_id=session.session_id,
+            user_id=user['id'],
+            user_email=user['email'],
+            product_type=data.product_type,
+            product_name=product['name'],
+            amount=product['price'],
+            currency="usd",
+            status="pending",
+            payment_status="initiated",
+            metadata=metadata
+        )
+        await db.payment_transactions.insert_one(transaction.model_dump())
+        
+        return {
+            "checkout_url": session.url,
+            "session_id": session.session_id
+        }
+    except Exception as e:
+        logger.error(f"Stripe checkout error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Payment initialization failed: {str(e)}")
+
+@api_router.get("/checkout/status/{session_id}")
+async def get_checkout_status(request: Request, session_id: str, user: dict = Depends(get_current_user)):
+    """Get the status of a checkout session and process payment if successful"""
+    
+    # Verify the session belongs to this user
+    transaction = await db.payment_transactions.find_one(
+        {"session_id": session_id, "user_id": user['id']},
+        {"_id": 0}
+    )
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # If already processed, return cached status
+    if transaction['payment_status'] == 'paid':
+        return {
+            "status": "complete",
+            "payment_status": "paid",
+            "message": "Payment already processed",
+            "product_type": transaction['product_type']
+        }
+    
+    # Initialize Stripe and check status
+    host_url = str(request.base_url).rstrip('/')
+    webhook_url = f"{host_url}api/webhook/stripe"
+    stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+    
+    try:
+        checkout_status: CheckoutStatusResponse = await stripe_checkout.get_checkout_status(session_id)
+        
+        # Update transaction status
+        new_status = checkout_status.status
+        new_payment_status = checkout_status.payment_status
+        
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {
+                "status": new_status,
+                "payment_status": new_payment_status,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        # If payment successful, grant access (only if not already processed)
+        if new_payment_status == 'paid':
+            # Double-check we haven't already processed this
+            existing_purchase = await db.purchases.find_one({
+                "user_id": user['id'],
+                "stripe_session_id": session_id
+            })
+            
+            if not existing_purchase:
+                # Create purchase record
+                purchase = Purchase(
+                    user_id=user['id'],
+                    product_type=transaction['product_type'],
+                    amount=transaction['amount'],
+                    status="completed"
+                )
+                purchase_dict = purchase.model_dump()
+                purchase_dict['stripe_session_id'] = session_id
+                await db.purchases.insert_one(purchase_dict)
+                
+                # Grant user access based on product type
+                update_data = {}
+                if transaction['product_type'] == "course":
+                    update_data['course_access'] = True
+                elif transaction['product_type'] == "book":
+                    update_data['book_access'] = True
+                elif transaction['product_type'] == "signals":
+                    update_data['signals_subscription'] = True
+                    update_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                
+                if update_data:
+                    await db.users.update_one(
+                        {"id": user['id']},
+                        {"$set": update_data}
+                    )
+                
+                logger.info(f"Payment processed for user {user['id']}, product: {transaction['product_type']}")
+        
+        return {
+            "status": new_status,
+            "payment_status": new_payment_status,
+            "amount_total": checkout_status.amount_total,
+            "currency": checkout_status.currency,
+            "product_type": transaction['product_type']
+        }
+    except Exception as e:
+        logger.error(f"Error checking checkout status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to check payment status: {str(e)}")
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    try:
+        body = await request.body()
+        signature = request.headers.get("Stripe-Signature")
+        
+        host_url = str(request.base_url).rstrip('/')
+        webhook_url = f"{host_url}api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        if webhook_response.payment_status == 'paid':
+            # Update transaction
+            await db.payment_transactions.update_one(
+                {"session_id": webhook_response.session_id},
+                {"$set": {
+                    "status": "complete",
+                    "payment_status": "paid",
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+            # Get transaction details
+            transaction = await db.payment_transactions.find_one(
+                {"session_id": webhook_response.session_id},
+                {"_id": 0}
+            )
+            
+            if transaction:
+                # Check if already processed
+                existing_purchase = await db.purchases.find_one({
+                    "user_id": transaction['user_id'],
+                    "stripe_session_id": webhook_response.session_id
+                })
+                
+                if not existing_purchase:
+                    # Create purchase record
+                    purchase = Purchase(
+                        user_id=transaction['user_id'],
+                        product_type=transaction['product_type'],
+                        amount=transaction['amount'],
+                        status="completed"
+                    )
+                    purchase_dict = purchase.model_dump()
+                    purchase_dict['stripe_session_id'] = webhook_response.session_id
+                    await db.purchases.insert_one(purchase_dict)
+                    
+                    # Grant user access
+                    update_data = {}
+                    if transaction['product_type'] == "course":
+                        update_data['course_access'] = True
+                    elif transaction['product_type'] == "book":
+                        update_data['book_access'] = True
+                    elif transaction['product_type'] == "signals":
+                        update_data['signals_subscription'] = True
+                        update_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                    
+                    if update_data:
+                        await db.users.update_one(
+                            {"id": transaction['user_id']},
+                            {"$set": update_data}
+                        )
+                    
+                    logger.info(f"Webhook: Payment processed for user {transaction['user_id']}")
+        
+        return {"status": "received"}
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 # ============ ADMIN ROUTES ============
 
 @api_router.get("/admin/users")
