@@ -394,6 +394,86 @@ async def delete_news(news_id: str, admin: dict = Depends(require_admin)):
         raise HTTPException(status_code=404, detail="Article not found")
     return {"success": True}
 
+# ============ NOTIFICATION ROUTES ============
+
+async def create_notification_for_all_users(notification_type: str, title: str, message: str, link: str = ""):
+    """Helper function to create a notification for all users"""
+    notification = Notification(
+        type=notification_type,
+        title=title,
+        message=message,
+        link=link
+    )
+    await db.notifications.insert_one(notification.model_dump())
+    
+    # Create user notifications for all users
+    users = await db.users.find({}, {"id": 1}).to_list(10000)
+    if users:
+        user_notifications = [
+            UserNotification(
+                user_id=user['id'],
+                notification_id=notification.id
+            ).model_dump() for user in users
+        ]
+        await db.user_notifications.insert_many(user_notifications)
+    
+    return notification
+
+@api_router.get("/notifications")
+async def get_notifications(user: dict = Depends(get_current_user)):
+    """Get all notifications for the current user"""
+    # Get user's notification read status
+    user_notifs = await db.user_notifications.find(
+        {"user_id": user['id']},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    
+    if not user_notifs:
+        return {"notifications": [], "unread_count": 0}
+    
+    # Get the actual notifications
+    notification_ids = [un['notification_id'] for un in user_notifs]
+    notifications = await db.notifications.find(
+        {"id": {"$in": notification_ids}},
+        {"_id": 0}
+    ).to_list(50)
+    
+    # Create a map for quick lookup
+    notif_map = {n['id']: n for n in notifications}
+    read_map = {un['notification_id']: un['read'] for un in user_notifs}
+    
+    # Combine data
+    result = []
+    unread_count = 0
+    for un in user_notifs:
+        if un['notification_id'] in notif_map:
+            notif = notif_map[un['notification_id']].copy()
+            notif['read'] = read_map.get(un['notification_id'], False)
+            notif['user_notification_id'] = un['id']
+            result.append(notif)
+            if not notif['read']:
+                unread_count += 1
+    
+    return {"notifications": result, "unread_count": unread_count}
+
+@api_router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: dict = Depends(get_current_user)):
+    """Mark a notification as read"""
+    result = await db.user_notifications.update_one(
+        {"user_id": user['id'], "notification_id": notification_id},
+        {"$set": {"read": True}}
+    )
+    return {"success": True}
+
+@api_router.post("/notifications/read-all")
+async def mark_all_notifications_read(user: dict = Depends(get_current_user)):
+    """Mark all notifications as read for the current user"""
+    await db.user_notifications.update_many(
+        {"user_id": user['id']},
+        {"$set": {"read": True}}
+    )
+    return {"success": True}
+
 # ============ BOOK ROUTES ============
 
 @api_router.get("/book")
