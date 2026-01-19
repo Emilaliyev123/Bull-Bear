@@ -64,6 +64,28 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - ✅ Automatic access granting after successful payment
 - ✅ Payment transaction tracking in database
 - ✅ Webhook handling for payment confirmations
+- ✅ USDC Crypto payments toggle (Ethereum, Base, Polygon)
+
+### Push Notifications (Jan 19, 2026)
+- ✅ In-app notification system with bell icon in navbar
+- ✅ Auto-notifications when admin creates new signals
+- ✅ Auto-notifications when admin posts news/analysis
+- ✅ Mark as read / Mark all read functionality
+- ✅ Real-time polling every 30 seconds
+
+### Video Conversion (Jan 19, 2026)
+- ✅ Admin Video Manager tab to view all uploaded videos
+- ✅ One-click .MOV to .MP4 conversion using FFmpeg
+- ✅ Background conversion with status polling
+- ✅ Auto-deletion of original file after conversion
+
+### Content Protection (Jan 19, 2026)
+- ✅ Disabled right-click context menu on videos
+- ✅ Disabled download button on video player
+- ✅ Disabled picture-in-picture mode
+- ✅ Keyboard shortcut blocking for screenshots
+- ✅ CSS watermark overlay for premium content
+- ✅ Video pause on window blur (screen share detection)
 
 ### Bug Fixes Applied (This Session)
 1. **Video Playback Fixed**: Added `getMediaUrl()` helper to convert old preview URLs to correct current URLs
