@@ -1294,6 +1294,74 @@ async def get_forex_rate(from_currency: str, to_currency: str):
 async def root():
     return {"message": "Bull & Bear Trading Academy API", "version": "1.0.0"}
 
+# ============ VIDEO STREAMING ROUTE ============
+
+from fastapi.responses import StreamingResponse
+import mimetypes
+
+@api_router.get("/stream/video/{filename}")
+async def stream_video(filename: str, request: Request):
+    """Stream video with proper range request support for browser playback"""
+    video_path = UPLOADS_DIR / 'videos' / filename
+    
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    file_size = video_path.stat().st_size
+    
+    # Parse range header
+    range_header = request.headers.get('range')
+    
+    if range_header:
+        # Parse "bytes=start-end"
+        range_match = range_header.replace('bytes=', '').split('-')
+        start = int(range_match[0]) if range_match[0] else 0
+        end = int(range_match[1]) if range_match[1] else file_size - 1
+        
+        if start >= file_size:
+            raise HTTPException(status_code=416, detail="Range not satisfiable")
+        
+        end = min(end, file_size - 1)
+        content_length = end - start + 1
+        
+        def iter_file():
+            with open(video_path, 'rb') as f:
+                f.seek(start)
+                remaining = content_length
+                while remaining > 0:
+                    chunk_size = min(65536, remaining)
+                    data = f.read(chunk_size)
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+        
+        headers = {
+            'Content-Range': f'bytes {start}-{end}/{file_size}',
+            'Accept-Ranges': 'bytes',
+            'Content-Length': str(content_length),
+            'Content-Type': 'video/mp4',
+        }
+        
+        return StreamingResponse(iter_file(), status_code=206, headers=headers, media_type='video/mp4')
+    else:
+        # No range header - return full file
+        def iter_full_file():
+            with open(video_path, 'rb') as f:
+                while True:
+                    data = f.read(65536)
+                    if not data:
+                        break
+                    yield data
+        
+        headers = {
+            'Accept-Ranges': 'bytes',
+            'Content-Length': str(file_size),
+            'Content-Type': 'video/mp4',
+        }
+        
+        return StreamingResponse(iter_full_file(), headers=headers, media_type='video/mp4')
+
 # ============ DOWNLOAD ROUTES ============
 
 from fastapi.responses import FileResponse
