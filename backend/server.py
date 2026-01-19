@@ -36,6 +36,16 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'bull-bear-secret-key-2024')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
+# Stripe Settings
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+
+# Product pricing (server-side defined - NEVER accept amounts from frontend)
+PRODUCTS = {
+    "course": {"name": "Trading Courses", "price": 49.90, "type": "one_time"},
+    "book": {"name": "Trading Book", "price": 29.90, "type": "one_time"},
+    "signals": {"name": "Private Signals (Monthly)", "price": 19.90, "type": "subscription"}
+}
+
 app = FastAPI(title="Bull & Bear Trading Academy API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer(auto_error=False)
