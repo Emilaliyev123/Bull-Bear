@@ -87,6 +87,30 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - ✅ CSS watermark overlay for premium content
 - ✅ Video pause on window blur (screen share detection)
 
+### PDF Offline Download (Jan 19, 2026)
+- ✅ "Download for Offline" button on Book page
+- ✅ Secure download endpoint with access validation
+- ✅ Proper filename with book title
+
+### Email Notifications - Resend (Jan 19, 2026)
+- ✅ Email alerts for new trading signals (to subscribed users)
+- ✅ Email alerts for new market news (to all users)
+- ✅ Beautiful HTML email templates with branding
+- ✅ User email preferences in Profile settings
+- ✅ Admin test email functionality
+
+### Browser Push Notifications (Jan 19, 2026)
+- ✅ Service Worker for push notifications
+- ✅ Push subscription management in Profile
+- ✅ Toggle switches for notification preferences
+
+### Real-time Market Data - Alpha Vantage (Jan 19, 2026)
+- ✅ Live forex rates (EUR/USD, GBP/USD, USD/JPY)
+- ✅ Live crypto prices (BTC, ETH from API, SOL fallback)
+- ✅ Stock indices via ETF proxies (SPY→S&P500, QQQ→NASDAQ, DIA→DOW)
+- ✅ 5-minute in-memory caching to respect API limits
+- ✅ Fallback to mock data when API unavailable
+
 ### Bug Fixes Applied (This Session)
 1. **Video Playback Fixed**: Added `getMediaUrl()` helper to convert old preview URLs to correct current URLs
 2. **Book Saving Fixed**: Backend working correctly; changed to store relative URLs for portability
