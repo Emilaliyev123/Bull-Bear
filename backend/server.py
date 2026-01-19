@@ -443,7 +443,7 @@ async def get_signals(user: dict = Depends(get_optional_user)):
     return {"signals": signals, "has_access": has_access}
 
 @api_router.post("/signals")
-async def create_signal(data: SignalCreate, admin: dict = Depends(require_admin)):
+async def create_signal(background_tasks: BackgroundTasks, data: SignalCreate, admin: dict = Depends(require_admin)):
     signal = Signal(**data.model_dump())
     await db.signals.insert_one(signal.model_dump())
     
@@ -454,6 +454,21 @@ async def create_signal(data: SignalCreate, admin: dict = Depends(require_admin)
         message=f"{signal.direction} signal for {signal.asset}",
         link="/signals"
     )
+    
+    # Send email notifications to subscribed users (background task)
+    async def send_signal_emails():
+        # Get users with signals subscription
+        subscribers = await db.users.find(
+            {"signals_subscription": True, "email": {"$exists": True}},
+            {"_id": 0, "email": 1}
+        ).to_list(10000)
+        
+        if subscribers:
+            emails = [u['email'] for u in subscribers]
+            html = create_signal_email_html(signal.model_dump())
+            await send_email_notification(emails, f"🚀 New Signal: {signal.asset} {signal.direction}", html)
+    
+    background_tasks.add_task(asyncio.create_task, send_signal_emails())
     
     return signal.model_dump()
 
