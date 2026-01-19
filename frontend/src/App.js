@@ -8,7 +8,7 @@ import {
   Menu, X, ChevronRight, Play, Lock, CheckCircle, AlertCircle, Crown,
   BarChart3, Shield, Brain, Target, DollarSign, Clock, ArrowUpRight, ArrowDownRight,
   Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
-  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle
+  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell
 } from "lucide-react";
 
 // Support Email
