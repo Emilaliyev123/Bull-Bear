@@ -255,6 +255,81 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-4">
           {user ? (
             <>
+              {/* Notification Bell */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="text-zinc-400 hover:text-white relative p-2"
+                >
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 text-black text-xs font-bold rounded-full flex items-center justify-center">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+                
+                {/* Notification Dropdown */}
+                <AnimatePresence>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 10 }}
+                      className="absolute right-0 top-full mt-2 w-80 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl overflow-hidden z-50"
+                    >
+                      <div className="p-3 border-b border-zinc-800 flex justify-between items-center">
+                        <span className="text-white font-semibold">Notifications</span>
+                        {unreadCount > 0 && (
+                          <button onClick={markAllRead} className="text-amber-500 text-xs hover:underline">
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="p-4 text-center text-zinc-500">No notifications</div>
+                        ) : (
+                          notifications.slice(0, 10).map(notif => (
+                            <div 
+                              key={notif.id}
+                              onClick={() => {
+                                if (!notif.read) markAsRead(notif.id);
+                                if (notif.link) navigate(notif.link);
+                                setShowNotifications(false);
+                              }}
+                              className={`p-3 border-b border-zinc-800 cursor-pointer hover:bg-zinc-800/50 ${!notif.read ? 'bg-amber-500/5' : ''}`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${notif.type === 'signal' ? 'bg-emerald-500/20' : 'bg-blue-500/20'}`}>
+                                  {notif.type === 'signal' ? (
+                                    <Signal size={14} className="text-emerald-500" />
+                                  ) : (
+                                    <Newspaper size={14} className="text-blue-500" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-medium ${!notif.read ? 'text-white' : 'text-zinc-400'}`}>
+                                    {notif.title}
+                                  </p>
+                                  <p className="text-xs text-zinc-500 truncate">{notif.message}</p>
+                                  <p className="text-xs text-zinc-600 mt-1">
+                                    {new Date(notif.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                                {!notif.read && (
+                                  <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              
               {user.is_admin && (
                 <Link to="/admin" className="text-amber-500 hover:text-amber-400 flex items-center gap-2">
                   <Crown size={18} /> Admin
