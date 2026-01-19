@@ -1689,6 +1689,158 @@ const ProfilePage = () => {
   );
 };
 
+// =============== VIDEO MANAGER COMPONENT ===============
+
+const VideoManagerTab = ({ token }) => {
+  const [videos, setVideos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [converting, setConverting] = useState({});
+  const [conversionStatus, setConversionStatus] = useState({});
+
+  useEffect(() => {
+    loadVideos();
+  }, []);
+
+  const loadVideos = async () => {
+    try {
+      const res = await api.get('/admin/videos', token);
+      setVideos(res.data.videos || []);
+    } catch (e) {
+      console.error('Failed to load videos');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startConversion = async (video) => {
+    if (converting[video.filename]) return;
+    
+    setConverting(prev => ({ ...prev, [video.filename]: true }));
+    
+    try {
+      const res = await api.post('/admin/convert-video', { video_url: video.url }, token);
+      const taskId = res.data.task_id;
+      
+      // Start polling for status
+      pollConversionStatus(taskId, video.filename, res.data.output_url);
+    } catch (e) {
+      alert('Failed to start conversion');
+      setConverting(prev => ({ ...prev, [video.filename]: false }));
+    }
+  };
+
+  const pollConversionStatus = async (taskId, filename, outputUrl) => {
+    const poll = async () => {
+      try {
+        const res = await api.get(`/admin/convert-video/status/${taskId}`, token);
+        setConversionStatus(prev => ({ ...prev, [filename]: res.data }));
+        
+        if (res.data.status === 'completed') {
+          setConverting(prev => ({ ...prev, [filename]: false }));
+          // Reload video list
+          setTimeout(loadVideos, 1000);
+        } else if (res.data.status === 'failed') {
+          setConverting(prev => ({ ...prev, [filename]: false }));
+          alert(`Conversion failed: ${res.data.error}`);
+        } else {
+          // Continue polling
+          setTimeout(poll, 3000);
+        }
+      } catch (e) {
+        console.error('Failed to poll status');
+        setConverting(prev => ({ ...prev, [filename]: false }));
+      }
+    };
+    
+    poll();
+  };
+
+  if (loading) {
+    return (
+      <Card3D className="text-center py-8">
+        <div className="animate-spin w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full mx-auto"></div>
+        <p className="text-zinc-400 mt-4">Loading videos...</p>
+      </Card3D>
+    );
+  }
+
+  const needsConversion = videos.filter(v => v.needs_conversion);
+  const mp4Videos = videos.filter(v => !v.needs_conversion);
+
+  return (
+    <div className="space-y-6">
+      <Card3D>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <AlertCircle className="text-amber-500" size={20} />
+          Videos Needing Conversion ({needsConversion.length})
+        </h3>
+        
+        {needsConversion.length === 0 ? (
+          <p className="text-zinc-500">All videos are in MP4 format ✓</p>
+        ) : (
+          <div className="space-y-3">
+            {needsConversion.map(video => (
+              <div key={video.filename} className="flex items-center justify-between bg-zinc-800/50 p-4 rounded-lg">
+                <div className="flex-1">
+                  <p className="text-white font-medium truncate">{video.filename}</p>
+                  <div className="flex gap-4 text-sm text-zinc-500">
+                    <span>{video.size_mb} MB</span>
+                    <span className="text-amber-500 uppercase">{video.format}</span>
+                  </div>
+                </div>
+                
+                {converting[video.filename] ? (
+                  <div className="flex items-center gap-2 text-amber-500">
+                    <div className="animate-spin w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                    <span className="text-sm">Converting...</span>
+                  </div>
+                ) : (
+                  <GoldButton onClick={() => startConversion(video)} className="text-sm px-3 py-1.5">
+                    Convert to MP4
+                  </GoldButton>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card3D>
+
+      <Card3D>
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <CheckCircle className="text-emerald-500" size={20} />
+          MP4 Videos ({mp4Videos.length})
+        </h3>
+        
+        {mp4Videos.length === 0 ? (
+          <p className="text-zinc-500">No MP4 videos yet</p>
+        ) : (
+          <div className="space-y-3">
+            {mp4Videos.map(video => (
+              <div key={video.filename} className="flex items-center justify-between bg-zinc-800/50 p-4 rounded-lg">
+                <div className="flex-1">
+                  <p className="text-white font-medium truncate">{video.filename}</p>
+                  <div className="flex gap-4 text-sm text-zinc-500">
+                    <span>{video.size_mb} MB</span>
+                    <span className="text-emerald-500 uppercase">.mp4</span>
+                  </div>
+                </div>
+                <a 
+                  href={`${BACKEND_URL}${video.url}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <Eye size={20} />
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card3D>
+    </div>
+  );
+};
+
 // =============== ENHANCED ADMIN PAGE ===============
 
 const AdminPage = () => {
