@@ -2729,6 +2729,196 @@ const SupportPage = () => {
   );
 };
 
+// =============== PAYMENT PAGES ===============
+
+const PaymentSuccessPage = () => {
+  const { user, token, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const [status, setStatus] = useState('checking');
+  const [productType, setProductType] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const maxAttempts = 10;
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    
+    if (!sessionId) {
+      setStatus('error');
+      return;
+    }
+    
+    pollPaymentStatus(sessionId);
+  }, [user]);
+
+  const pollPaymentStatus = async (sessionId) => {
+    if (attempts >= maxAttempts) {
+      setStatus('timeout');
+      return;
+    }
+
+    try {
+      const response = await api.get(`/checkout/status/${sessionId}`, token);
+      const data = response.data;
+      
+      if (data.payment_status === 'paid') {
+        setStatus('success');
+        setProductType(data.product_type);
+        // Refresh user data to get updated access
+        if (refreshUser) refreshUser();
+      } else if (data.status === 'expired') {
+        setStatus('expired');
+      } else {
+        // Continue polling
+        setAttempts(prev => prev + 1);
+        setTimeout(() => pollPaymentStatus(sessionId), 2000);
+      }
+    } catch (error) {
+      console.error('Error checking payment:', error);
+      setAttempts(prev => prev + 1);
+      if (attempts < maxAttempts) {
+        setTimeout(() => pollPaymentStatus(sessionId), 2000);
+      } else {
+        setStatus('error');
+      }
+    }
+  };
+
+  const getProductInfo = () => {
+    switch(productType) {
+      case 'course': return { name: 'Trading Courses', link: '/courses' };
+      case 'book': return { name: 'Trading Book', link: '/book' };
+      case 'signals': return { name: 'Private Signals', link: '/signals' };
+      default: return { name: 'Product', link: '/products' };
+    }
+  };
+
+  return (
+    <PageWrapper>
+      <div className="max-w-md mx-auto px-4">
+        <Card3D className="text-center">
+          {status === 'checking' && (
+            <>
+              <div className="animate-spin w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full mx-auto mb-6"></div>
+              <h1 className="text-2xl font-bold text-white mb-4">Processing Payment...</h1>
+              <p className="text-zinc-400">Please wait while we confirm your payment.</p>
+            </>
+          )}
+          
+          {status === 'success' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle className="text-emerald-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-4">Payment Successful!</h1>
+              <p className="text-zinc-400 mb-6">
+                Thank you for purchasing <span className="text-amber-500">{getProductInfo().name}</span>. 
+                You now have full access.
+              </p>
+              <div className="space-y-3">
+                <GoldButton onClick={() => navigate(getProductInfo().link)} className="w-full">
+                  Access Your Content <ChevronRight size={18} />
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/profile')} className="w-full">
+                  View Profile
+                </GoldButton>
+              </div>
+            </>
+          )}
+          
+          {status === 'error' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertCircle className="text-red-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-4">Payment Error</h1>
+              <p className="text-zinc-400 mb-6">
+                We couldn't verify your payment. If you were charged, please contact support.
+              </p>
+              <div className="space-y-3">
+                <GoldButton onClick={() => navigate('/products')} className="w-full">
+                  Try Again
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/support')} className="w-full">
+                  Contact Support
+                </GoldButton>
+              </div>
+            </>
+          )}
+          
+          {status === 'expired' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Clock className="text-amber-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-4">Session Expired</h1>
+              <p className="text-zinc-400 mb-6">
+                Your payment session has expired. Please try again.
+              </p>
+              <GoldButton onClick={() => navigate('/products')} className="w-full">
+                Return to Products
+              </GoldButton>
+            </>
+          )}
+          
+          {status === 'timeout' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Clock className="text-amber-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-4">Verification Timeout</h1>
+              <p className="text-zinc-400 mb-6">
+                Payment verification is taking longer than expected. Please check your profile or contact support.
+              </p>
+              <div className="space-y-3">
+                <GoldButton onClick={() => navigate('/profile')} className="w-full">
+                  Check Profile
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/support')} className="w-full">
+                  Contact Support
+                </GoldButton>
+              </div>
+            </>
+          )}
+        </Card3D>
+      </div>
+    </PageWrapper>
+  );
+};
+
+const PaymentCancelPage = () => {
+  const navigate = useNavigate();
+
+  return (
+    <PageWrapper>
+      <div className="max-w-md mx-auto px-4">
+        <Card3D className="text-center">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-zinc-700/50 flex items-center justify-center">
+            <X className="text-zinc-400" size={48} />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-4">Payment Cancelled</h1>
+          <p className="text-zinc-400 mb-6">
+            Your payment was cancelled. No charges were made.
+          </p>
+          <div className="space-y-3">
+            <GoldButton onClick={() => navigate('/products')} className="w-full">
+              Return to Products
+            </GoldButton>
+            <GoldButton variant="secondary" onClick={() => navigate('/')} className="w-full">
+              Go Home
+            </GoldButton>
+          </div>
+        </Card3D>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // Main App
 function App() {
   return (
