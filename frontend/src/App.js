@@ -172,10 +172,51 @@ const StatCard = ({ icon: Icon, label, value, trend }) => (
 );
 
 const Navbar = () => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifications, setShowNotifications] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Load notifications
+  useEffect(() => {
+    if (user && token) {
+      loadNotifications();
+      // Poll every 30 seconds
+      const interval = setInterval(loadNotifications, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [user, token]);
+
+  const loadNotifications = async () => {
+    try {
+      const res = await api.get('/notifications', token);
+      setNotifications(res.data.notifications || []);
+      setUnreadCount(res.data.unread_count || 0);
+    } catch (e) {
+      console.error('Failed to load notifications');
+    }
+  };
+
+  const markAsRead = async (notificationId) => {
+    try {
+      await api.post(`/notifications/${notificationId}/read`, {}, token);
+      loadNotifications();
+    } catch (e) {
+      console.error('Failed to mark as read');
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await api.post('/notifications/read-all', {}, token);
+      loadNotifications();
+    } catch (e) {
+      console.error('Failed to mark all as read');
+    }
+  };
 
   const navLinks = [
     { path: "/", label: "Home", icon: BarChart3 },
