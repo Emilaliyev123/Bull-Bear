@@ -1296,7 +1296,7 @@ async def root():
 
 # ============ VIDEO STREAMING ROUTE ============
 
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 import mimetypes
 
 @api_router.get("/stream/video/{filename}")
