@@ -154,6 +154,57 @@ def create_news_email_html(article: dict) -> str:
     </div>
     """
 
+# ============ ALPHA VANTAGE MARKET DATA ============
+
+ALPHA_VANTAGE_KEY = os.environ.get('ALPHA_VANTAGE_KEY', '')
+ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+
+# Simple in-memory cache for market data (5 minute TTL)
+market_cache = {}
+CACHE_TTL = 300  # 5 minutes
+
+async def get_cached_market_data(cache_key: str):
+    """Get data from cache if not expired"""
+    if cache_key in market_cache:
+        data, timestamp = market_cache[cache_key]
+        if (datetime.now(timezone.utc) - timestamp).total_seconds() < CACHE_TTL:
+            return data
+    return None
+
+async def set_cached_market_data(cache_key: str, data: dict):
+    """Store data in cache"""
+    market_cache[cache_key] = (data, datetime.now(timezone.utc))
+
+async def fetch_alpha_vantage(function: str, **params) -> dict:
+    """Fetch data from Alpha Vantage API"""
+    if not ALPHA_VANTAGE_KEY:
+        return {"error": "API key not configured"}
+    
+    cache_key = f"{function}:{':'.join(f'{k}={v}' for k,v in sorted(params.items()))}"
+    cached = await get_cached_market_data(cache_key)
+    if cached:
+        return cached
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                ALPHA_VANTAGE_URL,
+                params={"function": function, "apikey": ALPHA_VANTAGE_KEY, **params},
+                timeout=10.0
+            )
+            data = response.json()
+            
+            # Check for API errors
+            if "Error Message" in data or "Note" in data:
+                logger.warning(f"Alpha Vantage API error: {data}")
+                return {"error": data.get("Error Message") or data.get("Note")}
+            
+            await set_cached_market_data(cache_key, data)
+            return data
+    except Exception as e:
+        logger.error(f"Alpha Vantage fetch error: {str(e)}")
+        return {"error": str(e)}
+
 # ============ MODELS ============
 
 class UserCreate(BaseModel):
