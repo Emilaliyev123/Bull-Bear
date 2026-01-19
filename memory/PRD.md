@@ -99,6 +99,11 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - `GET /api/news` - List news articles
 - `GET /api/market` - Get market data (mock)
 
+### Payments (Stripe)
+- `POST /api/checkout/create` - Create Stripe checkout session
+- `GET /api/checkout/status/{session_id}` - Get payment status
+- `POST /api/webhook/stripe` - Handle Stripe webhooks
+
 ### Admin
 - `POST /api/courses` - Create course
 - `PUT /api/courses/{id}` - Update course
