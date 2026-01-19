@@ -1842,6 +1842,62 @@ const ProfilePage = () => {
           </Card3D>
         </div>
 
+        {/* Notification Settings */}
+        <h2 className="text-xl font-bold text-white mb-4">Notification Settings</h2>
+        <Card3D className="mb-8">
+          <div className="space-y-4">
+            {/* Push Notifications */}
+            {isSupported && (
+              <div className="flex items-center justify-between py-3 border-b border-zinc-800">
+                <div>
+                  <p className="text-white font-medium flex items-center gap-2">
+                    <Bell size={18} className="text-amber-500" /> Browser Push Notifications
+                  </p>
+                  <p className="text-zinc-500 text-sm">Get instant alerts for new signals</p>
+                </div>
+                <button
+                  onClick={handlePushToggle}
+                  className={`w-12 h-6 rounded-full transition-colors ${isSubscribed ? 'bg-amber-500' : 'bg-zinc-700'} relative`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${isSubscribed ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+            )}
+            
+            {/* Email - Signals */}
+            <div className="flex items-center justify-between py-3 border-b border-zinc-800">
+              <div>
+                <p className="text-white font-medium flex items-center gap-2">
+                  <Mail size={18} className="text-blue-500" /> Signal Email Alerts
+                </p>
+                <p className="text-zinc-500 text-sm">Receive emails for new trading signals</p>
+              </div>
+              <button
+                onClick={() => updateEmailPref('receive_signal_emails', !emailPrefs.receive_signal_emails)}
+                className={`w-12 h-6 rounded-full transition-colors ${emailPrefs.receive_signal_emails ? 'bg-amber-500' : 'bg-zinc-700'} relative`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${emailPrefs.receive_signal_emails ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+            
+            {/* Email - News */}
+            <div className="flex items-center justify-between py-3">
+              <div>
+                <p className="text-white font-medium flex items-center gap-2">
+                  <Newspaper size={18} className="text-purple-500" /> News Email Alerts
+                </p>
+                <p className="text-zinc-500 text-sm">Receive emails for market analysis</p>
+              </div>
+              <button
+                onClick={() => updateEmailPref('receive_news_emails', !emailPrefs.receive_news_emails)}
+                className={`w-12 h-6 rounded-full transition-colors ${emailPrefs.receive_news_emails ? 'bg-amber-500' : 'bg-zinc-700'} relative`}
+              >
+                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${emailPrefs.receive_news_emails ? 'left-7' : 'left-1'}`} />
+              </button>
+            </div>
+          </div>
+        </Card3D>
+
         <h2 className="text-xl font-bold text-white mb-4">Purchase History</h2>
         <Card3D>
           {purchases.length > 0 ? (
