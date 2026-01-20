@@ -967,6 +967,45 @@ const HomePage = () => {
         </div>
       </section>
 
+      {/* AI Investment Advisor Promo */}
+      <section className="max-w-7xl mx-auto px-4 py-16">
+        <Card3D className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-purple-500/10 to-blue-500/10" />
+          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl" />
+          
+          <div className="relative p-8 md:p-12 flex flex-col md:flex-row items-center gap-8">
+            <div className="flex-shrink-0">
+              <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <Brain size={48} className="text-black" />
+              </div>
+            </div>
+            
+            <div className="flex-1 text-center md:text-left">
+              <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-500 px-3 py-1 rounded-full text-sm font-medium mb-3">
+                <Sparkles size={14} /> NEW FEATURE
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-3">AI Investment Manager</h2>
+              <p className="text-zinc-400 mb-6 max-w-xl">
+                Get personalized investment advice, real-time market analysis, and learn trading strategies from our AI-powered assistant. 
+                Ask about crypto, gold, forex, stocks, and more!
+              </p>
+              <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                <span className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-sm">Bitcoin Analysis</span>
+                <span className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-sm">Gold & Silver</span>
+                <span className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-sm">Portfolio Advice</span>
+                <span className="px-3 py-1 bg-zinc-800 text-zinc-400 rounded-full text-sm">Risk Management</span>
+              </div>
+            </div>
+            
+            <div className="flex-shrink-0">
+              <GoldButton onClick={() => navigate('/ai-advisor')} className="text-lg px-6 py-3">
+                Try AI Advisor <ChevronRight size={20} />
+              </GoldButton>
+            </div>
+          </div>
+        </Card3D>
+      </section>
+
       {/* Features */}
       <section className="max-w-7xl mx-auto px-4 py-16">
         <h2 className="text-2xl font-bold text-white text-center mb-12">Why Choose Bull & Bear?</h2>
