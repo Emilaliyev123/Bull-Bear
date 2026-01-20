@@ -51,7 +51,7 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 
 ## Recent Fixes (Jan 20, 2026)
 
-### Video Playback Issue
+### Video Playback Issue (Earlier)
 - **Root Cause**: Videos were in .MOV format with old preview URLs
 - **Fix Applied**: 
   - Converted all .MOV files to .MP4 using FFmpeg
@@ -60,10 +60,28 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
   - Simplified modal rendering (removed AnimatePresence)
 - **Status**: ✅ FIXED - Video player displays with all controls
 
-### Book Saving Issue
+### Book Saving Issue (Earlier)
 - **Root Cause**: Alert popup was blocking feedback
 - **Fix Applied**: Added visual toast notification
 - **Status**: ✅ FIXED - Shows "✓ Book saved successfully!"
+
+### Book PDF Reading/Download Enhancement (Latest)
+- **User Report**: "Cannot read book or download it after clicking Read Online"
+- **Investigation**: PDF functionality was working, but UX needed improvement
+- **Enhancements Applied**:
+  - Added `sonner` toast notifications for success/error feedback
+  - Added popup blocker fallback with clickable link in toast
+  - Added loading spinner on download button
+  - Better error handling with descriptive messages
+  - Added `data-testid` attributes for testing
+  - Shows "PDF will be available soon" if no PDF is uploaded
+- **Status**: ✅ ENHANCED - Improved UX with better error handling and feedback
+
+### 9. AI Investment Manager (Gemini Pro)
+- AI-powered chat assistant for trading advice
+- Session-based chat history
+- Suggestion buttons for quick questions
+- Educational disclaimer
 
 ## API Keys Configured
 - Stripe: `sk_test_51SrFEY...` ✅
