@@ -1150,15 +1150,18 @@ const CoursesPage = () => {
                   {(hasAccess || selectedCourse.is_free) && selectedCourse.video_url ? (
                     <div className="aspect-video bg-black rounded-lg mb-4">
                       <video 
-                        key={selectedCourse.video_url}
+                        key={selectedCourse.id}
                         controls 
                         controlsList="nodownload noplaybackrate" 
                         disablePictureInPicture
-                        preload="metadata"
+                        preload="auto"
                         playsInline
-                        className="w-full h-full rounded-lg protected-video" 
-                        src={getMediaUrl(selectedCourse.video_url)} 
-                      />
+                        className="w-full h-full rounded-lg protected-video"
+                        crossOrigin="anonymous"
+                      >
+                        <source src={getMediaUrl(selectedCourse.video_url)} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
                     </div>
                   ) : (
                     <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
