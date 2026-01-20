@@ -3886,6 +3886,19 @@ function App() {
           </div>
           <Footer />
         </BrowserRouter>
+        <Toaster 
+          position="top-right" 
+          richColors 
+          closeButton 
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: '#18181b',
+              border: '1px solid #3f3f46',
+              color: '#fff',
+            },
+          }}
+        />
       </div>
     </AuthProvider>
   );
