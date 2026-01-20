@@ -87,6 +87,7 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Stripe: `sk_test_51SrFEY...` ✅
 - Resend: `re_bJkj2E...` ✅
 - Alpha Vantage: `BZY2C113...` ✅
+- Emergent LLM Key (Gemini Pro): ✅
 
 ## Test Credentials
 - **Admin:** admin@bullbear.com / admin123
@@ -94,6 +95,13 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 ## Known Limitations
 - Playwright headless browser may show video codec errors (works in real browsers)
 - Alpha Vantage free tier: 25 requests/day
+- Popup blockers may interfere with "Read Online" - fallback provided
+
+## Content Status
+- Courses: 5 courses created (need video content uploaded via admin)
+- Signals: 3 signals active
+- News: Empty (admin needs to add articles)
+- Book: PDF uploaded and working
 
 ## Future Enhancements
 - [ ] Advanced watermarking with user info
