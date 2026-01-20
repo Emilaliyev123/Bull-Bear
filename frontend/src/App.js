@@ -1383,6 +1383,7 @@ const SignalsPage = () => {
 const BookPage = () => {
   const { user, token } = useAuth();
   const [book, setBook] = useState(null);
+  const [downloading, setDownloading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -1413,7 +1414,71 @@ const BookPage = () => {
         window.location.href = response.data.checkout_url;
       }
     } catch (e) {
-      alert('Payment initialization failed');
+      toast.error('Payment initialization failed. Please try again.');
+    }
+  };
+
+  const handleReadOnline = () => {
+    if (!book?.pdf_url) {
+      toast.error('PDF is not available yet. Please contact support.');
+      return;
+    }
+    const pdfUrl = getMediaUrl(book.pdf_url);
+    const newWindow = window.open(pdfUrl, '_blank');
+    
+    // Check if popup was blocked
+    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+      // Fallback: Create a clickable link that will work even with popup blockers
+      toast.info(
+        <div className="flex flex-col gap-2">
+          <span>Popup blocked. Click below to open the PDF:</span>
+          <a 
+            href={pdfUrl} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-amber-500 underline font-medium"
+          >
+            Open PDF →
+          </a>
+        </div>,
+        { duration: 10000 }
+      );
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!book?.pdf_url) {
+      toast.error('PDF is not available yet. Please contact support.');
+      return;
+    }
+    
+    setDownloading(true);
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/download/book`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Download failed');
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${book.title || 'BullBear-Trading-Book'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Download started! Check your downloads folder.');
+    } catch (e) {
+      console.error('Download error:', e);
+      toast.error(e.message || 'Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -1459,41 +1524,40 @@ const BookPage = () => {
                     <CheckCircle size={20} />
                     You own this book
                   </div>
-                  {book?.pdf_url && (
+                  {book?.pdf_url ? (
                     <div className="space-y-3">
-                      <GoldButton onClick={() => window.open(getMediaUrl(book.pdf_url), '_blank')} className="w-full">
-                        <BookOpen size={18} /> Read Online
+                      <GoldButton onClick={handleReadOnline} className="w-full" data-testid="read-online-btn">
+                        <ExternalLink size={18} /> Read Online
                       </GoldButton>
                       <GoldButton 
                         variant="secondary" 
-                        onClick={async () => {
-                          try {
-                            const response = await fetch(`${BACKEND_URL}/api/download/book`, {
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            if (!response.ok) throw new Error('Download failed');
-                            const blob = await response.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `${book.title || 'BullBear-Trading-Book'}.pdf`;
-                            link.click();
-                            window.URL.revokeObjectURL(url);
-                          } catch (e) {
-                            alert('Download failed. Please try again.');
-                          }
-                        }} 
+                        onClick={handleDownload}
+                        disabled={downloading}
                         className="w-full"
+                        data-testid="download-pdf-btn"
                       >
-                        <FileText size={18} /> Download for Offline
+                        {downloading ? (
+                          <>
+                            <Loader2 size={18} className="animate-spin" /> Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <Download size={18} /> Download for Offline
+                          </>
+                        )}
                       </GoldButton>
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-500/20 text-yellow-500 px-4 py-3 rounded-lg flex items-center gap-2">
+                      <AlertCircle size={20} />
+                      PDF will be available soon. Check back later!
                     </div>
                   )}
                 </div>
               ) : (
                 <div>
                   <p className="text-3xl font-bold text-amber-500 mb-4">${book?.price || 29.90}</p>
-                  <GoldButton onClick={handlePurchase} className="w-full">
+                  <GoldButton onClick={handlePurchase} className="w-full" data-testid="purchase-book-btn">
                     <DollarSign size={18} /> Purchase Book
                   </GoldButton>
                 </div>
