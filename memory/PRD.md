@@ -8,177 +8,77 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - **Design:** Luxury, institutional-grade with black & gold color palette
 - **Tech Stack:** React + FastAPI + MongoDB
 
-## Core Features
+## Core Features Implemented
 
-### 1. Home Dashboard
-- Welcome section
-- Live market overview (Forex, Crypto, Indices)
-- Latest signals preview
-- Latest news preview
+### 1. User Authentication & Admin Panel
+- JWT-based authentication
+- Admin panel for content management
+- User role management
 
 ### 2. Trading Courses ($49.90 one-time)
 - Video course library with categories
-- Progress tracking
-- Video playback for purchased users
+- MP4 video playback with HTML5 player
+- Admin can upload and manage course videos
 
-### 3. Trading Book ($29.90 one-time)
+### 3. Trading Book ($29.90 one-time) 
 - "Game of Candles" PDF book
-- Built-in PDF reader access
-- Custom book cover display
+- Download for offline reading
+- Admin can update book details and PDF
 
 ### 4. Private Signals ($19.90/month)
 - Real-time trading signals
 - Entry, Stop Loss, Take Profit levels
-- Risk management notes
 
-### 5. Market News & Analysis
-- Admin-posted market commentary
-- Educational content
+### 5. Payments (Stripe)
+- One-time payments for courses and book
+- Monthly subscriptions for signals
+- USDC crypto payment option
 
-### 6. Admin Panel
-- User management
-- Course management (upload videos, thumbnails)
-- Book management (upload PDF, cover)
-- Signal management
-- News management
-- Dashboard stats
+### 6. Notifications
+- In-app notifications with bell icon
+- Email notifications via Resend
+- Browser push notifications (Service Worker)
 
-## What's Implemented (Jan 17, 2026)
+### 7. Market Data (Alpha Vantage)
+- Live forex rates (EUR/USD, GBP/USD, USD/JPY)
+- Live crypto prices (BTC, ETH)
+- Stock indices (S&P 500, NASDAQ, DOW)
 
-### Completed Features
-- Full React frontend with luxury black/gold theme
-- FastAPI backend with all API endpoints
-- MongoDB database integration
-- User authentication (JWT)
-- Admin panel with all CRUD operations
-- File upload system (videos, PDFs, images)
-- Static file serving via `/api/uploads/`
-- Products page consolidating all offerings
-- Support page with email contact
-- Site-wide footer with support email
+### 8. Content Protection
+- Disabled right-click on videos
+- Disabled download button
+- Video pause on window blur
 
-### Stripe Payment Integration (Jan 19, 2026)
-- ✅ Stripe Checkout for one-time payments (Courses $49.90, Book $29.90)
-- ✅ Stripe Checkout for monthly subscriptions (Signals $19.90/month)
-- ✅ Payment success/cancel pages with status polling
-- ✅ Automatic access granting after successful payment
-- ✅ Payment transaction tracking in database
-- ✅ Webhook handling for payment confirmations
-- ✅ USDC Crypto payments toggle (Ethereum, Base, Polygon)
+## Recent Fixes (Jan 20, 2026)
 
-### Push Notifications (Jan 19, 2026)
-- ✅ In-app notification system with bell icon in navbar
-- ✅ Auto-notifications when admin creates new signals
-- ✅ Auto-notifications when admin posts news/analysis
-- ✅ Mark as read / Mark all read functionality
-- ✅ Real-time polling every 30 seconds
+### Video Playback Issue
+- **Root Cause**: Videos were in .MOV format with old preview URLs
+- **Fix Applied**: 
+  - Converted all .MOV files to .MP4 using FFmpeg
+  - Updated video URLs in database
+  - Added proper video streaming endpoint
+  - Simplified modal rendering (removed AnimatePresence)
+- **Status**: ✅ FIXED - Video player displays with all controls
 
-### Video Conversion (Jan 19, 2026)
-- ✅ Admin Video Manager tab to view all uploaded videos
-- ✅ One-click .MOV to .MP4 conversion using FFmpeg
-- ✅ Background conversion with status polling
-- ✅ Auto-deletion of original file after conversion
+### Book Saving Issue
+- **Root Cause**: Alert popup was blocking feedback
+- **Fix Applied**: Added visual toast notification
+- **Status**: ✅ FIXED - Shows "✓ Book saved successfully!"
 
-### Content Protection (Jan 19, 2026)
-- ✅ Disabled right-click context menu on videos
-- ✅ Disabled download button on video player
-- ✅ Disabled picture-in-picture mode
-- ✅ Keyboard shortcut blocking for screenshots
-- ✅ CSS watermark overlay for premium content
-- ✅ Video pause on window blur (screen share detection)
-
-### PDF Offline Download (Jan 19, 2026)
-- ✅ "Download for Offline" button on Book page
-- ✅ Secure download endpoint with access validation
-- ✅ Proper filename with book title
-
-### Email Notifications - Resend (Jan 19, 2026)
-- ✅ Email alerts for new trading signals (to subscribed users)
-- ✅ Email alerts for new market news (to all users)
-- ✅ Beautiful HTML email templates with branding
-- ✅ User email preferences in Profile settings
-- ✅ Admin test email functionality
-
-### Browser Push Notifications (Jan 19, 2026)
-- ✅ Service Worker for push notifications
-- ✅ Push subscription management in Profile
-- ✅ Toggle switches for notification preferences
-
-### Real-time Market Data - Alpha Vantage (Jan 19, 2026)
-- ✅ Live forex rates (EUR/USD, GBP/USD, USD/JPY)
-- ✅ Live crypto prices (BTC, ETH from API, SOL fallback)
-- ✅ Stock indices via ETF proxies (SPY→S&P500, QQQ→NASDAQ, DIA→DOW)
-- ✅ 5-minute in-memory caching to respect API limits
-- ✅ Fallback to mock data when API unavailable
-
-### Bug Fixes Applied (This Session)
-1. **Video Playback Fixed**: Added `getMediaUrl()` helper to convert old preview URLs to correct current URLs
-2. **Book Saving Fixed**: Backend working correctly; changed to store relative URLs for portability
-3. **Static Files Routing Fixed**: Changed mount from `/uploads` to `/api/uploads` for proper Kubernetes ingress routing
-
-## Pending/Future Tasks
-
-### P1 - High Priority
-- [x] ~~Implement Stripe payment integration~~ ✅ DONE
-- [x] ~~Add push notifications~~ ✅ DONE (in-app notifications)
-- [x] ~~Convert videos (.mov to .mp4)~~ ✅ DONE (Video Manager)
-- [x] ~~Content protection~~ ✅ DONE
-- [x] ~~Crypto payments (USDC)~~ ✅ DONE
-- [x] ~~Offline reading for book PDF~~ ✅ DONE
-- [x] ~~Email notifications (Resend)~~ ✅ DONE
-- [x] ~~Browser push notifications~~ ✅ DONE
-- [x] ~~Real-time market data (Alpha Vantage)~~ ✅ DONE
-
-### P2 - Medium Priority
-- [ ] Advanced content watermarking with user info
-- [ ] User referral system with rewards
-- [ ] Multi-language support
-
-### P3 - Low Priority
-- [ ] Mobile app (React Native)
-- [ ] Social trading / copy trading features
-
-## API Endpoints
-
-### Auth
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user
-
-### Content
-- `GET /api/courses` - List courses
-- `GET /api/signals` - List signals
-- `GET /api/book` - Get book info
-- `GET /api/news` - List news articles
-- `GET /api/market` - Get market data (mock)
-
-### Payments (Stripe)
-- `POST /api/checkout/create` - Create Stripe checkout session
-- `GET /api/checkout/status/{session_id}` - Get payment status
-- `POST /api/webhook/stripe` - Handle Stripe webhooks
-
-### Admin
-- `POST /api/courses` - Create course
-- `PUT /api/courses/{id}` - Update course
-- `DELETE /api/courses/{id}` - Delete course
-- `PUT /api/book` - Update book
-- `POST /api/signals` - Create signal
-- `DELETE /api/signals/{id}` - Delete signal
-- `POST /api/news` - Create news
-- `DELETE /api/news/{id}` - Delete news
-
-### File Uploads
-- `POST /api/upload/video` - Upload video file
-- `POST /api/upload/pdf` - Upload PDF file
-- `POST /api/upload/image` - Upload image file
+## API Keys Configured
+- Stripe: `sk_test_51SrFEY...` ✅
+- Resend: `re_bJkj2E...` ✅
+- Alpha Vantage: `BZY2C113...` ✅
 
 ## Test Credentials
 - **Admin:** admin@bullbear.com / admin123
 
 ## Known Limitations
-- Market data is mocked (not real-time)
-- Payment system not yet integrated
-- Large video files (730MB .mov) take time to buffer
+- Playwright headless browser may show video codec errors (works in real browsers)
+- Alpha Vantage free tier: 25 requests/day
 
-## Support
-- Email: bullbearacademy.su@gmail.com
+## Future Enhancements
+- [ ] Advanced watermarking with user info
+- [ ] User referral system
+- [ ] Multi-language support
+- [ ] Mobile app (React Native)
