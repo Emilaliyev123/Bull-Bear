@@ -3064,6 +3064,259 @@ const AdminPage = () => {
   );
 };
 
+// =============== AI INVESTMENT MANAGER PAGE ===============
+
+const AIInvestmentPage = () => {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [showSessions, setShowSessions] = useState(false);
+  const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    loadSessions();
+  }, [user]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const loadSessions = async () => {
+    try {
+      const res = await api.get('/ai/sessions', token);
+      setSessions(res.data.sessions || []);
+    } catch (e) {
+      console.error('Failed to load sessions');
+    }
+  };
+
+  const loadHistory = async (sid) => {
+    try {
+      const res = await api.get(`/ai/history?session_id=${sid}`, token);
+      const history = res.data.history || [];
+      // Convert history to messages format
+      const msgs = [];
+      history.reverse().forEach(h => {
+        msgs.push({ role: 'user', content: h.user_message });
+        msgs.push({ role: 'assistant', content: h.ai_response });
+      });
+      setMessages(msgs);
+      setSessionId(sid);
+      setShowSessions(false);
+    } catch (e) {
+      console.error('Failed to load history');
+    }
+  };
+
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setLoading(true);
+
+    try {
+      const res = await api.post('/ai/chat', {
+        message: userMessage,
+        session_id: sessionId,
+        include_market_data: true
+      }, token);
+
+      setMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
+      if (!sessionId) {
+        setSessionId(res.data.session_id);
+        loadSessions();
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: 'Sorry, I encountered an error. Please try again.',
+        error: true 
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const startNewChat = () => {
+    setMessages([]);
+    setSessionId(null);
+    setShowSessions(false);
+  };
+
+  const quickQuestions = [
+    "What's the current outlook for Bitcoin?",
+    "How should I diversify my portfolio?",
+    "Explain support and resistance levels",
+    "Is gold a good investment right now?",
+    "What are the risks of crypto trading?"
+  ];
+
+  if (!user) return null;
+
+  return (
+    <PageWrapper>
+      <div className="max-w-5xl mx-auto px-4">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center">
+                <Brain size={24} className="text-black" />
+              </div>
+              AI Investment Manager
+            </h1>
+            <p className="text-zinc-400 mt-2">Your personal AI assistant for market analysis and investment advice</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowSessions(!showSessions)}
+              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg flex items-center gap-2"
+            >
+              <Clock size={18} /> History
+            </button>
+            <GoldButton onClick={startNewChat}>
+              <PlusCircle size={18} /> New Chat
+            </GoldButton>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Sessions Sidebar */}
+          {showSessions && (
+            <div className="lg:col-span-1">
+              <Card3D className="max-h-[600px] overflow-y-auto">
+                <h3 className="text-white font-semibold mb-4">Chat History</h3>
+                {sessions.length === 0 ? (
+                  <p className="text-zinc-500 text-sm">No previous chats</p>
+                ) : (
+                  <div className="space-y-2">
+                    {sessions.map(s => (
+                      <button
+                        key={s.session_id}
+                        onClick={() => loadHistory(s.session_id)}
+                        className={`w-full text-left p-3 rounded-lg transition-colors ${
+                          sessionId === s.session_id ? 'bg-amber-500/20 border border-amber-500/50' : 'bg-zinc-800/50 hover:bg-zinc-700/50'
+                        }`}
+                      >
+                        <p className="text-white text-sm truncate">{s.last_message}...</p>
+                        <p className="text-zinc-500 text-xs mt-1">{s.message_count} messages</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Card3D>
+            </div>
+          )}
+
+          {/* Main Chat Area */}
+          <div className={showSessions ? 'lg:col-span-3' : 'lg:col-span-4'}>
+            <Card3D className="h-[600px] flex flex-col">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-amber-500/20 to-yellow-500/20 flex items-center justify-center mb-4">
+                      <Brain size={40} className="text-amber-500" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-white mb-2">How can I help you today?</h3>
+                    <p className="text-zinc-400 mb-6 max-w-md">
+                      Ask me about market trends, investment strategies, trading concepts, or get personalized advice.
+                    </p>
+                    <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+                      {quickQuestions.map((q, i) => (
+                        <button
+                          key={i}
+                          onClick={() => { setInput(q); }}
+                          className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm rounded-lg transition-colors"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  messages.map((msg, i) => (
+                    <div
+                      key={i}
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                        className={`max-w-[80%] p-4 rounded-2xl ${
+                          msg.role === 'user'
+                            ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-black'
+                            : msg.error
+                            ? 'bg-red-500/20 text-red-400'
+                            : 'bg-zinc-800 text-white'
+                        }`}
+                      >
+                        {msg.role === 'assistant' && !msg.error && (
+                          <div className="flex items-center gap-2 mb-2 pb-2 border-b border-zinc-700">
+                            <Brain size={16} className="text-amber-500" />
+                            <span className="text-amber-500 text-sm font-medium">AI Investment Manager</span>
+                          </div>
+                        )}
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          {msg.content.split('\n').map((line, j) => (
+                            <p key={j} className={`${line.startsWith('**') ? 'font-semibold' : ''} mb-1`}>
+                              {line.replace(/\*\*/g, '')}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                {loading && (
+                  <div className="flex justify-start">
+                    <div className="bg-zinc-800 p-4 rounded-2xl">
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
+                        <span className="text-zinc-400">Analyzing...</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input */}
+              <div className="p-4 border-t border-zinc-800">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    placeholder="Ask about investments, trading strategies, market analysis..."
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                    disabled={loading}
+                  />
+                  <GoldButton onClick={sendMessage} disabled={loading || !input.trim()}>
+                    <ChevronRight size={20} />
+                  </GoldButton>
+                </div>
+                <p className="text-zinc-500 text-xs mt-2 text-center">
+                  AI advice is for educational purposes only. Always do your own research before investing.
+                </p>
+              </div>
+            </Card3D>
+          </div>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // =============== SUPPORT PAGE ===============
 
 const SupportPage = () => {
