@@ -3769,6 +3769,7 @@ function App() {
               <Route path="/signals" element={<SignalsPage />} />
               <Route path="/book" element={<BookPage />} />
               <Route path="/news" element={<NewsPage />} />
+              <Route path="/ai-advisor" element={<AIInvestmentPage />} />
               <Route path="/support" element={<SupportPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
