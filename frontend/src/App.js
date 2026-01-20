@@ -1155,10 +1155,11 @@ const CoursesPage = () => {
                         controlsList="nodownload" 
                         preload="auto"
                         playsInline
+                        autoPlay={false}
                         className="w-full h-full rounded-lg protected-video"
-                      >
-                        <source src={getMediaUrl(selectedCourse.video_url)} type="video/mp4" />
-                      </video>
+                        src={getMediaUrl(selectedCourse.video_url)}
+                        onError={(e) => console.error('Video error:', e.target.error)}
+                      />
                     </div>
                   ) : (
                     <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
