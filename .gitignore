@@ -116,3 +116,7 @@ backend/uploads/videos/e4d1e078-test.mp4
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
