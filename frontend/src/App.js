@@ -3,12 +3,13 @@ import "@/App.css";
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
+import { Toaster, toast } from 'sonner';
 import {
   TrendingUp, TrendingDown, BookOpen, Signal, Newspaper, User, LogOut,
   Menu, X, ChevronRight, Play, Lock, CheckCircle, AlertCircle, Crown,
   BarChart3, Shield, Brain, Target, DollarSign, Clock, ArrowUpRight, ArrowDownRight,
   Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
-  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell
+  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell, Download, ExternalLink, Loader2
 } from "lucide-react";
 
 // Support Email
