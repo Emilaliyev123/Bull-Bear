@@ -1152,15 +1152,12 @@ const CoursesPage = () => {
                       <video 
                         key={selectedCourse.id}
                         controls 
-                        controlsList="nodownload noplaybackrate" 
-                        disablePictureInPicture
+                        controlsList="nodownload" 
                         preload="auto"
                         playsInline
                         className="w-full h-full rounded-lg protected-video"
-                        crossOrigin="anonymous"
                       >
                         <source src={getMediaUrl(selectedCourse.video_url)} type="video/mp4" />
-                        Your browser does not support the video tag.
                       </video>
                     </div>
                   ) : (
