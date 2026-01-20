@@ -1159,6 +1159,164 @@ async def get_stats(admin: dict = Depends(require_admin)):
         "purchases": purchases_count
     }
 
+# ============ AI INVESTMENT MANAGER ============
+
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+# AI Investment Manager System Prompt
+AI_INVESTMENT_SYSTEM_PROMPT = """You are an expert AI Investment Manager for Bull & Bear Trading Academy. You help users with:
+
+1. **Market Analysis**: Analyze crypto (Bitcoin, Ethereum, etc.), precious metals (Gold, Silver), forex, and stocks
+2. **Investment Advice**: Provide personalized investment strategies based on risk tolerance and goals
+3. **Trading Education**: Explain trading concepts, strategies, and terminology
+4. **Risk Management**: Help users understand and manage investment risks
+
+IMPORTANT GUIDELINES:
+- Always provide balanced, educational advice
+- Include risk disclaimers when giving investment suggestions
+- Use real market data when available
+- Explain complex concepts in simple terms
+- Be encouraging but realistic about potential returns
+- Never guarantee profits or specific returns
+- Recommend diversification and proper position sizing
+
+Current market context will be provided with each message when available.
+
+Format your responses with clear sections using markdown:
+- Use **bold** for key points
+- Use bullet points for lists
+- Use code blocks for numerical data
+- Keep responses concise but informative"""
+
+class AIChatMessage(BaseModel):
+    message: str
+    session_id: Optional[str] = None
+    include_market_data: bool = True
+
+class AIChatResponse(BaseModel):
+    response: str
+    session_id: str
+    market_context: Optional[Dict] = None
+
+# Store active chat sessions
+ai_chat_sessions: Dict[str, LlmChat] = {}
+
+async def get_market_context() -> str:
+    """Get current market data for AI context"""
+    try:
+        # Fetch current market data
+        context_parts = []
+        
+        # Get forex
+        for pair in [("EUR", "USD"), ("GBP", "USD")]:
+            data = await fetch_alpha_vantage("CURRENCY_EXCHANGE_RATE", from_currency=pair[0], to_currency=pair[1])
+            if "Realtime Currency Exchange Rate" in data:
+                rate = data["Realtime Currency Exchange Rate"].get("5. Exchange Rate", "N/A")
+                context_parts.append(f"{pair[0]}/{pair[1]}: {rate}")
+        
+        # Get crypto
+        for crypto in ["BTC", "ETH"]:
+            data = await fetch_alpha_vantage("CURRENCY_EXCHANGE_RATE", from_currency=crypto, to_currency="USD")
+            if "Realtime Currency Exchange Rate" in data:
+                rate = data["Realtime Currency Exchange Rate"].get("5. Exchange Rate", "N/A")
+                context_parts.append(f"{crypto}/USD: ${float(rate):,.2f}" if rate != "N/A" else f"{crypto}/USD: N/A")
+        
+        if context_parts:
+            return "Current Market Data:\n" + "\n".join(context_parts)
+        return ""
+    except Exception as e:
+        logger.error(f"Error fetching market context: {e}")
+        return ""
+
+@api_router.post("/ai/chat")
+async def ai_chat(data: AIChatMessage, user: dict = Depends(get_current_user)):
+    """Chat with AI Investment Manager"""
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=500, detail="AI service not configured")
+    
+    # Generate or use existing session ID
+    session_id = data.session_id or f"ai-{user['id']}-{uuid.uuid4().hex[:8]}"
+    
+    # Get or create chat session
+    if session_id not in ai_chat_sessions:
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=session_id,
+            system_message=AI_INVESTMENT_SYSTEM_PROMPT
+        ).with_model("gemini", "gemini-3-flash-preview")
+        ai_chat_sessions[session_id] = chat
+    else:
+        chat = ai_chat_sessions[session_id]
+    
+    # Build message with market context
+    message_text = data.message
+    market_context = None
+    
+    if data.include_market_data:
+        context = await get_market_context()
+        if context:
+            message_text = f"{context}\n\nUser Question: {data.message}"
+            market_context = {"fetched": True}
+    
+    try:
+        # Send message to AI
+        user_message = UserMessage(text=message_text)
+        response = await chat.send_message(user_message)
+        
+        # Store in database for history
+        await db.ai_chats.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user['id'],
+            "session_id": session_id,
+            "user_message": data.message,
+            "ai_response": response,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return AIChatResponse(
+            response=response,
+            session_id=session_id,
+            market_context=market_context
+        )
+    except Exception as e:
+        logger.error(f"AI chat error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"AI service error: {str(e)}")
+
+@api_router.get("/ai/history")
+async def get_ai_chat_history(session_id: Optional[str] = None, user: dict = Depends(get_current_user)):
+    """Get AI chat history for user"""
+    query = {"user_id": user['id']}
+    if session_id:
+        query["session_id"] = session_id
+    
+    history = await db.ai_chats.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"history": history}
+
+@api_router.get("/ai/sessions")
+async def get_ai_sessions(user: dict = Depends(get_current_user)):
+    """Get list of AI chat sessions for user"""
+    pipeline = [
+        {"$match": {"user_id": user['id']}},
+        {"$group": {
+            "_id": "$session_id",
+            "last_message": {"$last": "$user_message"},
+            "created_at": {"$first": "$created_at"},
+            "message_count": {"$sum": 1}
+        }},
+        {"$sort": {"created_at": -1}},
+        {"$limit": 20}
+    ]
+    sessions = await db.ai_chats.aggregate(pipeline).to_list(20)
+    return {"sessions": [{"session_id": s["_id"], "last_message": s["last_message"][:50], "message_count": s["message_count"]} for s in sessions]}
+
+@api_router.delete("/ai/session/{session_id}")
+async def delete_ai_session(session_id: str, user: dict = Depends(get_current_user)):
+    """Delete an AI chat session"""
+    result = await db.ai_chats.delete_many({"user_id": user['id'], "session_id": session_id})
+    if session_id in ai_chat_sessions:
+        del ai_chat_sessions[session_id]
+    return {"deleted": result.deleted_count}
+
 # ============ MARKET DATA (Alpha Vantage) ============
 
 # Fallback mock data for when API is unavailable
