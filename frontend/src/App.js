@@ -1129,30 +1129,23 @@ const CoursesPage = () => {
         </div>
 
         {/* Course Modal */}
-        <AnimatePresence>
-          {selectedCourse && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
-              onClick={() => setSelectedCourse(null)}
+        {selectedCourse && (
+          <div
+            className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50"
+            onClick={() => setSelectedCourse(null)}
+          >
+            <div
+              onClick={e => e.stopPropagation()}
+              className="bg-zinc-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                onClick={e => e.stopPropagation()}
-                className="bg-zinc-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-              >
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <span className="text-xs text-amber-500 uppercase tracking-wider">{selectedCourse.category?.replace('-', ' ')}</span>
-                    <button onClick={() => setSelectedCourse(null)} className="text-zinc-500 hover:text-white">
-                      <X size={24} />
-                    </button>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-4">{selectedCourse.title}</h2>
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <span className="text-xs text-amber-500 uppercase tracking-wider">{selectedCourse.category?.replace('-', ' ')}</span>
+                  <button onClick={() => setSelectedCourse(null)} className="text-zinc-500 hover:text-white">
+                    <X size={24} />
+                  </button>
+                </div>
+                <h2 className="text-2xl font-bold text-white mb-4">{selectedCourse.title}</h2>
                   
                   {(hasAccess || selectedCourse.is_free) && selectedCourse.video_url ? (
                     <div className="aspect-video bg-black rounded-lg mb-4">
