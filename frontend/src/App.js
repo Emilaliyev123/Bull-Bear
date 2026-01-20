@@ -1179,10 +1179,9 @@ const CoursesPage = () => {
                     </div>
                   )}
                 </div>
-              </motion.div>
-            </motion.div>
+              </div>
+            </div>
           )}
-        </AnimatePresence>
       </div>
     </PageWrapper>
   );
