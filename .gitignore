@@ -120,3 +120,8 @@ backend/uploads/videos/e4d1e078-test.mp4
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
+backend/uploads/videos/79a5cf90-48b1-4ceb-b6c6-c126be965315.mov
