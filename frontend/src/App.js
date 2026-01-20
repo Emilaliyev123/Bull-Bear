@@ -314,6 +314,7 @@ const Navbar = () => {
     { path: "/products", label: "Products", icon: Package },
     { path: "/courses", label: "Courses", icon: BookOpen },
     { path: "/signals", label: "Signals", icon: Signal },
+    { path: "/ai-advisor", label: "AI Advisor", icon: Brain },
     { path: "/book", label: "Book", icon: BookOpen },
     { path: "/news", label: "News", icon: Newspaper },
     { path: "/support", label: "Support", icon: HelpCircle },
