@@ -1515,9 +1515,15 @@ const BookPage = () => {
                   </div>
                   {book?.pdf_url ? (
                     <div className="space-y-3">
-                      <GoldButton onClick={handleReadOnline} className="w-full" data-testid="read-online-btn">
+                      <a 
+                        href={getMediaUrl(book.pdf_url)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="w-full font-semibold px-6 py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:from-amber-400 hover:to-yellow-400 shadow-lg shadow-amber-500/25"
+                        data-testid="read-online-btn"
+                      >
                         <ExternalLink size={18} /> Read Online
-                      </GoldButton>
+                      </a>
                       <GoldButton 
                         variant="secondary" 
                         onClick={handleDownload}
