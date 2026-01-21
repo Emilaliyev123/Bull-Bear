@@ -49,7 +49,30 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Disabled download button
 - Video pause on window blur
 
-## Recent Fixes (Jan 20, 2026)
+## Recent Fixes (Jan 21, 2026)
+
+### Video Playback Issue - REOCCURRENCE FIX
+- **User Report**: "I uploaded a video but video is not opening in course section I can not watch to video"
+- **Root Cause**: 
+  1. ffmpeg was not installed on the server
+  2. User uploaded a MOV file which wasn't converted to MP4
+- **Fix Applied**: 
+  - Installed ffmpeg on the server
+  - Converted the uploaded MOV video (765MB) to MP4 format
+  - Updated the course video URL in database from `.mov` to `.mp4`
+- **Status**: ✅ FIXED - Video player now displays and plays the MP4 video
+
+### PDF Reading Issue - FIXED
+- **User Report**: "After clicking read online button in book section, PDF is not opening I can not read book or download it"
+- **Root Cause**: The "Read Online" button was using `window.open()` which can be blocked by popup blockers and has compatibility issues
+- **Fix Applied**:
+  - Changed "Read Online" button from a click handler to a proper anchor tag (`<a>`)
+  - The link directly opens the PDF URL in a new tab
+  - Added `sonner` toast notifications for better user feedback
+  - Added loading spinner on download button
+- **Status**: ✅ FIXED - PDF link now opens correctly in new tab
+
+## Earlier Fixes (Jan 20, 2026)
 
 ### Video Playback Issue (Earlier)
 - **Root Cause**: Videos were in .MOV format with old preview URLs
@@ -64,18 +87,6 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - **Root Cause**: Alert popup was blocking feedback
 - **Fix Applied**: Added visual toast notification
 - **Status**: ✅ FIXED - Shows "✓ Book saved successfully!"
-
-### Book PDF Reading/Download Enhancement (Latest)
-- **User Report**: "Cannot read book or download it after clicking Read Online"
-- **Investigation**: PDF functionality was working, but UX needed improvement
-- **Enhancements Applied**:
-  - Added `sonner` toast notifications for success/error feedback
-  - Added popup blocker fallback with clickable link in toast
-  - Added loading spinner on download button
-  - Better error handling with descriptive messages
-  - Added `data-testid` attributes for testing
-  - Shows "PDF will be available soon" if no PDF is uploaded
-- **Status**: ✅ ENHANCED - Improved UX with better error handling and feedback
 
 ### 9. AI Investment Manager (Gemini Pro)
 - AI-powered chat assistant for trading advice
