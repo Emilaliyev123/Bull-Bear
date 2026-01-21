@@ -1434,26 +1434,6 @@ const BookPage = () => {
     link.click();
     document.body.removeChild(link);
   };
-    
-    // Check if popup was blocked
-    if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
-      // Fallback: Create a clickable link that will work even with popup blockers
-      toast.info(
-        <div className="flex flex-col gap-2">
-          <span>Popup blocked. Click below to open the PDF:</span>
-          <a 
-            href={pdfUrl} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-amber-500 underline font-medium"
-          >
-            Open PDF →
-          </a>
-        </div>,
-        { duration: 10000 }
-      );
-    }
-  };
 
   const handleDownload = async () => {
     if (!book?.pdf_url) {
