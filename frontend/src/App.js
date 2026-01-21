@@ -1424,15 +1424,16 @@ const BookPage = () => {
       return;
     }
     const pdfUrl = getMediaUrl(book.pdf_url);
-    console.log('PDF URL:', book.pdf_url);
-    console.log('Full PDF URL:', pdfUrl);
-    console.log('BACKEND_URL:', BACKEND_URL);
     
-    // Use direct navigation for better compatibility
-    window.location.href = pdfUrl;
-    return; // Early return - we're navigating away
-    
-    const newWindow = window.open(pdfUrl, '_blank');
+    // Create a temporary link and click it - more reliable than window.open
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
     
     // Check if popup was blocked
     if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
