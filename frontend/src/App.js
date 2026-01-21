@@ -1424,6 +1424,14 @@ const BookPage = () => {
       return;
     }
     const pdfUrl = getMediaUrl(book.pdf_url);
+    console.log('PDF URL:', book.pdf_url);
+    console.log('Full PDF URL:', pdfUrl);
+    console.log('BACKEND_URL:', BACKEND_URL);
+    
+    // Use direct navigation for better compatibility
+    window.location.href = pdfUrl;
+    return; // Early return - we're navigating away
+    
     const newWindow = window.open(pdfUrl, '_blank');
     
     // Check if popup was blocked
