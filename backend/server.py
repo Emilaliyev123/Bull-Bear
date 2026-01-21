@@ -510,11 +510,11 @@ async def create_signal(background_tasks: BackgroundTasks, data: SignalCreate, a
     
     # Send email notifications to subscribed users (background task)
     async def send_signal_emails():
-        # Get users with signals subscription
+        # Get users with signals subscription (limit to 500 for performance)
         subscribers = await db.users.find(
             {"signals_subscription": True, "email": {"$exists": True}},
             {"_id": 0, "email": 1}
-        ).to_list(10000)
+        ).to_list(500)
         
         if subscribers:
             emails = [u['email'] for u in subscribers]
@@ -574,11 +574,11 @@ async def create_news(background_tasks: BackgroundTasks, data: NewsCreate, admin
     
     # Send email notifications to all users (background task)
     async def send_news_emails():
-        # Get all users with email
+        # Get all users with email (limit to 500 for performance)
         users = await db.users.find(
             {"email": {"$exists": True}},
             {"_id": 0, "email": 1}
-        ).to_list(10000)
+        ).to_list(500)
         
         if users:
             emails = [u['email'] for u in users]
@@ -653,8 +653,8 @@ async def create_notification_for_all_users(notification_type: str, title: str, 
     )
     await db.notifications.insert_one(notification.model_dump())
     
-    # Create user notifications for all users
-    users = await db.users.find({}, {"id": 1}).to_list(10000)
+    # Create user notifications for all users (limit to 500 for performance)
+    users = await db.users.find({}, {"id": 1}).to_list(500)
     if users:
         user_notifications = [
             UserNotification(
@@ -1127,8 +1127,10 @@ async def get_all_videos(admin: dict = Depends(require_admin)):
     return {"videos": videos}
 
 @api_router.get("/admin/users")
-async def get_users(admin: dict = Depends(require_admin)):
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+async def get_users(admin: dict = Depends(require_admin), skip: int = 0, limit: int = 100):
+    # Paginated user list (max 100 per request)
+    limit = min(limit, 100)
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).skip(skip).limit(limit).to_list(limit)
     return users
 
 @api_router.put("/admin/users/{user_id}")
