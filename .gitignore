@@ -130,3 +130,7 @@ backend/uploads/videos/79a5cf90-48b1-4ceb-b6c6-c126be965315.mov
 *.env
 *.env.*
 backend/uploads/videos/e8658ed5-019f-4f24-9033-af32ef5b5355.mov
+-e 
+# Environment files
+*.env
+*.env.*
