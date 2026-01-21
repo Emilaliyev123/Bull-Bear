@@ -792,32 +792,6 @@ const ProductsPage = () => {
             </motion.div>
           ))}
         </div>
-
-        {/* Bundle Offer */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="mt-16"
-        >
-          <Card3D className="relative overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 to-yellow-500/10" />
-            <div className="relative flex flex-col md:flex-row items-center justify-between gap-8 p-4">
-              <div>
-                <span className="inline-block bg-amber-500 text-black text-xs font-bold px-3 py-1 rounded-full mb-4">BEST VALUE</span>
-                <h3 className="text-2xl font-bold text-white mb-2">Complete Trading Bundle</h3>
-                <p className="text-zinc-400">Get all products together and save 20%! Courses + Book + 3 Months Signals</p>
-              </div>
-              <div className="text-center">
-                <p className="text-zinc-500 line-through">$139.60</p>
-                <p className="text-4xl font-bold text-amber-500 mb-4">$99.90</p>
-                <GoldButton onClick={() => alert('Bundle purchase coming soon!')}>
-                  <Package size={18} /> Get Bundle
-                </GoldButton>
-              </div>
-            </div>
-          </Card3D>
-        </motion.div>
       </div>
     </PageWrapper>
   );
