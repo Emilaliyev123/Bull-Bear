@@ -4,6 +4,17 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
+/* Hide Emergent Badge */
+#emergent-badge,
+a[href*="emergent.sh"],
+[id*="emergent"],
+[class*="emergent"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* Content Protection Styles */
 .protected-content {
   -webkit-user-select: none;
