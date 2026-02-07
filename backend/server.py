@@ -542,7 +542,7 @@ async def create_course(background_tasks: BackgroundTasks, data: CourseCreate, a
         except Exception as e:
             logger.error(f"Failed to send course notification emails: {str(e)}")
     
-    background_tasks.add_task(asyncio.create_task, send_course_emails())
+    background_tasks.add_task(send_course_emails)
     
     return course.model_dump()
 
