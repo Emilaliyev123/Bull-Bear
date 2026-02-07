@@ -142,3 +142,7 @@ backend/uploads/videos/e8658ed5-019f-4f24-9033-af32ef5b5355.mov
 # Environment files
 *.env
 *.env.*
+-e 
+# Environment files
+*.env
+*.env.*
