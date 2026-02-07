@@ -662,11 +662,11 @@ async def create_news(background_tasks: BackgroundTasks, data: NewsCreate, admin
         link="/news"
     )
     
-    # Send email notifications to all users (background task)
+    # Send email notifications to all users with email_notifications enabled (background task)
     async def send_news_emails():
-        # Get all users with email (limit to 500 for performance)
+        # Get all users with email AND email_notifications enabled (limit to 500 for performance)
         users = await db.users.find(
-            {"email": {"$exists": True}},
+            {"email": {"$exists": True}, "email_notifications": {"$ne": False}},
             {"_id": 0, "email": 1}
         ).to_list(500)
         
