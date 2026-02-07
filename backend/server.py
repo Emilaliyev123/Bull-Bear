@@ -600,9 +600,9 @@ async def create_signal(background_tasks: BackgroundTasks, data: SignalCreate, a
     
     # Send email notifications to subscribed users (background task)
     async def send_signal_emails():
-        # Get users with signals subscription (limit to 500 for performance)
+        # Get users with signals subscription AND email_notifications enabled (limit to 500 for performance)
         subscribers = await db.users.find(
-            {"signals_subscription": True, "email": {"$exists": True}},
+            {"signals_subscription": True, "email": {"$exists": True}, "email_notifications": {"$ne": False}},
             {"_id": 0, "email": 1}
         ).to_list(500)
         
