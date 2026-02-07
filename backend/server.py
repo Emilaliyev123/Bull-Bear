@@ -444,7 +444,7 @@ async def register(background_tasks: BackgroundTasks, data: UserCreate):
         except Exception as e:
             logger.error(f"Failed to send welcome email: {str(e)}")
     
-    background_tasks.add_task(asyncio.create_task, send_welcome_email())
+    background_tasks.add_task(send_welcome_email)
     
     return {"token": token, "user": user.model_dump()}
 
