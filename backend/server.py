@@ -488,9 +488,62 @@ async def get_course(course_id: str, user: dict = Depends(get_optional_user)):
     return {**course, "has_access": has_access}
 
 @api_router.post("/courses")
-async def create_course(data: CourseCreate, admin: dict = Depends(require_admin)):
+async def create_course(background_tasks: BackgroundTasks, data: CourseCreate, admin: dict = Depends(require_admin)):
     course = Course(**data.model_dump())
     await db.courses.insert_one(course.model_dump())
+    
+    # Create notification for all users
+    notification = Notification(
+        type="course",
+        title=f"New Course: {course.title}",
+        message=f"A new {course.category} course has been added!",
+        link="/courses"
+    )
+    await db.notifications.insert_one(notification.model_dump())
+    
+    # Create user notifications for all users
+    users = await db.users.find({}, {"id": 1}).to_list(500)
+    if users:
+        user_notifications = [
+            UserNotification(user_id=u['id'], notification_id=notification.id).model_dump()
+            for u in users
+        ]
+        await db.user_notifications.insert_many(user_notifications)
+    
+    # Send email notifications to all users with email_notifications enabled (background task)
+    async def send_course_emails():
+        try:
+            users_with_email = await db.users.find(
+                {"email": {"$exists": True}, "email_notifications": {"$ne": False}},
+                {"_id": 0, "email": 1}
+            ).to_list(500)
+            emails = [u['email'] for u in users_with_email if u.get('email')]
+            if emails:
+                html = f"""
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #000; color: #fff; padding: 40px; border-radius: 12px;">
+                    <div style="text-align: center; margin-bottom: 30px;">
+                        <h1 style="color: #f59e0b; margin: 0;">🐂 Bull & Bear Academy 🐻</h1>
+                    </div>
+                    <h2 style="color: #fff;">🎬 New Course Available!</h2>
+                    <div style="background: #18181b; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="color: #f59e0b; margin-top: 0;">{course.title}</h3>
+                        <p style="color: #a1a1aa;">{course.description}</p>
+                        <span style="background: #3b82f6; color: #fff; padding: 4px 12px; border-radius: 4px; font-size: 12px; text-transform: uppercase;">{course.category}</span>
+                    </div>
+                    <p style="color: #a1a1aa;">
+                        Start learning now and take your trading to the next level!
+                    </p>
+                    <p style="color: #71717a; font-size: 12px; margin-top: 30px;">
+                        © 2025 Bull & Bear Academy. All rights reserved.
+                    </p>
+                </div>
+                """
+                await send_email_notification(emails, f"🎬 New Course: {course.title}", html)
+        except Exception as e:
+            logger.error(f"Failed to send course notification emails: {str(e)}")
+    
+    background_tasks.add_task(asyncio.create_task, send_course_emails())
+    
     return course.model_dump()
 
 @api_router.put("/courses/{course_id}")
