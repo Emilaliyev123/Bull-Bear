@@ -675,7 +675,7 @@ async def create_news(background_tasks: BackgroundTasks, data: NewsCreate, admin
             html = create_news_email_html(article.model_dump())
             await send_email_notification(emails, f"📊 New Analysis: {article.title}", html)
     
-    background_tasks.add_task(asyncio.create_task, send_news_emails())
+    background_tasks.add_task(send_news_emails)
     
     return article.model_dump()
 
