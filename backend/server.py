@@ -611,7 +611,7 @@ async def create_signal(background_tasks: BackgroundTasks, data: SignalCreate, a
             html = create_signal_email_html(signal.model_dump())
             await send_email_notification(emails, f"🚀 New Signal: {signal.asset} {signal.direction}", html)
     
-    background_tasks.add_task(asyncio.create_task, send_signal_emails())
+    background_tasks.add_task(send_signal_emails)
     
     return signal.model_dump()
 
