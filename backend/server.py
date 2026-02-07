@@ -394,7 +394,7 @@ async def require_admin(user: dict = Depends(get_current_user)):
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register")
-async def register(data: UserCreate):
+async def register(background_tasks: BackgroundTasks, data: UserCreate):
     existing = await db.users.find_one({"email": data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -405,9 +405,46 @@ async def register(data: UserCreate):
     )
     user_dict = user.model_dump()
     user_dict['password_hash'] = hash_password(data.password)
+    user_dict['email_notifications'] = True  # Enable email notifications by default
     
     await db.users.insert_one(user_dict)
     token = create_token(user.id, user.is_admin)
+    
+    # Send welcome email (background task)
+    async def send_welcome_email():
+        try:
+            html = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #000; color: #fff; padding: 40px; border-radius: 12px;">
+                <div style="text-align: center; margin-bottom: 30px;">
+                    <h1 style="color: #f59e0b; margin: 0;">🐂 Bull & Bear Academy 🐻</h1>
+                </div>
+                <h2 style="color: #fff;">Welcome, {data.name}! 🎉</h2>
+                <p style="color: #a1a1aa; line-height: 1.6;">
+                    Thank you for joining Bull & Bear Trading Academy. You're now part of an elite community of traders.
+                </p>
+                <div style="background: #18181b; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #f59e0b; margin-top: 0;">What's waiting for you:</h3>
+                    <ul style="color: #a1a1aa; line-height: 1.8;">
+                        <li>📚 Professional trading courses</li>
+                        <li>📈 Real-time trading signals</li>
+                        <li>📖 Exclusive trading book</li>
+                        <li>🤖 AI Investment Advisor</li>
+                        <li>📰 Daily market analysis</li>
+                    </ul>
+                </div>
+                <p style="color: #a1a1aa;">
+                    You'll receive email notifications when we publish new signals, courses, and market analysis.
+                </p>
+                <p style="color: #71717a; font-size: 12px; margin-top: 30px;">
+                    © 2025 Bull & Bear Academy. All rights reserved.
+                </p>
+            </div>
+            """
+            await send_email_notification([data.email], "🎉 Welcome to Bull & Bear Trading Academy!", html)
+        except Exception as e:
+            logger.error(f"Failed to send welcome email: {str(e)}")
+    
+    background_tasks.add_task(asyncio.create_task, send_welcome_email())
     
     return {"token": token, "user": user.model_dump()}
 
