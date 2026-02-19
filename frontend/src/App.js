@@ -845,19 +845,6 @@ const HomePage = () => {
               animate={{ opacity: 1, y: 0 }}
               className="text-center max-w-4xl mx-auto"
             >
-              {/* Logo */}
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2 }}
-                className="mb-8"
-              >
-                <img 
-                  src="/logo.png" 
-                  alt="Bull & Bear Academy" 
-                  className="w-32 h-32 md:w-40 md:h-40 mx-auto object-contain drop-shadow-2xl"
-                />
-              </motion.div>
               
               <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6">
                 <Crown className="text-amber-500" size={16} />
