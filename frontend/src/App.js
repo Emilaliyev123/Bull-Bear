@@ -11,6 +11,7 @@ import {
   Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
   Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell, Download, ExternalLink, Loader2
 } from "lucide-react";
+import ShaderBackground from "./components/ui/shader-background";
 
 // Support Email
 const SUPPORT_EMAIL = "bullbearacademy.su@gmail.com";
