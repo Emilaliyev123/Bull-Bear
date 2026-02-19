@@ -828,43 +828,61 @@ const HomePage = () => {
 
   return (
     <PageWrapper>
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-transparent" />
-        <div className="absolute top-20 left-10 w-72 h-72 bg-amber-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-10 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
-        
-        <div className="max-w-7xl mx-auto px-4 py-20 relative">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center max-w-4xl mx-auto"
-          >
-            <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6">
-              <Crown className="text-amber-500" size={16} />
-              <span className="text-amber-500 text-sm font-medium">Premium Trading Education</span>
-            </div>
-            
-            <h1 className="text-5xl md:text-7xl font-bold mb-6">
-              <span className="text-white">Master The</span>{" "}
-              <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Markets</span>
-            </h1>
-            
-            <p className="text-xl text-zinc-400 mb-8 max-w-2xl mx-auto">
-              Professional trading courses, exclusive signals, and institutional-grade market analysis. 
-              Join thousands of successful traders.
-            </p>
-            
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <GoldButton onClick={() => navigate('/products')} className="text-lg px-8 py-4">
-                <Play size={20} /> Start Learning
-              </GoldButton>
-              <GoldButton variant="secondary" onClick={() => navigate('/signals')} className="text-lg px-8 py-4">
-                <Signal size={20} /> View Signals
-              </GoldButton>
-            </div>
-          </motion.div>
-        </div>
+      {/* Hero Section with Shader Background */}
+      <section className="relative overflow-hidden min-h-[80vh]">
+        <ShaderBackground 
+          effect="mesh" 
+          speed={0.8} 
+          colors={["#000000", "#0a0a0a", "#1a1a1a", "#f59e0b"]}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/80" />
+          
+          <div className="max-w-7xl mx-auto px-4 py-20 relative">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center max-w-4xl mx-auto"
+            >
+              {/* Logo */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 }}
+                className="mb-8"
+              >
+                <img 
+                  src="/logo.png" 
+                  alt="Bull & Bear Academy" 
+                  className="w-32 h-32 md:w-40 md:h-40 mx-auto object-contain drop-shadow-2xl"
+                />
+              </motion.div>
+              
+              <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6">
+                <Crown className="text-amber-500" size={16} />
+                <span className="text-amber-500 text-sm font-medium">Premium Trading Education</span>
+              </div>
+              
+              <h1 className="text-5xl md:text-7xl font-bold mb-6">
+                <span className="text-white">Master The</span>{" "}
+                <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Markets</span>
+              </h1>
+              
+              <p className="text-xl text-zinc-400 mb-8 max-w-2xl mx-auto">
+                Professional trading courses, exclusive signals, and institutional-grade market analysis. 
+                Join thousands of successful traders.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                <GoldButton onClick={() => navigate('/products')} className="text-lg px-8 py-4">
+                  <Play size={20} /> Start Learning
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/signals')} className="text-lg px-8 py-4">
+                  <Signal size={20} /> View Signals
+                </GoldButton>
+              </div>
+            </motion.div>
+          </div>
+        </ShaderBackground>
       </section>
 
       {/* Market Overview */}
