@@ -1413,6 +1413,302 @@ async def delete_ai_session(session_id: str, user: dict = Depends(get_current_us
         del ai_chat_sessions[session_id]
     return {"deleted": result.deleted_count}
 
+# ============ CRYPTO ARBITRAGE SCANNER ============
+
+import aiohttp
+
+# Exchange API endpoints
+EXCHANGE_APIS = {
+    "binance": "https://api.binance.com/api/v3/ticker/price",
+    "bybit": "https://api.bybit.com/v5/market/tickers?category=spot",
+    "okx": "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
+    "gateio": "https://api.gateio.ws/api/v4/spot/tickers",
+    "bingx": "https://open-api.bingx.com/openApi/spot/v1/ticker/24hr",
+    "kucoin": "https://api.kucoin.com/api/v1/market/allTickers",
+    "mexc": "https://api.mexc.com/api/v3/ticker/price"
+}
+
+async def fetch_top_100_coins():
+    """Fetch Top 100 coins from CoinMarketCap"""
+    if not COINMARKETCAP_API_KEY:
+        logger.error("CoinMarketCap API key not configured")
+        return []
+    
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+    headers = {
+        "X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY,
+        "Accept": "application/json"
+    }
+    params = {"limit": 100, "convert": "USD"}
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, params=params, timeout=30) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    coins = []
+                    for coin in data.get("data", []):
+                        coins.append({
+                            "symbol": coin["symbol"],
+                            "name": coin["name"],
+                            "rank": coin["cmc_rank"],
+                            "price": coin["quote"]["USD"]["price"],
+                            "market_cap": coin["quote"]["USD"]["market_cap"]
+                        })
+                    return coins
+                else:
+                    logger.error(f"CoinMarketCap API error: {response.status}")
+                    return []
+    except Exception as e:
+        logger.error(f"Error fetching Top 100 coins: {str(e)}")
+        return []
+
+async def fetch_binance_prices():
+    """Fetch prices from Binance"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["binance"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data:
+                        symbol = item["symbol"]
+                        if symbol.endswith("USDT"):
+                            base = symbol[:-4]
+                            prices[base] = float(item["price"])
+                    return prices
+    except Exception as e:
+        logger.error(f"Binance API error: {str(e)}")
+    return {}
+
+async def fetch_bybit_prices():
+    """Fetch prices from Bybit"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["bybit"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data.get("result", {}).get("list", []):
+                        symbol = item.get("symbol", "")
+                        if symbol.endswith("USDT"):
+                            base = symbol[:-4]
+                            prices[base] = float(item.get("lastPrice", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"Bybit API error: {str(e)}")
+    return {}
+
+async def fetch_okx_prices():
+    """Fetch prices from OKX"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["okx"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data.get("data", []):
+                        inst_id = item.get("instId", "")
+                        if inst_id.endswith("-USDT"):
+                            base = inst_id[:-5]
+                            prices[base] = float(item.get("last", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"OKX API error: {str(e)}")
+    return {}
+
+async def fetch_gateio_prices():
+    """Fetch prices from Gate.io"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["gateio"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data:
+                        pair = item.get("currency_pair", "")
+                        if pair.endswith("_USDT"):
+                            base = pair[:-5]
+                            prices[base] = float(item.get("last", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"Gate.io API error: {str(e)}")
+    return {}
+
+async def fetch_bingx_prices():
+    """Fetch prices from BingX"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["bingx"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data.get("data", []):
+                        symbol = item.get("symbol", "")
+                        if "-USDT" in symbol:
+                            base = symbol.split("-")[0]
+                            prices[base] = float(item.get("lastPrice", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"BingX API error: {str(e)}")
+    return {}
+
+async def fetch_kucoin_prices():
+    """Fetch prices from KuCoin"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["kucoin"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data.get("data", {}).get("ticker", []):
+                        symbol = item.get("symbol", "")
+                        if symbol.endswith("-USDT"):
+                            base = symbol[:-5]
+                            prices[base] = float(item.get("last", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"KuCoin API error: {str(e)}")
+    return {}
+
+async def fetch_mexc_prices():
+    """Fetch prices from MEXC"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(EXCHANGE_APIS["mexc"], timeout=15) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    prices = {}
+                    for item in data:
+                        symbol = item.get("symbol", "")
+                        if symbol.endswith("USDT"):
+                            base = symbol[:-4]
+                            prices[base] = float(item.get("price", 0))
+                    return prices
+    except Exception as e:
+        logger.error(f"MEXC API error: {str(e)}")
+    return {}
+
+async def scan_arbitrage_opportunities(min_spread: float = 0.03):
+    """Scan for arbitrage opportunities across all exchanges"""
+    # Fetch Top 100 coins
+    top_100 = await fetch_top_100_coins()
+    top_100_symbols = {coin["symbol"] for coin in top_100}
+    
+    # Fetch prices from all exchanges concurrently
+    exchange_prices = await asyncio.gather(
+        fetch_binance_prices(),
+        fetch_bybit_prices(),
+        fetch_okx_prices(),
+        fetch_gateio_prices(),
+        fetch_bingx_prices(),
+        fetch_kucoin_prices(),
+        fetch_mexc_prices(),
+        return_exceptions=True
+    )
+    
+    exchanges = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"]
+    
+    # Build price map per coin
+    all_prices = {}
+    for i, prices in enumerate(exchange_prices):
+        if isinstance(prices, dict):
+            exchange_name = exchanges[i]
+            for symbol, price in prices.items():
+                if symbol in top_100_symbols and price > 0:
+                    if symbol not in all_prices:
+                        all_prices[symbol] = {}
+                    all_prices[symbol][exchange_name] = price
+    
+    # Find arbitrage opportunities
+    opportunities = []
+    for symbol, prices_by_exchange in all_prices.items():
+        if len(prices_by_exchange) < 2:
+            continue
+        
+        exchange_list = list(prices_by_exchange.items())
+        min_exchange, min_price = min(exchange_list, key=lambda x: x[1])
+        max_exchange, max_price = max(exchange_list, key=lambda x: x[1])
+        
+        if min_price > 0:
+            spread = (max_price - min_price) / min_price
+            if spread >= min_spread:
+                # Get coin info from top 100
+                coin_info = next((c for c in top_100 if c["symbol"] == symbol), {})
+                opportunities.append({
+                    "symbol": symbol,
+                    "name": coin_info.get("name", symbol),
+                    "rank": coin_info.get("rank", 0),
+                    "buy_exchange": min_exchange,
+                    "buy_price": round(min_price, 8),
+                    "sell_exchange": max_exchange,
+                    "sell_price": round(max_price, 8),
+                    "spread_percent": round(spread * 100, 2),
+                    "potential_profit_per_1000": round(1000 * spread, 2)
+                })
+    
+    # Sort by spread percentage (highest first)
+    opportunities.sort(key=lambda x: x["spread_percent"], reverse=True)
+    
+    return {
+        "opportunities": opportunities,
+        "total_coins_scanned": len(top_100_symbols),
+        "exchanges_connected": len([p for p in exchange_prices if isinstance(p, dict) and p]),
+        "scan_time": datetime.now(timezone.utc).isoformat(),
+        "min_spread_threshold": f"{min_spread * 100}%"
+    }
+
+@api_router.get("/arbitrage/scan")
+async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
+    """Scan for crypto arbitrage opportunities"""
+    # Check if user has arbitrage subscription
+    has_access = False
+    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
+        has_access = True
+    
+    try:
+        result = await scan_arbitrage_opportunities(min_spread=0.03)
+        
+        # If no access, limit results and blur prices
+        if not has_access:
+            limited_opps = []
+            for opp in result["opportunities"][:3]:  # Show only top 3
+                limited_opps.append({
+                    **opp,
+                    "buy_price": "***",
+                    "sell_price": "***",
+                    "potential_profit_per_1000": "***"
+                })
+            result["opportunities"] = limited_opps
+            result["has_access"] = False
+            result["message"] = "Upgrade to Premium to see all opportunities and real-time prices"
+        else:
+            result["has_access"] = True
+        
+        return result
+    except Exception as e:
+        logger.error(f"Arbitrage scan error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to scan arbitrage opportunities")
+
+@api_router.get("/arbitrage/status")
+async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
+    """Get user's arbitrage subscription status"""
+    has_access = False
+    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
+        has_access = True
+    
+    return {
+        "has_access": has_access,
+        "price": PRODUCTS["arbitrage"]["price"],
+        "features": [
+            "Real-time arbitrage scanning across 7 exchanges",
+            "Top 100 cryptocurrencies by market cap",
+            "Instant alerts for spreads ≥ 3%",
+            "Buy/Sell exchange recommendations",
+            "Profit potential calculator"
+        ]
+    }
+
 # ============ MARKET DATA (Alpha Vantage) ============
 
 # Fallback mock data for when API is unavailable
