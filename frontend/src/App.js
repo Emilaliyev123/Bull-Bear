@@ -752,15 +752,20 @@ const ProductsPage = () => {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
+              className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : product.isNew ? 'border-emerald-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
             >
               {product.popular && (
                 <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
                   MOST POPULAR
                 </div>
               )}
+              {product.isNew && (
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center py-2 text-sm font-bold">
+                  NEW FEATURE
+                </div>
+              )}
               
-              <div className={`p-8 ${product.popular ? 'pt-14' : ''}`}>
+              <div className={`p-8 ${product.popular || product.isNew ? 'pt-14' : ''}`}>
                 {/* Icon */}
                 <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-6`}>
                   <product.icon className="text-white" size={32} />
