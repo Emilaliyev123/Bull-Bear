@@ -676,6 +676,28 @@ const ProductsPage = () => {
       hasAccess: user?.signals_subscription || user?.is_admin,
       link: '/signals',
       popular: true
+    },
+    {
+      id: 'arbitrage',
+      title: 'Arbitrage Scanner',
+      subtitle: 'Cross-Exchange Price Scanner',
+      description: 'Scan Top 300 cryptocurrencies across 7 major exchanges. Find price spreads of 3%+ and profit from market inefficiencies.',
+      price: 39.90,
+      priceType: 'monthly',
+      icon: TrendingUp,
+      color: 'from-emerald-500 to-teal-500',
+      features: [
+        'Top 300 Coins by Market Cap',
+        '7 Major Exchanges',
+        'Real-time Price Scanning',
+        '3%+ Spread Detection',
+        'Profit Calculator',
+        'Email Alerts',
+        'API Access'
+      ],
+      hasAccess: user?.arbitrage_subscription || user?.is_admin,
+      link: '/arbitrage',
+      isNew: true
     }
   ];
 
