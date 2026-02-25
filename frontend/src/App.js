@@ -1540,12 +1540,6 @@ const BookPage = () => {
                         rel="noopener noreferrer"
                         className="w-full font-semibold px-6 py-3 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-black hover:from-amber-400 hover:to-yellow-400 shadow-lg shadow-amber-500/25"
                         data-testid="read-online-btn"
-                        onClick={(e) => {
-                          // Track click and show fallback message if popup blocked
-                          setTimeout(() => {
-                            toast.info('If the PDF didn\'t open, please disable your popup blocker or use the Download button below.', { duration: 5000 });
-                          }, 1000);
-                        }}
                       >
                         <ExternalLink size={18} /> Read Online
                       </a>
