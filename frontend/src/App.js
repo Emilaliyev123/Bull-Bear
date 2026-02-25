@@ -874,35 +874,6 @@ const HomePage = () => {
         </ShaderBackground>
       </section>
 
-      {/* Market Overview */}
-      {market && (
-        <section className="max-w-7xl mx-auto px-4 py-16">
-          <h2 className="text-2xl font-bold text-white mb-8 flex items-center gap-3">
-            <BarChart3 className="text-amber-500" /> Live Market Overview
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {['forex', 'crypto', 'indices'].map(category => (
-              <Card3D key={category}>
-                <h3 className="text-lg font-semibold text-amber-500 mb-4 capitalize">{category}</h3>
-                <div className="space-y-3">
-                  {market[category]?.map(item => (
-                    <div key={item.symbol} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
-                      <span className="text-white font-medium">{item.symbol}</span>
-                      <div className="text-right">
-                        <p className="text-white">${item.price?.toLocaleString()}</p>
-                        <p className={`text-sm ${item.change >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                          {item.change >= 0 ? '+' : ''}{item.change}%
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </Card3D>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Latest Signals Preview */}
       <section className="max-w-7xl mx-auto px-4 py-16">
         <div className="flex justify-between items-center mb-8">
