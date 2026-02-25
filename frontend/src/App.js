@@ -1657,7 +1657,7 @@ const ArbitragePage = () => {
             Crypto Arbitrage Scanner
           </h1>
           <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 100 cryptocurrencies
+            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 300 cryptocurrencies
           </p>
         </motion.div>
 
