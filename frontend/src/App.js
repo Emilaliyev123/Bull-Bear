@@ -2208,7 +2208,7 @@ const ProfilePage = () => {
         </Card3D>
 
         <h2 className="text-xl font-bold text-white mb-4">Your Subscriptions</h2>
-        <div className="grid md:grid-cols-3 gap-4 mb-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card3D>
             <div className="flex items-center justify-between">
               <div>
@@ -2242,6 +2242,19 @@ const ProfilePage = () => {
                 <p className="text-lg font-semibold text-white">Active</p>
               </div>
               {user.signals_subscription ? (
+                <CheckCircle className="text-emerald-500" size={24} />
+              ) : (
+                <Lock className="text-zinc-600" size={24} />
+              )}
+            </div>
+          </Card3D>
+          <Card3D className={user.arbitrage_subscription ? "border-emerald-500/50" : ""}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-zinc-500 text-sm">Arbitrage Scanner</p>
+                <p className="text-lg font-semibold text-white">{user.arbitrage_subscription ? "Active" : "Inactive"}</p>
+              </div>
+              {user.arbitrage_subscription ? (
                 <CheckCircle className="text-emerald-500" size={24} />
               ) : (
                 <Lock className="text-zinc-600" size={24} />
