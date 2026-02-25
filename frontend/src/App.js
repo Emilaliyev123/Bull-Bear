@@ -4115,6 +4115,7 @@ function App() {
               <Route path="/products" element={<ProductsPage />} />
               <Route path="/courses" element={<CoursesPage />} />
               <Route path="/signals" element={<SignalsPage />} />
+              <Route path="/arbitrage" element={<ArbitragePage />} />
               <Route path="/book" element={<BookPage />} />
               <Route path="/news" element={<NewsPage />} />
               <Route path="/ai-advisor" element={<AIInvestmentPage />} />
