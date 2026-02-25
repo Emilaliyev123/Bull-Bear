@@ -48,8 +48,12 @@ STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 PRODUCTS = {
     "course": {"name": "Trading Courses", "price": 49.90, "type": "one_time"},
     "book": {"name": "Trading Book", "price": 29.90, "type": "one_time"},
-    "signals": {"name": "Private Signals (Monthly)", "price": 19.90, "type": "subscription"}
+    "signals": {"name": "Private Signals (Monthly)", "price": 19.90, "type": "subscription"},
+    "arbitrage": {"name": "Arbitrage Scanner (Monthly)", "price": 39.90, "type": "subscription"}
 }
+
+# CoinMarketCap API
+COINMARKETCAP_API_KEY = os.environ.get('COINMARKETCAP_API_KEY', '')
 
 app = FastAPI(title="Bull & Bear Trading Academy API")
 api_router = APIRouter(prefix="/api")
