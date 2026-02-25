@@ -1635,7 +1635,8 @@ async def scan_arbitrage_opportunities(min_spread: float = 0.03):
         
         if min_price > 0:
             spread = (max_price - min_price) / min_price
-            if spread >= min_spread:
+            # Filter: only realistic spreads (3% to 50% max to avoid data errors)
+            if spread >= min_spread and spread <= 0.50:
                 # Get coin info from top 100
                 coin_info = next((c for c in top_100 if c["symbol"] == symbol), {})
                 opportunities.append({
