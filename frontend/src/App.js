@@ -1560,6 +1560,9 @@ const BookPage = () => {
                           </>
                         )}
                       </GoldButton>
+                      <p className="text-xs text-zinc-500 text-center mt-2">
+                        Tip: If PDF doesn't open, try the Download button or disable popup blocker
+                      </p>
                     </div>
                   ) : (
                     <div className="bg-yellow-500/20 text-yellow-500 px-4 py-3 rounded-lg flex items-center gap-2">
