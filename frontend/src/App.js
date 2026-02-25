@@ -1005,7 +1005,7 @@ const HomePage = () => {
                   </div>
                 </div>
                 <p className="text-zinc-400 mb-4">
-                  Scan Top 100 cryptocurrencies across 7 major exchanges in real-time. 
+                  Scan Top 300 cryptocurrencies across 7 major exchanges in real-time. 
                   Find price spreads of 3%+ and profit from market inefficiencies.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-4">
