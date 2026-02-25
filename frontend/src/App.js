@@ -958,6 +958,46 @@ const HomePage = () => {
         </Card3D>
       </section>
 
+      {/* Arbitrage Scanner Promo */}
+      <section className="max-w-7xl mx-auto px-4 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+        >
+          <Card3D className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border-emerald-500/30">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                    <TrendingUp className="text-emerald-500" size={24} />
+                  </div>
+                  <div>
+                    <span className="text-xs bg-emerald-500/20 text-emerald-500 px-2 py-1 rounded-full">NEW FEATURE</span>
+                    <h3 className="text-2xl font-bold text-white mt-1">Crypto Arbitrage Scanner</h3>
+                  </div>
+                </div>
+                <p className="text-zinc-400 mb-4">
+                  Scan Top 100 cryptocurrencies across 7 major exchanges in real-time. 
+                  Find price spreads of 3%+ and profit from market inefficiencies.
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {["Binance", "Bybit", "OKX", "Gate.io", "KuCoin", "MEXC", "BingX"].map(ex => (
+                    <span key={ex} className="text-xs bg-zinc-800 text-zinc-400 px-2 py-1 rounded">{ex}</span>
+                  ))}
+                </div>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-emerald-500 mb-2">$39.90<span className="text-lg text-zinc-500">/mo</span></p>
+                <GoldButton onClick={() => navigate('/arbitrage')} className="min-w-[180px]" data-testid="home-arbitrage-btn">
+                  <Target size={18} /> Launch Scanner
+                </GoldButton>
+              </div>
+            </div>
+          </Card3D>
+        </motion.div>
+      </section>
+
       {/* Features */}
       <section className="max-w-7xl mx-auto px-4 py-16">
         <h2 className="text-2xl font-bold text-white text-center mb-12">Why Choose Bull & Bear?</h2>
