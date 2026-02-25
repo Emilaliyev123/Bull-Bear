@@ -1519,6 +1519,300 @@ const BookPage = () => {
   );
 };
 
+// ============ ARBITRAGE SCANNER PAGE ============
+
+const ArbitragePage = () => {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [lastScanTime, setLastScanTime] = useState(null);
+
+  useEffect(() => {
+    checkAccess();
+  }, [user]);
+
+  const checkAccess = async () => {
+    try {
+      const res = await api.get('/arbitrage/status', token);
+      setHasAccess(res.data.has_access);
+    } catch (e) {
+      console.error('Failed to check access');
+    }
+  };
+
+  const runScan = async () => {
+    setScanning(true);
+    try {
+      const res = await api.get('/arbitrage/scan', token);
+      setScanResult(res.data);
+      setLastScanTime(new Date());
+      setHasAccess(res.data.has_access);
+    } catch (e) {
+      toast.error('Failed to run arbitrage scan');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleSubscribe = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    try {
+      const response = await api.post('/checkout/create', {
+        product_type: 'arbitrage',
+        origin_url: window.location.origin
+      }, token);
+      if (response.data.checkout_url) {
+        window.location.href = response.data.checkout_url;
+      }
+    } catch (e) {
+      toast.error('Failed to start checkout');
+    }
+  };
+
+  const exchanges = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"];
+
+  return (
+    <PageWrapper>
+      <div className="max-w-7xl mx-auto px-4">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 mb-4">
+            <TrendingUp className="text-emerald-500" size={16} />
+            <span className="text-emerald-500 text-sm font-medium">Bull & Bear Arbitrage Scout</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
+            Crypto Arbitrage Scanner
+          </h1>
+          <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
+            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 100 cryptocurrencies
+          </p>
+        </motion.div>
+
+        {/* Exchange Badges */}
+        <div className="flex flex-wrap justify-center gap-3 mb-8">
+          {exchanges.map(exchange => (
+            <span key={exchange} className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-sm text-zinc-300">
+              {exchange}
+            </span>
+          ))}
+        </div>
+
+        {/* Scan Button & Status */}
+        <Card3D className="mb-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h3 className="text-xl font-bold text-white mb-2">Real-Time Scanner</h3>
+              <p className="text-zinc-400">
+                Scanning Top 100 coins by market cap across all exchanges
+              </p>
+              {lastScanTime && (
+                <p className="text-zinc-500 text-sm mt-1">
+                  Last scan: {lastScanTime.toLocaleTimeString()}
+                </p>
+              )}
+            </div>
+            <GoldButton 
+              onClick={runScan} 
+              disabled={scanning}
+              className="min-w-[200px]"
+              data-testid="live-scan-btn"
+            >
+              {scanning ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  Scanning...
+                </>
+              ) : (
+                <>
+                  <Play size={18} />
+                  Live Scan
+                </>
+              )}
+            </GoldButton>
+          </div>
+        </Card3D>
+
+        {/* Subscription Notice */}
+        {!hasAccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-8"
+          >
+            <Card3D className="bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown className="text-amber-500" size={24} />
+                    <h3 className="text-xl font-bold text-white">Premium Arbitrage Scanner</h3>
+                  </div>
+                  <p className="text-zinc-400 mb-2">
+                    Unlock full real-time alerts and see all opportunities with exact prices
+                  </p>
+                  <ul className="text-sm text-zinc-500 space-y-1">
+                    <li>✓ Real-time price data from all 7 exchanges</li>
+                    <li>✓ Unlimited scans with no restrictions</li>
+                    <li>✓ Profit potential calculator per trade</li>
+                    <li>✓ Email alerts for high-spread opportunities</li>
+                  </ul>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-amber-500 mb-2">$39.90<span className="text-lg text-zinc-500">/mo</span></p>
+                  <GoldButton onClick={handleSubscribe} data-testid="subscribe-arbitrage-btn">
+                    <DollarSign size={18} />
+                    Subscribe Now
+                  </GoldButton>
+                </div>
+              </div>
+            </Card3D>
+          </motion.div>
+        )}
+
+        {/* Results Table */}
+        {scanResult && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {/* Scan Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <Card3D className="text-center py-4">
+                <p className="text-2xl font-bold text-white">{scanResult.total_coins_scanned}</p>
+                <p className="text-zinc-500 text-sm">Coins Scanned</p>
+              </Card3D>
+              <Card3D className="text-center py-4">
+                <p className="text-2xl font-bold text-white">{scanResult.exchanges_connected}</p>
+                <p className="text-zinc-500 text-sm">Exchanges</p>
+              </Card3D>
+              <Card3D className="text-center py-4">
+                <p className="text-2xl font-bold text-emerald-500">{scanResult.opportunities?.length || 0}</p>
+                <p className="text-zinc-500 text-sm">Opportunities</p>
+              </Card3D>
+              <Card3D className="text-center py-4">
+                <p className="text-2xl font-bold text-amber-500">{scanResult.min_spread_threshold}</p>
+                <p className="text-zinc-500 text-sm">Min Spread</p>
+              </Card3D>
+            </div>
+
+            {/* Opportunities Table */}
+            <Card3D>
+              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                <Target className="text-emerald-500" size={20} />
+                Arbitrage Opportunities
+                {!hasAccess && <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full ml-2">Limited Preview</span>}
+              </h3>
+              
+              {scanResult.opportunities?.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-zinc-800">
+                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Asset</th>
+                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Rank</th>
+                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Buy (Low)</th>
+                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Sell (High)</th>
+                        <th className="text-right py-3 px-2 text-zinc-400 font-medium">Spread</th>
+                        <th className="text-right py-3 px-2 text-zinc-400 font-medium">Profit/$1000</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scanResult.opportunities.map((opp, i) => (
+                        <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
+                          <td className="py-3 px-2">
+                            <div>
+                              <span className="text-white font-medium">{opp.symbol}</span>
+                              <p className="text-zinc-500 text-xs">{opp.name}</p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-zinc-400">#{opp.rank}</td>
+                          <td className="py-3 px-2">
+                            <div>
+                              <span className="text-emerald-500 font-medium">{opp.buy_exchange}</span>
+                              <p className="text-zinc-400 text-sm">
+                                {hasAccess ? `$${opp.buy_price}` : '***'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2">
+                            <div>
+                              <span className="text-red-500 font-medium">{opp.sell_exchange}</span>
+                              <p className="text-zinc-400 text-sm">
+                                {hasAccess ? `$${opp.sell_price}` : '***'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            <span className="text-emerald-500 font-bold">{opp.spread_percent}%</span>
+                          </td>
+                          <td className="py-3 px-2 text-right">
+                            <span className="text-amber-500 font-bold">
+                              {hasAccess ? `$${opp.potential_profit_per_1000}` : '***'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <AlertCircle className="text-zinc-600 mx-auto mb-4" size={48} />
+                  <p className="text-zinc-400">
+                    Currently, no 3% spreads exist among high-liquidity coins.
+                  </p>
+                  <p className="text-zinc-500 text-sm mt-2">
+                    Check back in 5 minutes or consider our Premium Signal service.
+                  </p>
+                </div>
+              )}
+            </Card3D>
+
+            {/* Show more notice for non-premium */}
+            {!hasAccess && scanResult.opportunities?.length > 0 && (
+              <p className="text-center text-zinc-500 mt-4 text-sm">
+                Showing limited preview. Subscribe to see all opportunities with real prices.
+              </p>
+            )}
+          </motion.div>
+        )}
+
+        {/* Risk Warning */}
+        <div className="mt-8 p-4 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="text-amber-500 flex-shrink-0 mt-0.5" size={20} />
+            <div>
+              <h4 className="text-white font-medium mb-1">Risk Disclaimer</h4>
+              <p className="text-zinc-500 text-sm">
+                Arbitrage involves risks such as exchange withdrawal fees, transfer times, and price slippage. 
+                Perform your own due diligence before executing any trades. Past opportunities do not guarantee future results.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Contact Footer */}
+        <div className="mt-6 text-center text-zinc-500 text-sm">
+          <p>
+            Unlock full real-time alerts and API execution for just <span className="text-amber-500 font-bold">$39.90/month</span>.
+          </p>
+          <p className="mt-1">
+            Contact support at <a href="https://bullandbear.website" className="text-amber-500 hover:underline">bullandbear.website</a> to upgrade.
+          </p>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
 const NewsPage = () => {
   const [news, setNews] = useState([]);
   const [selectedArticle, setSelectedArticle] = useState(null);
