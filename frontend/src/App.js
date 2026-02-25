@@ -1676,7 +1676,7 @@ const ArbitragePage = () => {
             <div>
               <h3 className="text-xl font-bold text-white mb-2">Real-Time Scanner</h3>
               <p className="text-zinc-400">
-                Scanning Top 100 coins by market cap across all exchanges
+                Scanning Top 300 coins by market cap across all exchanges
               </p>
               {lastScanTime && (
                 <p className="text-zinc-500 text-sm mt-1">
