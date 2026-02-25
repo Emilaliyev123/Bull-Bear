@@ -1030,6 +1030,9 @@ async def get_checkout_status(request: Request, session_id: str, user: dict = De
                 elif transaction['product_type'] == "signals":
                     update_data['signals_subscription'] = True
                     update_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                elif transaction['product_type'] == "arbitrage":
+                    update_data['arbitrage_subscription'] = True
+                    update_data['arbitrage_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
                 
                 if update_data:
                     await db.users.update_one(
