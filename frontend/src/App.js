@@ -317,6 +317,7 @@ const Navbar = () => {
     { path: "/courses", label: "Courses", icon: BookOpen },
     { path: "/signals", label: "Signals", icon: Signal },
     { path: "/arbitrage", label: "Arbitrage", icon: TrendingUp },
+    { path: "/book", label: "Book", icon: BookOpen },
     { path: "/ai-advisor", label: "AI Advisor", icon: Brain },
   ];
 
