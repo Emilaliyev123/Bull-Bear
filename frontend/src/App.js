@@ -1776,7 +1776,6 @@ const ArbitragePage = () => {
               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                 <Target className="text-emerald-500" size={20} />
                 Arbitrage Opportunities
-                {!hasAccess && <span className="text-xs bg-amber-500/20 text-amber-500 px-2 py-1 rounded-full ml-2">Limited Preview</span>}
               </h3>
               
               {scanResult.opportunities?.length > 0 ? (
@@ -1805,26 +1804,20 @@ const ArbitragePage = () => {
                           <td className="py-3 px-2">
                             <div>
                               <span className="text-emerald-500 font-medium">{opp.buy_exchange}</span>
-                              <p className="text-zinc-400 text-sm">
-                                {hasAccess ? `$${opp.buy_price}` : '***'}
-                              </p>
+                              <p className="text-zinc-400 text-sm">${opp.buy_price}</p>
                             </div>
                           </td>
                           <td className="py-3 px-2">
                             <div>
                               <span className="text-red-500 font-medium">{opp.sell_exchange}</span>
-                              <p className="text-zinc-400 text-sm">
-                                {hasAccess ? `$${opp.sell_price}` : '***'}
-                              </p>
+                              <p className="text-zinc-400 text-sm">${opp.sell_price}</p>
                             </div>
                           </td>
                           <td className="py-3 px-2 text-right">
                             <span className="text-emerald-500 font-bold">{opp.spread_percent}%</span>
                           </td>
                           <td className="py-3 px-2 text-right">
-                            <span className="text-amber-500 font-bold">
-                              {hasAccess ? `$${opp.potential_profit_per_1000}` : '***'}
-                            </span>
+                            <span className="text-amber-500 font-bold">${opp.potential_profit_per_1000}</span>
                           </td>
                         </tr>
                       ))}
