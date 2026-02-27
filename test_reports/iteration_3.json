@@ -32,7 +32,7 @@
   "context_for_next_testing_agent": "All features working. PDF Read Online opens correct URL in new tab. Download endpoint returns PDF with proper headers. AI Advisor chat works. Admin panel all tabs functional.",
   "verified_features": {
     "book_section": {
-      "read_online": "WORKING - Opens PDF URL: https://invest-signals-14.preview.emergentagent.com/api/uploads/pdfs/01d409d2-557d-47f5-b81f-82d668a3a886.pdf",
+      "read_online": "WORKING - Opens PDF URL: https://premium-trading-edu.preview.emergentagent.com/api/uploads/pdfs/01d409d2-557d-47f5-b81f-82d668a3a886.pdf",
       "download": "WORKING - Returns PDF with Content-Disposition: attachment; filename=Game-of-Candles-UPDATED.pdf",
       "access_control": "WORKING - pdf_url hidden for non-authenticated users"
     },
