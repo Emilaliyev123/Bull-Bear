@@ -682,13 +682,13 @@ const ProductsPage = () => {
       id: 'arbitrage',
       title: 'Arbitrage Scanner',
       subtitle: 'Cross-Exchange Price Scanner',
-      description: 'Scan Top 300 cryptocurrencies across 7 major exchanges. Find price spreads of 3%+ and profit from market inefficiencies.',
+      description: 'Scan Top 1000 cryptocurrencies across 7 major exchanges. Find price spreads of 3%+ and profit from market inefficiencies.',
       price: 39.90,
       priceType: 'monthly',
       icon: TrendingUp,
       color: 'from-emerald-500 to-teal-500',
       features: [
-        'Top 300 Coins by Market Cap',
+        'Top 1000 Coins by Market Cap',
         '7 Major Exchanges',
         'Real-time Price Scanning',
         '3%+ Spread Detection',
@@ -1006,7 +1006,7 @@ const HomePage = () => {
                   </div>
                 </div>
                 <p className="text-zinc-400 mb-4">
-                  Scan Top 300 cryptocurrencies across 7 major exchanges in real-time. 
+                  Scan Top 1000 cryptocurrencies across 7 major exchanges in real-time. 
                   Find price spreads of 3%+ and profit from market inefficiencies.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -1661,7 +1661,7 @@ const ArbitragePage = () => {
             Crypto Arbitrage Scanner
           </h1>
           <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 300 cryptocurrencies
+            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 1000 cryptocurrencies
           </p>
         </motion.div>
 
@@ -1680,7 +1680,7 @@ const ArbitragePage = () => {
             <div>
               <h3 className="text-xl font-bold text-white mb-2">Real-Time Scanner</h3>
               <p className="text-zinc-400">
-                Scanning Top 300 coins by market cap across all exchanges
+                Scanning Top 1000 coins by market cap across all exchanges
               </p>
               {lastScanTime && (
                 <p className="text-zinc-500 text-sm mt-1">
