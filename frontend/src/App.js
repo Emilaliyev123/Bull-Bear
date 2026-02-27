@@ -1688,26 +1688,75 @@ const ArbitragePage = () => {
                 </p>
               )}
             </div>
-            <GoldButton 
-              onClick={runScan} 
-              disabled={scanning}
-              className="min-w-[200px]"
-              data-testid="live-scan-btn"
-            >
-              {scanning ? (
-                <>
-                  <Loader2 className="animate-spin" size={18} />
-                  Scanning...
-                </>
-              ) : (
-                <>
-                  <Play size={18} />
-                  Live Scan
-                </>
-              )}
-            </GoldButton>
+            {hasAccess ? (
+              <GoldButton 
+                onClick={runScan} 
+                disabled={scanning}
+                className="min-w-[200px]"
+                data-testid="live-scan-btn"
+              >
+                {scanning ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Scanning...
+                  </>
+                ) : (
+                  <>
+                    <Play size={18} />
+                    Live Scan
+                  </>
+                )}
+              </GoldButton>
+            ) : (
+              <div className="text-center">
+                <GoldButton 
+                  onClick={handleSubscribe}
+                  className="min-w-[200px]"
+                  data-testid="subscribe-arbitrage-btn"
+                >
+                  <Lock size={18} />
+                  Unlock Scanner - $39.90/mo
+                </GoldButton>
+              </div>
+            )}
           </div>
         </Card3D>
+
+        {/* Subscription Notice for non-subscribers */}
+        {!hasAccess && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-8"
+          >
+            <Card3D className="bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Crown className="text-amber-500" size={24} />
+                    <h3 className="text-xl font-bold text-white">Premium Arbitrage Scanner</h3>
+                  </div>
+                  <p className="text-zinc-400 mb-2">
+                    Get real-time access to arbitrage opportunities across 7 major exchanges
+                  </p>
+                  <ul className="text-sm text-zinc-500 space-y-1">
+                    <li>✓ Scan Top 1000 coins by market cap</li>
+                    <li>✓ Real-time price data from all 7 exchanges</li>
+                    <li>✓ Unlimited scans with full price details</li>
+                    <li>✓ Profit potential calculator per trade</li>
+                  </ul>
+                </div>
+                <div className="text-center">
+                  <p className="text-3xl font-bold text-amber-500 mb-2">$39.90<span className="text-lg text-zinc-500">/mo</span></p>
+                  <GoldButton onClick={handleSubscribe}>
+                    <DollarSign size={18} />
+                    Subscribe Now
+                  </GoldButton>
+                </div>
+              </div>
+            </Card3D>
+          </motion.div>
+        )}
 
         {/* Results Table */}
         {scanResult && (
