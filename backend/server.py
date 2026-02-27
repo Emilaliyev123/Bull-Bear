@@ -1432,7 +1432,7 @@ EXCHANGE_APIS = {
 }
 
 async def fetch_top_100_coins():
-    """Fetch Top 300 coins from CoinMarketCap"""
+    """Fetch Top 1000 coins from CoinMarketCap"""
     if not COINMARKETCAP_API_KEY:
         logger.error("CoinMarketCap API key not configured")
         return []
@@ -1442,7 +1442,7 @@ async def fetch_top_100_coins():
         "X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY,
         "Accept": "application/json"
     }
-    params = {"limit": 300, "convert": "USD"}
+    params = {"limit": 1000, "convert": "USD"}
     
     try:
         async with aiohttp.ClientSession() as session:
