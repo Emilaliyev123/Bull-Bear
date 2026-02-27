@@ -1665,30 +1665,9 @@ async def scan_arbitrage_opportunities(min_spread: float = 0.03):
 @api_router.get("/arbitrage/scan")
 async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
     """Scan for crypto arbitrage opportunities"""
-    # Check if user has arbitrage subscription
-    has_access = False
-    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
-        has_access = True
-    
     try:
         result = await scan_arbitrage_opportunities(min_spread=0.03)
-        
-        # If no access, limit results and blur prices
-        if not has_access:
-            limited_opps = []
-            for opp in result["opportunities"][:3]:  # Show only top 3
-                limited_opps.append({
-                    **opp,
-                    "buy_price": "***",
-                    "sell_price": "***",
-                    "potential_profit_per_1000": "***"
-                })
-            result["opportunities"] = limited_opps
-            result["has_access"] = False
-            result["message"] = "Upgrade to Premium to see all opportunities and real-time prices"
-        else:
-            result["has_access"] = True
-        
+        result["has_access"] = True  # Full access for everyone
         return result
     except Exception as e:
         logger.error(f"Arbitrage scan error: {str(e)}")
@@ -1706,7 +1685,7 @@ async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
         "price": PRODUCTS["arbitrage"]["price"],
         "features": [
             "Real-time arbitrage scanning across 7 exchanges",
-            "Top 100 cryptocurrencies by market cap",
+            "Top 1000 cryptocurrencies by market cap",
             "Instant alerts for spreads ≥ 3%",
             "Buy/Sell exchange recommendations",
             "Profit potential calculator"
