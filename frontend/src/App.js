@@ -1709,42 +1709,6 @@ const ArbitragePage = () => {
           </div>
         </Card3D>
 
-        {/* Subscription Notice */}
-        {!hasAccess && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8"
-          >
-            <Card3D className="bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Crown className="text-amber-500" size={24} />
-                    <h3 className="text-xl font-bold text-white">Premium Arbitrage Scanner</h3>
-                  </div>
-                  <p className="text-zinc-400 mb-2">
-                    Unlock full real-time alerts and see all opportunities with exact prices
-                  </p>
-                  <ul className="text-sm text-zinc-500 space-y-1">
-                    <li>✓ Real-time price data from all 7 exchanges</li>
-                    <li>✓ Unlimited scans with no restrictions</li>
-                    <li>✓ Profit potential calculator per trade</li>
-                    <li>✓ Email alerts for high-spread opportunities</li>
-                  </ul>
-                </div>
-                <div className="text-center">
-                  <p className="text-3xl font-bold text-amber-500 mb-2">$39.90<span className="text-lg text-zinc-500">/mo</span></p>
-                  <GoldButton onClick={handleSubscribe} data-testid="subscribe-arbitrage-btn">
-                    <DollarSign size={18} />
-                    Subscribe Now
-                  </GoldButton>
-                </div>
-              </div>
-            </Card3D>
-          </motion.div>
-        )}
-
         {/* Results Table */}
         {scanResult && (
           <motion.div
