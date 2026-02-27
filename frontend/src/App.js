@@ -1836,13 +1836,6 @@ const ArbitragePage = () => {
                 </div>
               )}
             </Card3D>
-
-            {/* Show more notice for non-premium */}
-            {!hasAccess && scanResult.opportunities?.length > 0 && (
-              <p className="text-center text-zinc-500 mt-4 text-sm">
-                Showing limited preview. Subscribe to see all opportunities with real prices.
-              </p>
-            )}
           </motion.div>
         )}
 
@@ -1858,16 +1851,6 @@ const ArbitragePage = () => {
               </p>
             </div>
           </div>
-        </div>
-
-        {/* Contact Footer */}
-        <div className="mt-6 text-center text-zinc-500 text-sm">
-          <p>
-            Unlock full real-time alerts and API execution for just <span className="text-amber-500 font-bold">$39.90/month</span>.
-          </p>
-          <p className="mt-1">
-            Contact support at <a href="https://bullandbear.website" className="text-amber-500 hover:underline">bullandbear.website</a> to upgrade.
-          </p>
         </div>
       </div>
     </PageWrapper>
