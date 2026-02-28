@@ -1683,7 +1683,7 @@ def get_risk_category(score: int, net_spread: float, is_stable: bool) -> str:
         return "HIGH_RISK"
 
 async def fetch_top_coins():
-    """Fetch Top 400 coins from CoinMarketCap with volume data"""
+    """Fetch Top 400 coins from CoinMarketCap with volume data (no pre-filtering)"""
     if not COINMARKETCAP_API_KEY:
         logger.error("CoinMarketCap API key not configured")
         return []
@@ -1703,17 +1703,15 @@ async def fetch_top_coins():
                     coins = []
                     for coin in data.get("data", []):
                         volume_24h = coin["quote"]["USD"].get("volume_24h", 0)
-                        # Filter: Only coins with 24h volume >= $5M
-                        if volume_24h >= ARBITRAGE_CONFIG["min_24h_volume"]:
-                            coins.append({
-                                "symbol": coin["symbol"],
-                                "name": coin["name"],
-                                "rank": coin["cmc_rank"],
-                                "price": coin["quote"]["USD"]["price"],
-                                "market_cap": coin["quote"]["USD"]["market_cap"],
-                                "volume_24h": volume_24h
-                            })
-                    logger.info(f"Fetched {len(coins)} coins with sufficient volume from top {ARBITRAGE_CONFIG['max_market_cap_rank']}")
+                        coins.append({
+                            "symbol": coin["symbol"],
+                            "name": coin["name"],
+                            "rank": coin["cmc_rank"],
+                            "price": coin["quote"]["USD"]["price"],
+                            "market_cap": coin["quote"]["USD"]["market_cap"],
+                            "volume_24h": volume_24h
+                        })
+                    logger.info(f"Fetched {len(coins)} coins from top {ARBITRAGE_CONFIG['max_market_cap_rank']}")
                     return coins
                 else:
                     logger.error(f"CoinMarketCap API error: {response.status}")
