@@ -160,6 +160,7 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Resend: `re_bJkj2E...` ✅
 - Alpha Vantage: `BZY2C113...` ✅
 - Emergent LLM Key (Gemini Pro): ✅
+- CoinMarketCap API: ✅ (for arbitrage scanner)
 
 ## Test Credentials
 - **Admin:** admin@bullbear.com / admin123
