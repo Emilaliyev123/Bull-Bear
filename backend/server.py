@@ -1868,29 +1868,29 @@ def calculate_net_spread(
     }
 
 
-def check_spread_stability(symbol: str, buy_exchange: str, sell_exchange: str, net_spread: float) -> tuple:
+def check_spread_stability_adaptive(symbol: str, buy_exchange: str, sell_exchange: str, net_spread: float, required_seconds: int) -> tuple:
     """
-    Track spread stability. Returns (is_stable, time_active_seconds)
-    Spread must remain >= 7% for at least 120 seconds.
+    Track spread stability with adaptive requirements.
+    Returns (is_stable, time_active_seconds)
     """
     global spread_stability_tracker
     
     key = f"{symbol}_{buy_exchange}_{sell_exchange}"
     current_time = time.time()
-    min_spread = ARBITRAGE_CONFIG["min_net_spread"] * 100  # Convert to percentage
     
-    if net_spread >= min_spread:
+    # Any positive net spread is trackable
+    if net_spread > 0:
         if key in spread_stability_tracker:
             first_seen, last_spread = spread_stability_tracker[key]
             spread_stability_tracker[key] = (first_seen, net_spread)
             time_active = current_time - first_seen
-            is_stable = time_active >= ARBITRAGE_CONFIG["spread_stability_seconds"]
+            is_stable = time_active >= required_seconds
             return is_stable, int(time_active)
         else:
             spread_stability_tracker[key] = (current_time, net_spread)
             return False, 0
     else:
-        # Reset if spread drops below threshold
+        # Reset if spread becomes negative
         if key in spread_stability_tracker:
             del spread_stability_tracker[key]
         return False, 0
