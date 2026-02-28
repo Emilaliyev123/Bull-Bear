@@ -49,6 +49,50 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Disabled download button
 - Video pause on window blur
 
+## Recent Updates (Feb 28, 2026)
+
+### Professional Arbitrage Scanner - MAJOR UPGRADE
+- **User Request**: "Improve arbitrage bot with real executable spot arbitrage opportunities"
+- **Implementation**: Complete overhaul with 7 professional-grade filters:
+
+1. **Order Book Depth Check**
+   - Simulates $300 notional execution
+   - Calculates average fill price from order book (asks for buy, bids for sell)
+   - Not just best bid/ask, but actual depth-weighted average
+
+2. **Net Spread After ALL Fees**
+   - Trading fee on buy (0.1%)
+   - Trading fee on sell (0.1%)
+   - Withdrawal fee in USD (varies by exchange: $1-2)
+   - Estimated slippage (0.5%)
+   - Displays: Gross Spread %, Net Spread %, Net Profit in USD
+
+3. **Minimum Liquidity Filter**
+   - 24h volume must be ≥ $5,000,000
+   - Order book depth within 1% must be ≥ $10,000
+
+4. **Market Cap Filter**
+   - Only Top 400 coins by market cap
+   - Filtered from CoinMarketCap API
+
+5. **Spread Stability Check**
+   - Spread must remain ≥ 7% NET for at least 120 seconds
+   - "TRACKING" status shown while accumulating time
+   - "VERIFIED" status when stability requirement met
+
+6. **Alert Threshold**
+   - Net Spread ≥ 7%
+   - Estimated Net Profit ≥ $14 (for $200 capital)
+
+7. **Output Format** (per opportunity):
+   - Token, Buy/Sell Exchange, Avg Buy/Sell Price
+   - Gross Spread, Net Spread, Net Profit ($200)
+   - Withdrawal Fee (USD), Time Spread Active
+   - Order book depth on both sides
+   - Fee breakdown (buy fee, sell fee, slippage, withdrawal)
+
+- **Status**: ✅ IMPLEMENTED - Professional-grade scanner operational
+
 ## Recent Fixes (Jan 21, 2026)
 
 ### Video Playback Issue - ALL VIDEOS FIXED
