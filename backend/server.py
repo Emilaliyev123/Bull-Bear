@@ -2331,21 +2331,30 @@ async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
         "has_access": has_access,
         "price": PRODUCTS["arbitrage"]["price"],
         "features": [
-            "Order book depth analysis for $300 notional execution",
-            "Net spread calculation after ALL fees (trading + withdrawal + slippage)",
-            "Real-time scanning across 7 major exchanges",
-            "Top 400 coins filtered by $5M+ daily volume",
-            "Minimum $10K order book depth within 1%",
-            "Spread stability verification (120 seconds)",
-            "Alerts only for ≥7% net spread & ≥$14 profit"
+            "Adaptive scoring system (0-100 score)",
+            "Dynamic spread thresholds by network speed",
+            "Capital-based depth simulation (1.2x capital)",
+            "Shorter stability windows for large spreads",
+            "Volume-adaptive filtering",
+            "Fast network bonuses (TRC20, BEP20, Polygon)",
+            "3 risk categories: HIGH/MODERATE/HIGH_RISK"
         ],
-        "filters": {
-            "min_net_spread": "7%",
-            "min_profit": "$14 (on $200 capital)",
-            "min_volume": "$5,000,000 (24h)",
-            "min_depth": "$10,000 (within 1%)",
-            "max_rank": "Top 400",
-            "stability": "120 seconds"
+        "adaptive_logic": {
+            "spread_by_network": {
+                "fast_<3min": "3.5% min",
+                "medium_3-7min": "5% min",
+                "slow_>7min": "7% min"
+            },
+            "stability_by_spread": {
+                ">10%": "30 sec",
+                "6-10%": "60 sec",
+                "3-6%": "90 sec"
+            },
+            "volume_by_spread": {
+                ">10%": "$2M min",
+                "5-10%": "$5M min",
+                "<5%": "$10M min"
+            }
         }
     }
 
