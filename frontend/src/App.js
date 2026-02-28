@@ -1597,6 +1597,7 @@ const ArbitragePage = () => {
   const [hasAccess, setHasAccess] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [filterCategory, setFilterCategory] = useState('ALL');
 
   useEffect(() => {
     checkAccess();
@@ -1662,6 +1663,29 @@ const ArbitragePage = () => {
     return `$${vol.toLocaleString()}`;
   };
 
+  const getRiskCategoryStyle = (category) => {
+    switch (category) {
+      case 'HIGH_PROBABILITY':
+        return { bg: 'bg-emerald-500/10', border: 'border-emerald-500/40', text: 'text-emerald-400', icon: '🟢' };
+      case 'MODERATE':
+        return { bg: 'bg-amber-500/10', border: 'border-amber-500/40', text: 'text-amber-400', icon: '🟡' };
+      case 'HIGH_RISK':
+        return { bg: 'bg-red-500/10', border: 'border-red-500/40', text: 'text-red-400', icon: '🔴' };
+      default:
+        return { bg: 'bg-zinc-800/50', border: 'border-zinc-700', text: 'text-zinc-400', icon: '⚪' };
+    }
+  };
+
+  const filteredOpportunities = scanResult?.opportunities?.filter(opp => 
+    filterCategory === 'ALL' || opp.risk_category === filterCategory
+  ) || [];
+
+  const categoryCounts = {
+    HIGH_PROBABILITY: scanResult?.opportunities?.filter(o => o.risk_category === 'HIGH_PROBABILITY').length || 0,
+    MODERATE: scanResult?.opportunities?.filter(o => o.risk_category === 'MODERATE').length || 0,
+    HIGH_RISK: scanResult?.opportunities?.filter(o => o.risk_category === 'HIGH_RISK').length || 0,
+  };
+
   return (
     <PageWrapper>
       <div className="max-w-7xl mx-auto px-4">
@@ -1673,35 +1697,32 @@ const ArbitragePage = () => {
         >
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 mb-4">
             <Target className="text-emerald-500" size={16} />
-            <span className="text-emerald-500 text-sm font-medium">Professional Arbitrage Scanner</span>
+            <span className="text-emerald-500 text-sm font-medium">Adaptive Arbitrage Scanner</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Real Executable Opportunities
+            Smart Opportunity Detection
           </h1>
           <p className="text-zinc-400 text-lg max-w-3xl mx-auto">
-            Order book depth analysis • Net spread after ALL fees • $200 capital simulation • 7%+ minimum net profit
+            Adaptive scoring • Dynamic thresholds • Fast network bonuses • Three risk categories
           </p>
         </motion.div>
 
-        {/* Filter Badges */}
-        <div className="flex flex-wrap justify-center gap-2 mb-8">
-          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Min Net Spread: 7%
+        {/* Adaptive Logic Badges */}
+        <div className="flex flex-wrap justify-center gap-2 mb-6">
+          <span className="bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full text-xs text-emerald-400">
+            Fast Network: 3.5% min
+          </span>
+          <span className="bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-xs text-amber-400">
+            Medium: 5% min
+          </span>
+          <span className="bg-red-500/10 border border-red-500/30 px-3 py-1 rounded-full text-xs text-red-400">
+            Slow: 7% min
           </span>
           <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Min Profit: $14
+            Score ≥65 required
           </span>
           <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Min Volume: $5M/24h
-          </span>
-          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Depth Check: $10K
-          </span>
-          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Stability: 120s
-          </span>
-          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
-            Top 400 Coins
+            1.2x capital depth
           </span>
         </div>
 
@@ -1718,9 +1739,9 @@ const ArbitragePage = () => {
         <Card3D className="mb-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Professional Scanner</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Adaptive Scanner</h3>
               <p className="text-zinc-400">
-                Simulates $300 execution • Deducts all fees • Only shows real opportunities
+                Dynamic thresholds • Scoring system • Three risk categories
               </p>
               {lastScanTime && (
                 <p className="text-zinc-500 text-sm mt-1">
@@ -1748,12 +1769,12 @@ const ArbitragePage = () => {
                   {scanning ? (
                     <>
                       <Loader2 className="animate-spin" size={18} />
-                      Analyzing...
+                      Scanning...
                     </>
                   ) : (
                     <>
                       <Play size={18} />
-                      Deep Scan
+                      Smart Scan
                     </>
                   )}
                 </GoldButton>
@@ -1785,18 +1806,18 @@ const ArbitragePage = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Crown className="text-amber-500" size={24} />
-                    <h3 className="text-xl font-bold text-white">Professional Arbitrage Scanner</h3>
+                    <h3 className="text-xl font-bold text-white">Adaptive Arbitrage Scanner</h3>
                   </div>
                   <p className="text-zinc-400 mb-2">
-                    Only real, executable arbitrage opportunities for manual trading
+                    Smart filtering for more opportunities while maintaining quality
                   </p>
                   <ul className="text-sm text-zinc-500 space-y-1">
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Order book depth simulation ($300 notional)</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Net spread after trading fees (0.1% × 2)</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Withdrawal fees deducted in USD</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Slippage estimate (0.5%) included</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> 120-second spread stability verification</li>
-                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Alerts only for ≥7% NET spread & ≥$14 profit</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Dynamic spread thresholds by network speed</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Capital-based depth simulation (1.2x)</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Opportunity scoring system (0-100)</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Adaptive stability windows by spread</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Fast network bonuses (TRC20, BEP20, Polygon)</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> 3 risk categories: HIGH / MODERATE / HIGH_RISK</li>
                   </ul>
                 </div>
                 <div className="text-center">
@@ -1817,33 +1838,32 @@ const ArbitragePage = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            {/* Scan Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            {/* Category Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <Card3D className="text-center py-4">
                 <p className="text-2xl font-bold text-white">{scanResult.total_coins_analyzed || 0}</p>
                 <p className="text-zinc-500 text-sm">Coins Analyzed</p>
               </Card3D>
-              <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-white">{scanResult.exchanges_connected}</p>
-                <p className="text-zinc-500 text-sm">Exchanges</p>
+              <Card3D 
+                className={`text-center py-4 cursor-pointer transition-all ${filterCategory === 'HIGH_PROBABILITY' ? 'ring-2 ring-emerald-500' : ''}`}
+                onClick={() => setFilterCategory(filterCategory === 'HIGH_PROBABILITY' ? 'ALL' : 'HIGH_PROBABILITY')}
+              >
+                <p className="text-2xl font-bold text-emerald-500">{categoryCounts.HIGH_PROBABILITY}</p>
+                <p className="text-zinc-500 text-sm flex items-center justify-center gap-1">🟢 High Prob</p>
               </Card3D>
-              <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-emerald-500">
-                  {scanResult.opportunities?.filter(o => o.is_stable).length || 0}
-                </p>
-                <p className="text-zinc-500 text-sm">Verified Opps</p>
+              <Card3D 
+                className={`text-center py-4 cursor-pointer transition-all ${filterCategory === 'MODERATE' ? 'ring-2 ring-amber-500' : ''}`}
+                onClick={() => setFilterCategory(filterCategory === 'MODERATE' ? 'ALL' : 'MODERATE')}
+              >
+                <p className="text-2xl font-bold text-amber-500">{categoryCounts.MODERATE}</p>
+                <p className="text-zinc-500 text-sm flex items-center justify-center gap-1">🟡 Moderate</p>
               </Card3D>
-              <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-amber-500">
-                  {scanResult.opportunities?.filter(o => !o.is_stable).length || 0}
-                </p>
-                <p className="text-zinc-500 text-sm">Tracking</p>
-              </Card3D>
-              <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-zinc-400">
-                  {scanResult.filter_stats?.total_potential || 0}
-                </p>
-                <p className="text-zinc-500 text-sm">Pre-filtered</p>
+              <Card3D 
+                className={`text-center py-4 cursor-pointer transition-all ${filterCategory === 'HIGH_RISK' ? 'ring-2 ring-red-500' : ''}`}
+                onClick={() => setFilterCategory(filterCategory === 'HIGH_RISK' ? 'ALL' : 'HIGH_RISK')}
+              >
+                <p className="text-2xl font-bold text-red-500">{categoryCounts.HIGH_RISK}</p>
+                <p className="text-zinc-500 text-sm flex items-center justify-center gap-1">🔴 High Risk</p>
               </Card3D>
             </div>
 
@@ -1852,19 +1872,16 @@ const ArbitragePage = () => {
               <Card3D className="mb-6 py-3">
                 <div className="flex flex-wrap justify-center gap-4 text-sm">
                   <span className="text-zinc-400">
+                    Potential: <span className="text-white">{scanResult.filter_stats.total_potential}</span>
+                  </span>
+                  <span className="text-zinc-400">
                     Failed Orderbook: <span className="text-red-400">{scanResult.filter_stats.failed_orderbook}</span>
                   </span>
                   <span className="text-zinc-400">
-                    Failed Depth: <span className="text-red-400">{scanResult.filter_stats.failed_depth}</span>
+                    Failed Volume: <span className="text-red-400">{scanResult.filter_stats.failed_volume || 0}</span>
                   </span>
                   <span className="text-zinc-400">
-                    Failed Net Spread: <span className="text-red-400">{scanResult.filter_stats.failed_net_spread}</span>
-                  </span>
-                  <span className="text-zinc-400">
-                    Pending Stability: <span className="text-amber-400">{scanResult.filter_stats.failed_stability}</span>
-                  </span>
-                  <span className="text-zinc-400">
-                    Passed All: <span className="text-emerald-400">{scanResult.filter_stats.passed_all_filters}</span>
+                    Failed Spread: <span className="text-red-400">{scanResult.filter_stats.failed_net_spread}</span>
                   </span>
                 </div>
               </Card3D>
@@ -1872,114 +1889,153 @@ const ArbitragePage = () => {
 
             {/* Opportunities */}
             <Card3D>
-              <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                <Target className="text-emerald-500" size={20} />
-                Executable Arbitrage Opportunities
-              </h3>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <Target className="text-emerald-500" size={20} />
+                  Arbitrage Opportunities
+                </h3>
+                {filterCategory !== 'ALL' && (
+                  <button 
+                    onClick={() => setFilterCategory('ALL')}
+                    className="text-sm text-zinc-400 hover:text-white"
+                  >
+                    Show All
+                  </button>
+                )}
+              </div>
               
-              {scanResult.opportunities?.length > 0 ? (
+              {filteredOpportunities.length > 0 ? (
                 <div className="space-y-4">
-                  {scanResult.opportunities.map((opp, i) => (
-                    <div 
-                      key={i} 
-                      className={`p-4 rounded-lg border ${
-                        opp.is_stable 
-                          ? 'bg-emerald-500/5 border-emerald-500/30' 
-                          : 'bg-amber-500/5 border-amber-500/30'
-                      }`}
-                    >
-                      {/* Header */}
-                      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-                        <div className="flex items-center gap-3">
-                          <div>
-                            <span className="text-white font-bold text-lg">{opp.symbol}</span>
-                            <span className="text-zinc-500 text-sm ml-2">#{opp.rank}</span>
+                  {filteredOpportunities.map((opp, i) => {
+                    const style = getRiskCategoryStyle(opp.risk_category);
+                    return (
+                      <div 
+                        key={i} 
+                        className={`p-4 rounded-lg border ${style.bg} ${style.border}`}
+                      >
+                        {/* Header with Category & Score */}
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                          <div className="flex items-center gap-3">
+                            <div>
+                              <span className="text-white font-bold text-lg">{opp.symbol}</span>
+                              <span className="text-zinc-500 text-sm ml-2">#{opp.rank}</span>
+                            </div>
+                            <span className={`${style.bg} ${style.text} text-xs px-3 py-1 rounded-full font-medium`}>
+                              {style.icon} {opp.risk_category.replace('_', ' ')}
+                            </span>
+                            <span className="bg-zinc-800 text-white text-xs px-2 py-1 rounded-full">
+                              Score: {opp.score}/100
+                            </span>
+                            {opp.network && (
+                              <span className={`text-xs px-2 py-1 rounded-full ${
+                                ['TRC20', 'BEP20', 'MATIC', 'SOL'].includes(opp.network)
+                                  ? 'bg-emerald-500/20 text-emerald-400'
+                                  : 'bg-zinc-800 text-zinc-400'
+                              }`}>
+                                {opp.network} (~{opp.transfer_time_minutes}min)
+                              </span>
+                            )}
                           </div>
-                          {opp.is_stable ? (
-                            <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              <CheckCircle size={12} /> VERIFIED
+                          <div className="text-right">
+                            <p className="text-zinc-500 text-xs">24h Volume</p>
+                            <p className="text-zinc-300 font-medium">{formatVolume(opp.volume_24h)}</p>
+                          </div>
+                        </div>
+
+                        {/* Score Breakdown */}
+                        {opp.score_breakdown && (
+                          <div className="flex flex-wrap gap-2 mb-4">
+                            <span className="text-xs bg-zinc-800/50 px-2 py-1 rounded text-zinc-400">
+                              Liquidity: {opp.score_breakdown.liquidity}/30
                             </span>
-                          ) : (
-                            <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              <Clock size={12} /> TRACKING ({opp.time_remaining || 0}s remaining)
+                            <span className="text-xs bg-zinc-800/50 px-2 py-1 rounded text-zinc-400">
+                              Spread: {opp.score_breakdown.spread}/30
                             </span>
-                          )}
-                        </div>
-                        <div className="text-right">
-                          <p className="text-zinc-500 text-xs">24h Volume</p>
-                          <p className="text-zinc-300 font-medium">{formatVolume(opp.volume_24h)}</p>
-                        </div>
-                      </div>
+                            <span className="text-xs bg-zinc-800/50 px-2 py-1 rounded text-zinc-400">
+                              Stability: {opp.score_breakdown.stability}/20
+                            </span>
+                            <span className="text-xs bg-zinc-800/50 px-2 py-1 rounded text-zinc-400">
+                              Network: {opp.score_breakdown.network}/20
+                            </span>
+                          </div>
+                        )}
 
-                      {/* Main Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Buy Exchange</p>
-                          <p className="text-emerald-400 font-bold">{opp.buy_exchange}</p>
-                          <p className="text-zinc-400 text-sm">${opp.avg_buy_price}</p>
+                        {/* Main Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <p className="text-zinc-500 text-xs mb-1">Buy Exchange</p>
+                            <p className="text-emerald-400 font-bold">{opp.buy_exchange}</p>
+                            <p className="text-zinc-400 text-sm">${opp.avg_buy_price}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs mb-1">Sell Exchange</p>
+                            <p className="text-red-400 font-bold">{opp.sell_exchange}</p>
+                            <p className="text-zinc-400 text-sm">${opp.avg_sell_price}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs mb-1">Gross Spread</p>
+                            <p className="text-zinc-300 font-bold">{opp.gross_spread}%</p>
+                            <p className="text-zinc-600 text-xs">Min: {opp.min_spread_required}%</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs mb-1">Net Spread</p>
+                            <p className={`font-bold text-xl ${style.text}`}>{opp.net_spread}%</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Sell Exchange</p>
-                          <p className="text-red-400 font-bold">{opp.sell_exchange}</p>
-                          <p className="text-zinc-400 text-sm">${opp.avg_sell_price}</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Gross Spread</p>
-                          <p className="text-zinc-300 font-bold">{opp.gross_spread}%</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs mb-1">Net Spread</p>
-                          <p className="text-emerald-400 font-bold text-xl">{opp.net_spread}%</p>
-                        </div>
-                      </div>
 
-                      {/* Profit & Fees */}
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-3 bg-black/30 rounded-lg">
-                        <div>
-                          <p className="text-zinc-500 text-xs">Est. Net Profit ($200)</p>
-                          <p className="text-amber-400 font-bold text-lg">${opp.net_profit_usd}</p>
+                        {/* Profit & Stability */}
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-3 bg-black/30 rounded-lg">
+                          <div>
+                            <p className="text-zinc-500 text-xs">Est. Net Profit ($200)</p>
+                            <p className="text-amber-400 font-bold text-lg">${opp.net_profit_usd}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs">Withdrawal Fee</p>
+                            <p className="text-zinc-300">${opp.withdrawal_fee_usd}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs">Stability</p>
+                            <p className={`font-medium ${opp.is_stable ? 'text-emerald-400' : 'text-amber-400'}`}>
+                              {opp.time_spread_active}s / {opp.required_stability}s
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs">Buy Depth</p>
+                            <p className="text-zinc-300">${opp.buy_depth_usd?.toLocaleString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-zinc-500 text-xs">Sell Depth</p>
+                            <p className="text-zinc-300">${opp.sell_depth_usd?.toLocaleString()}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs">Withdrawal Fee</p>
-                          <p className="text-zinc-300">${opp.withdrawal_fee_usd}</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs">Buy Depth (1%)</p>
-                          <p className="text-zinc-300">${opp.buy_depth_usd?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs">Sell Depth (1%)</p>
-                          <p className="text-zinc-300">${opp.sell_depth_usd?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-zinc-500 text-xs">Time Active</p>
-                          <p className="text-zinc-300">{opp.time_spread_active}s</p>
-                        </div>
-                      </div>
 
-                      {/* Fees Breakdown */}
-                      {opp.fees_breakdown && (
-                        <div className="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
-                          <span>Buy Fee: {opp.fees_breakdown.buy_fee}</span>
-                          <span>Sell Fee: {opp.fees_breakdown.sell_fee}</span>
-                          <span>Slippage: {opp.fees_breakdown.slippage}</span>
-                          <span>Withdrawal: {opp.fees_breakdown.withdrawal}</span>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {/* Fees Breakdown */}
+                        {opp.fees_breakdown && (
+                          <div className="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
+                            <span>Buy Fee: {opp.fees_breakdown.buy_fee}</span>
+                            <span>Sell Fee: {opp.fees_breakdown.sell_fee}</span>
+                            <span>Slippage: {opp.fees_breakdown.slippage}</span>
+                            <span>Withdrawal: {opp.fees_breakdown.withdrawal}</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <AlertCircle className="text-zinc-600 mx-auto mb-4" size={48} />
                   <p className="text-zinc-400 mb-2">
-                    No opportunities pass ALL professional filters right now.
+                    {filterCategory !== 'ALL' 
+                      ? `No ${filterCategory.replace('_', ' ')} opportunities found.`
+                      : 'No opportunities pass the adaptive filters right now.'
+                    }
                   </p>
                   <p className="text-zinc-500 text-sm">
-                    Requirements: ≥7% net spread, ≥$14 profit, $5M+ volume, $10K+ depth, 120s stability
+                    Adaptive scoring requires: Score ≥65, dynamic spread based on network speed
                   </p>
                   <p className="text-zinc-600 text-xs mt-4">
-                    This is normal — real executable arbitrage is rare. Keep scanning!
+                    Keep scanning — opportunities appear when market conditions are right!
                   </p>
                 </div>
               )}
@@ -1992,11 +2048,14 @@ const ArbitragePage = () => {
           <div className="flex items-start gap-3">
             <AlertCircle className="text-amber-500 flex-shrink-0 mt-0.5" size={20} />
             <div>
-              <h4 className="text-white font-medium mb-1">Risk Disclaimer</h4>
-              <p className="text-zinc-500 text-sm">
-                Even verified opportunities involve risks: exchange withdrawal delays, network congestion, 
-                price movement during transfer, and potential deposit/withdrawal suspensions. 
-                Always verify on exchanges before executing. This scanner is for informational purposes only.
+              <h4 className="text-white font-medium mb-1">Risk Categories Explained</h4>
+              <div className="text-zinc-500 text-sm space-y-1">
+                <p><span className="text-emerald-400">🟢 HIGH PROBABILITY:</span> Score ≥80 or (≥65 + stable + 7%+ spread). Safest opportunities.</p>
+                <p><span className="text-amber-400">🟡 MODERATE:</span> Score 50-79. Viable but requires careful timing.</p>
+                <p><span className="text-red-400">🔴 HIGH RISK:</span> Score &lt;50. Execute only if you understand the risks.</p>
+              </div>
+              <p className="text-zinc-600 text-xs mt-2">
+                All trades involve risk. Always verify on exchanges before executing.
               </p>
             </div>
           </div>
