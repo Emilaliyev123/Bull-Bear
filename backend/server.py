@@ -2046,10 +2046,31 @@ async def scan_arbitrage_opportunities_professional():
 
 @api_router.get("/arbitrage/scan")
 async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
-    """Scan for crypto arbitrage opportunities"""
+    """Professional-grade crypto arbitrage scan with strict filtering"""
+    # Check subscription access
+    has_access = False
+    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
+        has_access = True
+    
+    if not has_access:
+        return {
+            "opportunities": [],
+            "has_access": False,
+            "message": "Subscribe to access professional arbitrage scanning",
+            "filters_applied": {
+                "min_net_spread": f"{ARBITRAGE_CONFIG['min_net_spread'] * 100}%",
+                "min_net_profit": f"${ARBITRAGE_CONFIG['min_net_profit']}",
+                "min_24h_volume": f"${ARBITRAGE_CONFIG['min_24h_volume']:,}",
+                "min_orderbook_depth": f"${ARBITRAGE_CONFIG['min_orderbook_depth']:,}",
+                "max_market_cap_rank": ARBITRAGE_CONFIG["max_market_cap_rank"],
+                "stability_required_seconds": ARBITRAGE_CONFIG["spread_stability_seconds"],
+                "capital_simulated": f"${ARBITRAGE_CONFIG['capital']}"
+            }
+        }
+    
     try:
-        result = await scan_arbitrage_opportunities(min_spread=0.03)
-        result["has_access"] = True  # Full access for everyone
+        result = await scan_arbitrage_opportunities_professional()
+        result["has_access"] = True
         return result
     except Exception as e:
         logger.error(f"Arbitrage scan error: {str(e)}")
