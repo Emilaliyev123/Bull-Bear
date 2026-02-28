@@ -1493,8 +1493,8 @@ ARBITRAGE_CONFIG = {
     "spread_stability_seconds": 120,  # Spread must persist 120 seconds
 }
 
-async def fetch_top_100_coins():
-    """Fetch Top 1000 coins from CoinMarketCap"""
+async def fetch_top_coins():
+    """Fetch Top 400 coins from CoinMarketCap with volume data"""
     if not COINMARKETCAP_API_KEY:
         logger.error("CoinMarketCap API key not configured")
         return []
@@ -1504,7 +1504,7 @@ async def fetch_top_100_coins():
         "X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY,
         "Accept": "application/json"
     }
-    params = {"limit": 1000, "convert": "USD"}
+    params = {"limit": ARBITRAGE_CONFIG["max_market_cap_rank"], "convert": "USD"}
     
     try:
         async with aiohttp.ClientSession() as session:
@@ -1513,20 +1513,213 @@ async def fetch_top_100_coins():
                     data = await response.json()
                     coins = []
                     for coin in data.get("data", []):
-                        coins.append({
-                            "symbol": coin["symbol"],
-                            "name": coin["name"],
-                            "rank": coin["cmc_rank"],
-                            "price": coin["quote"]["USD"]["price"],
-                            "market_cap": coin["quote"]["USD"]["market_cap"]
-                        })
+                        volume_24h = coin["quote"]["USD"].get("volume_24h", 0)
+                        # Filter: Only coins with 24h volume >= $5M
+                        if volume_24h >= ARBITRAGE_CONFIG["min_24h_volume"]:
+                            coins.append({
+                                "symbol": coin["symbol"],
+                                "name": coin["name"],
+                                "rank": coin["cmc_rank"],
+                                "price": coin["quote"]["USD"]["price"],
+                                "market_cap": coin["quote"]["USD"]["market_cap"],
+                                "volume_24h": volume_24h
+                            })
+                    logger.info(f"Fetched {len(coins)} coins with sufficient volume from top {ARBITRAGE_CONFIG['max_market_cap_rank']}")
                     return coins
                 else:
                     logger.error(f"CoinMarketCap API error: {response.status}")
                     return []
     except Exception as e:
-        logger.error(f"Error fetching Top 100 coins: {str(e)}")
+        logger.error(f"Error fetching coins: {str(e)}")
         return []
+
+
+async def fetch_orderbook(exchange: str, symbol: str):
+    """Fetch order book (bids/asks) for a specific symbol on an exchange"""
+    if exchange.lower().replace(".", "") not in ["binance", "bybit", "okx", "gateio", "kucoin", "mexc"]:
+        return None
+    
+    exchange_key = exchange.lower().replace(".", "")
+    if exchange_key not in ORDERBOOK_APIS:
+        return None
+    
+    url = ORDERBOOK_APIS[exchange_key].format(symbol=symbol)
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=10) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Parse based on exchange format
+                    if exchange_key == "binance":
+                        return {
+                            "bids": [[float(p), float(q)] for p, q in data.get("bids", [])],
+                            "asks": [[float(p), float(q)] for p, q in data.get("asks", [])]
+                        }
+                    elif exchange_key == "bybit":
+                        result = data.get("result", {})
+                        return {
+                            "bids": [[float(b[0]), float(b[1])] for b in result.get("b", [])],
+                            "asks": [[float(a[0]), float(a[1])] for a in result.get("a", [])]
+                        }
+                    elif exchange_key == "okx":
+                        book_data = data.get("data", [{}])[0]
+                        return {
+                            "bids": [[float(b[0]), float(b[1])] for b in book_data.get("bids", [])],
+                            "asks": [[float(a[0]), float(a[1])] for a in book_data.get("asks", [])]
+                        }
+                    elif exchange_key == "gateio":
+                        return {
+                            "bids": [[float(b[0]), float(b[1])] for b in data.get("bids", [])],
+                            "asks": [[float(a[0]), float(a[1])] for a in data.get("asks", [])]
+                        }
+                    elif exchange_key == "kucoin":
+                        book_data = data.get("data", {})
+                        return {
+                            "bids": [[float(b[0]), float(b[1])] for b in book_data.get("bids", [])],
+                            "asks": [[float(a[0]), float(a[1])] for a in book_data.get("asks", [])]
+                        }
+                    elif exchange_key == "mexc":
+                        return {
+                            "bids": [[float(p), float(q)] for p, q in data.get("bids", [])],
+                            "asks": [[float(p), float(q)] for p, q in data.get("asks", [])]
+                        }
+    except Exception as e:
+        logger.debug(f"Order book fetch failed for {symbol} on {exchange}: {str(e)}")
+    return None
+
+
+def calculate_average_fill_price(orderbook_side: list, notional_usd: float, is_buy: bool) -> tuple:
+    """
+    Simulate execution for given notional amount.
+    Returns (average_price, total_filled_usd, depth_within_1_percent)
+    """
+    if not orderbook_side:
+        return None, 0, 0
+    
+    total_filled_qty = 0
+    total_cost = 0
+    remaining_usd = notional_usd
+    best_price = orderbook_side[0][0] if orderbook_side else 0
+    depth_within_1_percent = 0
+    
+    for price, qty in orderbook_side:
+        level_value = price * qty
+        
+        # Calculate depth within 1% of best price
+        if best_price > 0:
+            price_diff = abs(price - best_price) / best_price
+            if price_diff <= 0.01:
+                depth_within_1_percent += level_value
+        
+        if remaining_usd <= 0:
+            continue
+            
+        if level_value >= remaining_usd:
+            # Partial fill at this level
+            fill_qty = remaining_usd / price
+            total_filled_qty += fill_qty
+            total_cost += remaining_usd
+            remaining_usd = 0
+        else:
+            # Full fill at this level
+            total_filled_qty += qty
+            total_cost += level_value
+            remaining_usd -= level_value
+    
+    if total_filled_qty == 0:
+        return None, 0, depth_within_1_percent
+    
+    avg_price = total_cost / total_filled_qty
+    return avg_price, total_cost, depth_within_1_percent
+
+
+def calculate_net_spread(
+    avg_buy_price: float,
+    avg_sell_price: float,
+    buy_exchange: str,
+    sell_exchange: str,
+    capital: float
+) -> dict:
+    """
+    Calculate net spread after all fees:
+    - Trading fee on buy (0.1%)
+    - Trading fee on sell (0.1%)
+    - Withdrawal fee (convert to USD)
+    - Estimated slippage (0.5%)
+    """
+    if avg_buy_price <= 0 or avg_sell_price <= 0:
+        return None
+    
+    # Gross spread
+    gross_spread = (avg_sell_price - avg_buy_price) / avg_buy_price
+    
+    # Fees
+    buy_fee_rate = EXCHANGE_FEES.get(buy_exchange, 0.001)
+    sell_fee_rate = EXCHANGE_FEES.get(sell_exchange, 0.001)
+    withdrawal_fee_usd = WITHDRAWAL_FEES_USD.get(buy_exchange, 2.0)
+    
+    # Total fee impact as percentage
+    total_fee_rate = buy_fee_rate + sell_fee_rate + ESTIMATED_SLIPPAGE
+    withdrawal_fee_rate = withdrawal_fee_usd / capital if capital > 0 else 0
+    
+    # Net spread
+    net_spread = gross_spread - total_fee_rate - withdrawal_fee_rate
+    
+    # Net profit in USD
+    net_profit_usd = capital * net_spread
+    
+    return {
+        "gross_spread": round(gross_spread * 100, 2),
+        "net_spread": round(net_spread * 100, 2),
+        "net_profit_usd": round(net_profit_usd, 2),
+        "withdrawal_fee_usd": round(withdrawal_fee_usd, 2),
+        "buy_fee_percent": round(buy_fee_rate * 100, 2),
+        "sell_fee_percent": round(sell_fee_rate * 100, 2),
+        "slippage_percent": round(ESTIMATED_SLIPPAGE * 100, 2)
+    }
+
+
+def check_spread_stability(symbol: str, buy_exchange: str, sell_exchange: str, net_spread: float) -> tuple:
+    """
+    Track spread stability. Returns (is_stable, time_active_seconds)
+    Spread must remain >= 7% for at least 120 seconds.
+    """
+    global spread_stability_tracker
+    
+    key = f"{symbol}_{buy_exchange}_{sell_exchange}"
+    current_time = time.time()
+    min_spread = ARBITRAGE_CONFIG["min_net_spread"] * 100  # Convert to percentage
+    
+    if net_spread >= min_spread:
+        if key in spread_stability_tracker:
+            first_seen, last_spread = spread_stability_tracker[key]
+            spread_stability_tracker[key] = (first_seen, net_spread)
+            time_active = current_time - first_seen
+            is_stable = time_active >= ARBITRAGE_CONFIG["spread_stability_seconds"]
+            return is_stable, int(time_active)
+        else:
+            spread_stability_tracker[key] = (current_time, net_spread)
+            return False, 0
+    else:
+        # Reset if spread drops below threshold
+        if key in spread_stability_tracker:
+            del spread_stability_tracker[key]
+        return False, 0
+
+
+# Clean up old entries periodically
+def cleanup_spread_tracker():
+    """Remove stale entries from spread tracker"""
+    global spread_stability_tracker
+    current_time = time.time()
+    stale_keys = [
+        k for k, (first_seen, _) in spread_stability_tracker.items()
+        if current_time - first_seen > 600  # Remove entries older than 10 minutes
+    ]
+    for k in stale_keys:
+        del spread_stability_tracker[k]
 
 async def fetch_binance_prices():
     """Fetch prices from Binance"""
