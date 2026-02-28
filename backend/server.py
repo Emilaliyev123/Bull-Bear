@@ -1416,9 +1416,11 @@ async def delete_ai_session(session_id: str, user: dict = Depends(get_current_us
         del ai_chat_sessions[session_id]
     return {"deleted": result.deleted_count}
 
-# ============ CRYPTO ARBITRAGE SCANNER ============
+# ============ CRYPTO ARBITRAGE SCANNER (Professional Grade) ============
 
 import aiohttp
+from collections import defaultdict
+import time
 
 # Exchange API endpoints
 EXCHANGE_APIS = {
@@ -1429,6 +1431,66 @@ EXCHANGE_APIS = {
     "bingx": "https://open-api.bingx.com/openApi/spot/v1/ticker/24hr",
     "kucoin": "https://api.kucoin.com/api/v1/market/allTickers",
     "mexc": "https://api.mexc.com/api/v3/ticker/price"
+}
+
+# Order book endpoints for depth analysis
+ORDERBOOK_APIS = {
+    "binance": "https://api.binance.com/api/v3/depth?symbol={symbol}USDT&limit=50",
+    "bybit": "https://api.bybit.com/v5/market/orderbook?category=spot&symbol={symbol}USDT&limit=50",
+    "okx": "https://www.okx.com/api/v5/market/books?instId={symbol}-USDT&sz=50",
+    "gateio": "https://api.gateio.ws/api/v4/spot/order_book?currency_pair={symbol}_USDT&limit=50",
+    "kucoin": "https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol={symbol}-USDT",
+    "mexc": "https://api.mexc.com/api/v3/depth?symbol={symbol}USDT&limit=50"
+}
+
+# 24h ticker endpoints for volume data
+TICKER_24H_APIS = {
+    "binance": "https://api.binance.com/api/v3/ticker/24hr",
+    "bybit": "https://api.bybit.com/v5/market/tickers?category=spot",
+    "okx": "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
+    "gateio": "https://api.gateio.ws/api/v4/spot/tickers",
+    "kucoin": "https://api.kucoin.com/api/v1/market/allTickers",
+    "mexc": "https://api.mexc.com/api/v3/ticker/24hr"
+}
+
+# Trading fees per exchange (maker/taker average)
+EXCHANGE_FEES = {
+    "Binance": 0.001,   # 0.1%
+    "Bybit": 0.001,     # 0.1%
+    "OKX": 0.001,       # 0.1%
+    "Gate.io": 0.002,   # 0.2%
+    "BingX": 0.001,     # 0.1%
+    "KuCoin": 0.001,    # 0.1%
+    "MEXC": 0.001       # 0.1%
+}
+
+# Estimated withdrawal fees in USD (approximate, varies by network)
+WITHDRAWAL_FEES_USD = {
+    "Binance": 1.0,
+    "Bybit": 1.0,
+    "OKX": 1.0,
+    "Gate.io": 2.0,
+    "BingX": 1.5,
+    "KuCoin": 1.5,
+    "MEXC": 1.0
+}
+
+# Slippage estimate
+ESTIMATED_SLIPPAGE = 0.005  # 0.5%
+
+# Spread stability tracker: {symbol_buyexchange_sellexchange: (first_seen_timestamp, last_net_spread)}
+spread_stability_tracker = {}
+
+# Configuration for professional filtering
+ARBITRAGE_CONFIG = {
+    "notional_amount": 300,       # Simulate execution for $300
+    "capital": 200,               # User's trading capital
+    "min_net_spread": 0.07,       # 7% minimum net spread
+    "min_net_profit": 14,         # $14 minimum profit
+    "min_24h_volume": 5_000_000,  # $5M minimum volume
+    "min_orderbook_depth": 10_000, # $10K within 1%
+    "max_market_cap_rank": 400,   # Only top 400 coins
+    "spread_stability_seconds": 120,  # Spread must persist 120 seconds
 }
 
 async def fetch_top_100_coins():
