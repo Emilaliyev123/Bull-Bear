@@ -1596,10 +1596,22 @@ const ArbitragePage = () => {
   const [scanResult, setScanResult] = useState(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [lastScanTime, setLastScanTime] = useState(null);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   useEffect(() => {
     checkAccess();
   }, [user]);
+
+  // Auto-refresh every 30 seconds if enabled
+  useEffect(() => {
+    let interval;
+    if (autoRefresh && hasAccess) {
+      interval = setInterval(() => {
+        runScan();
+      }, 30000);
+    }
+    return () => clearInterval(interval);
+  }, [autoRefresh, hasAccess]);
 
   const checkAccess = async () => {
     try {
@@ -1644,6 +1656,12 @@ const ArbitragePage = () => {
 
   const exchanges = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"];
 
+  const formatVolume = (vol) => {
+    if (vol >= 1e9) return `$${(vol / 1e9).toFixed(1)}B`;
+    if (vol >= 1e6) return `$${(vol / 1e6).toFixed(1)}M`;
+    return `$${vol.toLocaleString()}`;
+  };
+
   return (
     <PageWrapper>
       <div className="max-w-7xl mx-auto px-4">
@@ -1654,21 +1672,43 @@ const ArbitragePage = () => {
           className="text-center mb-12"
         >
           <div className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-4 py-2 mb-4">
-            <TrendingUp className="text-emerald-500" size={16} />
-            <span className="text-emerald-500 text-sm font-medium">Bull & Bear Arbitrage Scout</span>
+            <Target className="text-emerald-500" size={16} />
+            <span className="text-emerald-500 text-sm font-medium">Professional Arbitrage Scanner</span>
           </div>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
-            Crypto Arbitrage Scanner
+            Real Executable Opportunities
           </h1>
-          <p className="text-zinc-400 text-lg max-w-2xl mx-auto">
-            Identify price spreads of 3%+ across {exchanges.length} major exchanges for Top 1000 cryptocurrencies
+          <p className="text-zinc-400 text-lg max-w-3xl mx-auto">
+            Order book depth analysis • Net spread after ALL fees • $200 capital simulation • 7%+ minimum net profit
           </p>
         </motion.div>
+
+        {/* Filter Badges */}
+        <div className="flex flex-wrap justify-center gap-2 mb-8">
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Min Net Spread: 7%
+          </span>
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Min Profit: $14
+          </span>
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Min Volume: $5M/24h
+          </span>
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Depth Check: $10K
+          </span>
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Stability: 120s
+          </span>
+          <span className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-xs text-zinc-300">
+            Top 400 Coins
+          </span>
+        </div>
 
         {/* Exchange Badges */}
         <div className="flex flex-wrap justify-center gap-3 mb-8">
           {exchanges.map(exchange => (
-            <span key={exchange} className="bg-zinc-800/50 border border-zinc-700 px-3 py-1 rounded-full text-sm text-zinc-300">
+            <span key={exchange} className="bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-full text-sm text-amber-400">
               {exchange}
             </span>
           ))}
@@ -1678,9 +1718,9 @@ const ArbitragePage = () => {
         <Card3D className="mb-8">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">Real-Time Scanner</h3>
+              <h3 className="text-xl font-bold text-white mb-2">Professional Scanner</h3>
               <p className="text-zinc-400">
-                Scanning Top 1000 coins by market cap across all exchanges
+                Simulates $300 execution • Deducts all fees • Only shows real opportunities
               </p>
               {lastScanTime && (
                 <p className="text-zinc-500 text-sm mt-1">
@@ -1689,24 +1729,35 @@ const ArbitragePage = () => {
               )}
             </div>
             {hasAccess ? (
-              <GoldButton 
-                onClick={runScan} 
-                disabled={scanning}
-                className="min-w-[200px]"
-                data-testid="live-scan-btn"
-              >
-                {scanning ? (
-                  <>
-                    <Loader2 className="animate-spin" size={18} />
-                    Scanning...
-                  </>
-                ) : (
-                  <>
-                    <Play size={18} />
-                    Live Scan
-                  </>
-                )}
-              </GoldButton>
+              <div className="flex items-center gap-4">
+                <label className="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    className="rounded border-zinc-700"
+                  />
+                  Auto-refresh (30s)
+                </label>
+                <GoldButton 
+                  onClick={runScan} 
+                  disabled={scanning}
+                  className="min-w-[200px]"
+                  data-testid="live-scan-btn"
+                >
+                  {scanning ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={18} />
+                      Deep Scan
+                    </>
+                  )}
+                </GoldButton>
+              </div>
             ) : (
               <div className="text-center">
                 <GoldButton 
@@ -1734,16 +1785,18 @@ const ArbitragePage = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-2">
                     <Crown className="text-amber-500" size={24} />
-                    <h3 className="text-xl font-bold text-white">Premium Arbitrage Scanner</h3>
+                    <h3 className="text-xl font-bold text-white">Professional Arbitrage Scanner</h3>
                   </div>
                   <p className="text-zinc-400 mb-2">
-                    Get real-time access to arbitrage opportunities across 7 major exchanges
+                    Only real, executable arbitrage opportunities for manual trading
                   </p>
                   <ul className="text-sm text-zinc-500 space-y-1">
-                    <li>✓ Scan Top 1000 coins by market cap</li>
-                    <li>✓ Real-time price data from all 7 exchanges</li>
-                    <li>✓ Unlimited scans with full price details</li>
-                    <li>✓ Profit potential calculator per trade</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Order book depth simulation ($300 notional)</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Net spread after trading fees (0.1% × 2)</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Withdrawal fees deducted in USD</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Slippage estimate (0.5%) included</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> 120-second spread stability verification</li>
+                    <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Alerts only for ≥7% NET spread & ≥$14 profit</li>
                   </ul>
                 </div>
                 <div className="text-center">
@@ -1758,93 +1811,175 @@ const ArbitragePage = () => {
           </motion.div>
         )}
 
-        {/* Results Table */}
-        {scanResult && (
+        {/* Results */}
+        {scanResult && hasAccess && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
             {/* Scan Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
               <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-white">{scanResult.total_coins_scanned}</p>
-                <p className="text-zinc-500 text-sm">Coins Scanned</p>
+                <p className="text-2xl font-bold text-white">{scanResult.total_coins_analyzed || 0}</p>
+                <p className="text-zinc-500 text-sm">Coins Analyzed</p>
               </Card3D>
               <Card3D className="text-center py-4">
                 <p className="text-2xl font-bold text-white">{scanResult.exchanges_connected}</p>
                 <p className="text-zinc-500 text-sm">Exchanges</p>
               </Card3D>
               <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-emerald-500">{scanResult.opportunities?.length || 0}</p>
-                <p className="text-zinc-500 text-sm">Opportunities</p>
+                <p className="text-2xl font-bold text-emerald-500">
+                  {scanResult.opportunities?.filter(o => o.is_stable).length || 0}
+                </p>
+                <p className="text-zinc-500 text-sm">Verified Opps</p>
               </Card3D>
               <Card3D className="text-center py-4">
-                <p className="text-2xl font-bold text-amber-500">{scanResult.min_spread_threshold}</p>
-                <p className="text-zinc-500 text-sm">Min Spread</p>
+                <p className="text-2xl font-bold text-amber-500">
+                  {scanResult.opportunities?.filter(o => !o.is_stable).length || 0}
+                </p>
+                <p className="text-zinc-500 text-sm">Tracking</p>
+              </Card3D>
+              <Card3D className="text-center py-4">
+                <p className="text-2xl font-bold text-zinc-400">
+                  {scanResult.filter_stats?.total_potential || 0}
+                </p>
+                <p className="text-zinc-500 text-sm">Pre-filtered</p>
               </Card3D>
             </div>
 
-            {/* Opportunities Table */}
+            {/* Filter Stats */}
+            {scanResult.filter_stats && (
+              <Card3D className="mb-6 py-3">
+                <div className="flex flex-wrap justify-center gap-4 text-sm">
+                  <span className="text-zinc-400">
+                    Failed Orderbook: <span className="text-red-400">{scanResult.filter_stats.failed_orderbook}</span>
+                  </span>
+                  <span className="text-zinc-400">
+                    Failed Depth: <span className="text-red-400">{scanResult.filter_stats.failed_depth}</span>
+                  </span>
+                  <span className="text-zinc-400">
+                    Failed Net Spread: <span className="text-red-400">{scanResult.filter_stats.failed_net_spread}</span>
+                  </span>
+                  <span className="text-zinc-400">
+                    Pending Stability: <span className="text-amber-400">{scanResult.filter_stats.failed_stability}</span>
+                  </span>
+                  <span className="text-zinc-400">
+                    Passed All: <span className="text-emerald-400">{scanResult.filter_stats.passed_all_filters}</span>
+                  </span>
+                </div>
+              </Card3D>
+            )}
+
+            {/* Opportunities */}
             <Card3D>
               <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                 <Target className="text-emerald-500" size={20} />
-                Arbitrage Opportunities
+                Executable Arbitrage Opportunities
               </h3>
               
               {scanResult.opportunities?.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Asset</th>
-                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Rank</th>
-                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Buy (Low)</th>
-                        <th className="text-left py-3 px-2 text-zinc-400 font-medium">Sell (High)</th>
-                        <th className="text-right py-3 px-2 text-zinc-400 font-medium">Spread</th>
-                        <th className="text-right py-3 px-2 text-zinc-400 font-medium">Profit/$1000</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scanResult.opportunities.map((opp, i) => (
-                        <tr key={i} className="border-b border-zinc-800/50 hover:bg-zinc-800/30">
-                          <td className="py-3 px-2">
-                            <div>
-                              <span className="text-white font-medium">{opp.symbol}</span>
-                              <p className="text-zinc-500 text-xs">{opp.name}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 text-zinc-400">#{opp.rank}</td>
-                          <td className="py-3 px-2">
-                            <div>
-                              <span className="text-emerald-500 font-medium">{opp.buy_exchange}</span>
-                              <p className="text-zinc-400 text-sm">${opp.buy_price}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-2">
-                            <div>
-                              <span className="text-red-500 font-medium">{opp.sell_exchange}</span>
-                              <p className="text-zinc-400 text-sm">${opp.sell_price}</p>
-                            </div>
-                          </td>
-                          <td className="py-3 px-2 text-right">
-                            <span className="text-emerald-500 font-bold">{opp.spread_percent}%</span>
-                          </td>
-                          <td className="py-3 px-2 text-right">
-                            <span className="text-amber-500 font-bold">${opp.potential_profit_per_1000}</span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  {scanResult.opportunities.map((opp, i) => (
+                    <div 
+                      key={i} 
+                      className={`p-4 rounded-lg border ${
+                        opp.is_stable 
+                          ? 'bg-emerald-500/5 border-emerald-500/30' 
+                          : 'bg-amber-500/5 border-amber-500/30'
+                      }`}
+                    >
+                      {/* Header */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <div>
+                            <span className="text-white font-bold text-lg">{opp.symbol}</span>
+                            <span className="text-zinc-500 text-sm ml-2">#{opp.rank}</span>
+                          </div>
+                          {opp.is_stable ? (
+                            <span className="bg-emerald-500/20 text-emerald-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                              <CheckCircle size={12} /> VERIFIED
+                            </span>
+                          ) : (
+                            <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                              <Clock size={12} /> TRACKING ({opp.time_remaining || 0}s remaining)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <p className="text-zinc-500 text-xs">24h Volume</p>
+                          <p className="text-zinc-300 font-medium">{formatVolume(opp.volume_24h)}</p>
+                        </div>
+                      </div>
+
+                      {/* Main Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <p className="text-zinc-500 text-xs mb-1">Buy Exchange</p>
+                          <p className="text-emerald-400 font-bold">{opp.buy_exchange}</p>
+                          <p className="text-zinc-400 text-sm">${opp.avg_buy_price}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs mb-1">Sell Exchange</p>
+                          <p className="text-red-400 font-bold">{opp.sell_exchange}</p>
+                          <p className="text-zinc-400 text-sm">${opp.avg_sell_price}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs mb-1">Gross Spread</p>
+                          <p className="text-zinc-300 font-bold">{opp.gross_spread}%</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs mb-1">Net Spread</p>
+                          <p className="text-emerald-400 font-bold text-xl">{opp.net_spread}%</p>
+                        </div>
+                      </div>
+
+                      {/* Profit & Fees */}
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-3 bg-black/30 rounded-lg">
+                        <div>
+                          <p className="text-zinc-500 text-xs">Est. Net Profit ($200)</p>
+                          <p className="text-amber-400 font-bold text-lg">${opp.net_profit_usd}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs">Withdrawal Fee</p>
+                          <p className="text-zinc-300">${opp.withdrawal_fee_usd}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs">Buy Depth (1%)</p>
+                          <p className="text-zinc-300">${opp.buy_depth_usd?.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs">Sell Depth (1%)</p>
+                          <p className="text-zinc-300">${opp.sell_depth_usd?.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-zinc-500 text-xs">Time Active</p>
+                          <p className="text-zinc-300">{opp.time_spread_active}s</p>
+                        </div>
+                      </div>
+
+                      {/* Fees Breakdown */}
+                      {opp.fees_breakdown && (
+                        <div className="mt-3 flex flex-wrap gap-4 text-xs text-zinc-500">
+                          <span>Buy Fee: {opp.fees_breakdown.buy_fee}</span>
+                          <span>Sell Fee: {opp.fees_breakdown.sell_fee}</span>
+                          <span>Slippage: {opp.fees_breakdown.slippage}</span>
+                          <span>Withdrawal: {opp.fees_breakdown.withdrawal}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <AlertCircle className="text-zinc-600 mx-auto mb-4" size={48} />
-                  <p className="text-zinc-400">
-                    Currently, no 3% spreads exist among high-liquidity coins.
+                  <p className="text-zinc-400 mb-2">
+                    No opportunities pass ALL professional filters right now.
                   </p>
-                  <p className="text-zinc-500 text-sm mt-2">
-                    Check back in 5 minutes or consider our Premium Signal service.
+                  <p className="text-zinc-500 text-sm">
+                    Requirements: ≥7% net spread, ≥$14 profit, $5M+ volume, $10K+ depth, 120s stability
+                  </p>
+                  <p className="text-zinc-600 text-xs mt-4">
+                    This is normal — real executable arbitrage is rare. Keep scanning!
                   </p>
                 </div>
               )}
@@ -1859,8 +1994,9 @@ const ArbitragePage = () => {
             <div>
               <h4 className="text-white font-medium mb-1">Risk Disclaimer</h4>
               <p className="text-zinc-500 text-sm">
-                Arbitrage involves risks such as exchange withdrawal fees, transfer times, and price slippage. 
-                Perform your own due diligence before executing any trades. Past opportunities do not guarantee future results.
+                Even verified opportunities involve risks: exchange withdrawal delays, network congestion, 
+                price movement during transfer, and potential deposit/withdrawal suspensions. 
+                Always verify on exchanges before executing. This scanner is for informational purposes only.
               </p>
             </div>
           </div>
