@@ -1416,7 +1416,7 @@ async def delete_ai_session(session_id: str, user: dict = Depends(get_current_us
         del ai_chat_sessions[session_id]
     return {"deleted": result.deleted_count}
 
-# ============ CRYPTO ARBITRAGE SCANNER (Professional Grade) ============
+# ============ CRYPTO ARBITRAGE SCANNER (Adaptive Professional Grade) ============
 
 import aiohttp
 from collections import defaultdict
@@ -1443,16 +1443,6 @@ ORDERBOOK_APIS = {
     "mexc": "https://api.mexc.com/api/v3/depth?symbol={symbol}USDT&limit=50"
 }
 
-# 24h ticker endpoints for volume data
-TICKER_24H_APIS = {
-    "binance": "https://api.binance.com/api/v3/ticker/24hr",
-    "bybit": "https://api.bybit.com/v5/market/tickers?category=spot",
-    "okx": "https://www.okx.com/api/v5/market/tickers?instType=SPOT",
-    "gateio": "https://api.gateio.ws/api/v4/spot/tickers",
-    "kucoin": "https://api.kucoin.com/api/v1/market/allTickers",
-    "mexc": "https://api.mexc.com/api/v3/ticker/24hr"
-}
-
 # Trading fees per exchange (maker/taker average)
 EXCHANGE_FEES = {
     "Binance": 0.001,   # 0.1%
@@ -1475,23 +1465,222 @@ WITHDRAWAL_FEES_USD = {
     "MEXC": 1.0
 }
 
+# Network transfer times in minutes (estimates)
+NETWORK_TRANSFER_TIMES = {
+    "TRC20": 2,      # TRON - very fast
+    "BEP20": 2,      # BSC - very fast
+    "MATIC": 3,      # Polygon - fast
+    "SOL": 2,        # Solana - fast
+    "ARB": 3,        # Arbitrum - fast
+    "OP": 3,         # Optimism - fast
+    "AVAX": 3,       # Avalanche - fast
+    "ERC20": 10,     # Ethereum - slow
+    "BTC": 30,       # Bitcoin - very slow
+    "DEFAULT": 7     # Default estimate
+}
+
+# Fast networks that get bonus score
+FAST_NETWORKS = ["TRC20", "BEP20", "MATIC", "SOL", "ARB", "OP", "AVAX"]
+
+# Token to likely network mapping (common tokens)
+TOKEN_NETWORKS = {
+    "TRX": "TRC20", "JST": "TRC20", "SUN": "TRC20", "BTT": "TRC20",
+    "BNB": "BEP20", "CAKE": "BEP20", "XVS": "BEP20", "BAKE": "BEP20",
+    "MATIC": "MATIC", "SAND": "MATIC", "MANA": "MATIC",
+    "SOL": "SOL", "RAY": "SOL", "SRM": "SOL",
+    "ARB": "ARB", "GMX": "ARB",
+    "OP": "OP", "VELO": "OP",
+    "AVAX": "AVAX", "JOE": "AVAX",
+    "ETH": "ERC20", "UNI": "ERC20", "LINK": "ERC20", "AAVE": "ERC20",
+    "BTC": "BTC", "WBTC": "ERC20",
+}
+
 # Slippage estimate
 ESTIMATED_SLIPPAGE = 0.005  # 0.5%
 
 # Spread stability tracker: {symbol_buyexchange_sellexchange: (first_seen_timestamp, last_net_spread)}
 spread_stability_tracker = {}
 
-# Configuration for professional filtering
+# Base configuration
 ARBITRAGE_CONFIG = {
-    "notional_amount": 300,       # Simulate execution for $300
     "capital": 200,               # User's trading capital
-    "min_net_spread": 0.07,       # 7% minimum net spread
-    "min_net_profit": 14,         # $14 minimum profit
-    "min_24h_volume": 5_000_000,  # $5M minimum volume
-    "min_orderbook_depth": 10_000, # $10K within 1%
+    "capital_multiplier": 1.2,    # Simulate 1.2x capital for order book
     "max_market_cap_rank": 400,   # Only top 400 coins
-    "spread_stability_seconds": 120,  # Spread must persist 120 seconds
+    "min_score": 65,              # Minimum score to show opportunity
+    "pre_filter_gross_spread": 0.02,  # 2% gross spread pre-filter
 }
+
+
+def get_token_network(symbol: str) -> str:
+    """Get likely network for a token"""
+    return TOKEN_NETWORKS.get(symbol, "DEFAULT")
+
+
+def get_transfer_time(symbol: str) -> int:
+    """Get estimated transfer time in minutes"""
+    network = get_token_network(symbol)
+    return NETWORK_TRANSFER_TIMES.get(network, NETWORK_TRANSFER_TIMES["DEFAULT"])
+
+
+def get_dynamic_min_spread(transfer_time_minutes: int) -> float:
+    """
+    Dynamic net spread threshold based on transfer time:
+    - < 3 min: 3.5% minimum
+    - 3-7 min: 5% minimum
+    - > 7 min: 7% minimum
+    """
+    if transfer_time_minutes < 3:
+        return 0.035
+    elif transfer_time_minutes <= 7:
+        return 0.05
+    else:
+        return 0.07
+
+
+def get_dynamic_stability_seconds(net_spread_percent: float) -> int:
+    """
+    Dynamic stability window based on spread size:
+    - > 10% spread: 30 seconds
+    - 6-10% spread: 60 seconds
+    - 3-6% spread: 90 seconds
+    """
+    if net_spread_percent > 10:
+        return 30
+    elif net_spread_percent >= 6:
+        return 60
+    else:
+        return 90
+
+
+def get_dynamic_min_volume(net_spread_percent: float) -> float:
+    """
+    Adaptive volume filter based on spread:
+    - > 10% spread: $2M minimum
+    - 5-10% spread: $5M minimum
+    - < 5% spread: $10M minimum
+    """
+    if net_spread_percent > 10:
+        return 2_000_000
+    elif net_spread_percent >= 5:
+        return 5_000_000
+    else:
+        return 10_000_000
+
+
+def calculate_opportunity_score(
+    net_spread: float,
+    volume_24h: float,
+    buy_depth: float,
+    sell_depth: float,
+    time_active: int,
+    required_stability: int,
+    network: str,
+    capital: float
+) -> dict:
+    """
+    Calculate opportunity score (0-100):
+    - Liquidity score (0-30): based on volume and depth
+    - Spread size score (0-30): based on net spread
+    - Spread stability score (0-20): based on time active
+    - Network speed score (0-20): bonus for fast networks
+    """
+    scores = {}
+    
+    # 1. LIQUIDITY SCORE (0-30)
+    # Volume component (0-15)
+    if volume_24h >= 50_000_000:
+        volume_score = 15
+    elif volume_24h >= 20_000_000:
+        volume_score = 12
+    elif volume_24h >= 10_000_000:
+        volume_score = 10
+    elif volume_24h >= 5_000_000:
+        volume_score = 7
+    elif volume_24h >= 2_000_000:
+        volume_score = 5
+    else:
+        volume_score = 2
+    
+    # Depth component (0-15)
+    min_depth = min(buy_depth, sell_depth)
+    depth_needed = capital * 1.2
+    if min_depth >= depth_needed * 5:
+        depth_score = 15
+    elif min_depth >= depth_needed * 3:
+        depth_score = 12
+    elif min_depth >= depth_needed * 2:
+        depth_score = 10
+    elif min_depth >= depth_needed:
+        depth_score = 7
+    else:
+        depth_score = max(0, int(5 * min_depth / depth_needed))
+    
+    scores["liquidity"] = volume_score + depth_score
+    
+    # 2. SPREAD SIZE SCORE (0-30)
+    if net_spread >= 15:
+        scores["spread"] = 30
+    elif net_spread >= 10:
+        scores["spread"] = 25
+    elif net_spread >= 7:
+        scores["spread"] = 20
+    elif net_spread >= 5:
+        scores["spread"] = 15
+    elif net_spread >= 3.5:
+        scores["spread"] = 10
+    else:
+        scores["spread"] = max(0, int(net_spread * 3))
+    
+    # 3. STABILITY SCORE (0-20)
+    if time_active >= required_stability:
+        scores["stability"] = 20
+    elif time_active >= required_stability * 0.75:
+        scores["stability"] = 15
+    elif time_active >= required_stability * 0.5:
+        scores["stability"] = 10
+    elif time_active >= required_stability * 0.25:
+        scores["stability"] = 5
+    else:
+        scores["stability"] = 0
+    
+    # 4. NETWORK SPEED SCORE (0-20)
+    if network in FAST_NETWORKS:
+        scores["network"] = 20
+    elif network == "ERC20":
+        scores["network"] = 5
+    elif network == "BTC":
+        scores["network"] = 0
+    else:
+        scores["network"] = 10
+    
+    # Total score
+    total = sum(scores.values())
+    
+    return {
+        "total": total,
+        "breakdown": scores,
+        "liquidity_score": scores["liquidity"],
+        "spread_score": scores["spread"],
+        "stability_score": scores["stability"],
+        "network_score": scores["network"]
+    }
+
+
+def get_risk_category(score: int, net_spread: float, is_stable: bool) -> str:
+    """
+    Categorize opportunity risk:
+    - HIGH_PROBABILITY: score >= 80 OR (score >= 65 AND stable AND spread >= 7%)
+    - MODERATE: score >= 50 AND < 80
+    - HIGH_RISK: score < 50
+    """
+    if score >= 80:
+        return "HIGH_PROBABILITY"
+    elif score >= 65 and is_stable and net_spread >= 7:
+        return "HIGH_PROBABILITY"
+    elif score >= 50:
+        return "MODERATE"
+    else:
+        return "HIGH_RISK"
 
 async def fetch_top_coins():
     """Fetch Top 400 coins from CoinMarketCap with volume data"""
