@@ -2034,20 +2034,21 @@ async def fetch_mexc_prices():
         logger.error(f"MEXC API error: {str(e)}")
     return {}
 
-async def scan_arbitrage_opportunities_professional():
+async def scan_arbitrage_opportunities_adaptive():
     """
-    Professional-grade arbitrage scanner with:
-    1. Order book depth check ($300 notional simulation)
-    2. Net spread after all fees (trading, withdrawal, slippage)
-    3. Minimum liquidity filter ($5M 24h volume, $10K depth)
-    4. Market cap filter (top 400 only)
-    5. Spread stability check (must hold 120 seconds)
-    6. Alert only if net spread >= 7% AND profit >= $14
+    Adaptive arbitrage scanner with dynamic filtering:
+    1. Dynamic net spread threshold based on network transfer time
+    2. Capital-based depth simulation (1.2x capital)
+    3. Opportunity scoring system (0-100)
+    4. Shorter stability window for larger spreads
+    5. Volume adaptive filter based on spread size
+    6. Fast network bonus (TRC20, BEP20, Polygon)
+    7. Three risk categories (HIGH_PROBABILITY, MODERATE, HIGH_RISK)
     """
     # Cleanup old spread tracker entries
     cleanup_spread_tracker()
     
-    # Fetch coins (already filtered by volume and rank)
+    # Fetch all coins (no pre-filtering)
     coins = await fetch_top_coins()
     coin_symbols = {coin["symbol"]: coin for coin in coins}
     
@@ -2076,7 +2077,7 @@ async def scan_arbitrage_opportunities_professional():
                         all_prices[symbol] = {}
                     all_prices[symbol][exchange_name] = price
     
-    # Find potential arbitrage opportunities (preliminary filter with 5% gross spread)
+    # Find potential arbitrage opportunities (lower pre-filter threshold)
     potential_opps = []
     for symbol, prices_by_exchange in all_prices.items():
         if len(prices_by_exchange) < 2:
@@ -2088,8 +2089,8 @@ async def scan_arbitrage_opportunities_professional():
         
         if min_price > 0:
             gross_spread = (max_price - min_price) / min_price
-            # Pre-filter: gross spread must be at least 5% to potentially yield 7% net
-            if gross_spread >= 0.05 and gross_spread <= 0.50:
+            # Lower pre-filter: 2% gross spread (allows more opportunities through)
+            if gross_spread >= ARBITRAGE_CONFIG["pre_filter_gross_spread"] and gross_spread <= 0.50:
                 potential_opps.append({
                     "symbol": symbol,
                     "buy_exchange": min_exchange,
@@ -2099,22 +2100,36 @@ async def scan_arbitrage_opportunities_professional():
                     "gross_spread": gross_spread
                 })
     
-    # Deep analysis with order book for promising opportunities
-    verified_opportunities = []
+    # Sort by gross spread (highest first) for analysis
+    potential_opps.sort(key=lambda x: -x["gross_spread"])
+    
+    # Deep analysis with adaptive filtering
+    all_opportunities = []
     filtered_stats = {
         "total_potential": len(potential_opps),
         "failed_orderbook": 0,
+        "failed_volume": 0,
         "failed_depth": 0,
         "failed_net_spread": 0,
-        "failed_stability": 0,
-        "passed_all_filters": 0
+        "high_probability": 0,
+        "moderate": 0,
+        "high_risk": 0
     }
     
-    # Limit concurrent order book fetches
-    for opp in potential_opps[:50]:  # Analyze top 50 by gross spread
+    capital = ARBITRAGE_CONFIG["capital"]
+    notional = capital * ARBITRAGE_CONFIG["capital_multiplier"]  # 1.2x capital
+    
+    # Analyze opportunities
+    for opp in potential_opps[:75]:  # Analyze top 75 by gross spread
         symbol = opp["symbol"]
         buy_exchange = opp["buy_exchange"]
         sell_exchange = opp["sell_exchange"]
+        coin_info = coin_symbols.get(symbol, {})
+        volume_24h = coin_info.get("volume_24h", 0)
+        
+        # Get network and transfer time
+        network = get_token_network(symbol)
+        transfer_time = get_transfer_time(symbol)
         
         # Fetch order books concurrently
         buy_orderbook, sell_orderbook = await asyncio.gather(
@@ -2127,8 +2142,7 @@ async def scan_arbitrage_opportunities_professional():
             filtered_stats["failed_orderbook"] += 1
             continue
         
-        # Calculate average fill prices for $300 notional
-        notional = ARBITRAGE_CONFIG["notional_amount"]
+        # Calculate average fill prices for 1.2x capital
         avg_buy_price, _, buy_depth = calculate_average_fill_price(
             buy_orderbook.get("asks", []), notional, is_buy=True
         )
@@ -2140,14 +2154,7 @@ async def scan_arbitrage_opportunities_professional():
             filtered_stats["failed_orderbook"] += 1
             continue
         
-        # Check minimum order book depth within 1%
-        min_depth = ARBITRAGE_CONFIG["min_orderbook_depth"]
-        if buy_depth < min_depth or sell_depth < min_depth:
-            filtered_stats["failed_depth"] += 1
-            continue
-        
         # Calculate net spread after all fees
-        capital = ARBITRAGE_CONFIG["capital"]
         spread_data = calculate_net_spread(
             avg_buy_price, avg_sell_price, buy_exchange, sell_exchange, capital
         )
@@ -2159,28 +2166,52 @@ async def scan_arbitrage_opportunities_professional():
         net_spread = spread_data["net_spread"]
         net_profit = spread_data["net_profit_usd"]
         
-        # Check minimum thresholds
-        min_net_spread = ARBITRAGE_CONFIG["min_net_spread"] * 100  # 7%
-        min_profit = ARBITRAGE_CONFIG["min_net_profit"]  # $14
+        # ADAPTIVE VOLUME FILTER
+        min_volume = get_dynamic_min_volume(net_spread)
+        if volume_24h < min_volume:
+            filtered_stats["failed_volume"] += 1
+            continue
         
-        if net_spread < min_net_spread or net_profit < min_profit:
+        # DYNAMIC MIN SPREAD based on transfer time
+        min_net_spread = get_dynamic_min_spread(transfer_time) * 100
+        if net_spread < min_net_spread:
             filtered_stats["failed_net_spread"] += 1
             continue
         
-        # Check spread stability (must persist for 120 seconds)
-        is_stable, time_active = check_spread_stability(
-            symbol, buy_exchange, sell_exchange, net_spread
+        # ADAPTIVE STABILITY CHECK
+        required_stability = get_dynamic_stability_seconds(net_spread)
+        is_stable, time_active = check_spread_stability_adaptive(
+            symbol, buy_exchange, sell_exchange, net_spread, required_stability
         )
         
-        # Get coin info
-        coin_info = coin_symbols.get(symbol, {})
+        # CALCULATE OPPORTUNITY SCORE
+        score_data = calculate_opportunity_score(
+            net_spread=net_spread,
+            volume_24h=volume_24h,
+            buy_depth=buy_depth,
+            sell_depth=sell_depth,
+            time_active=time_active,
+            required_stability=required_stability,
+            network=network,
+            capital=capital
+        )
+        
+        total_score = score_data["total"]
+        
+        # Only include if score >= minimum threshold
+        if total_score < ARBITRAGE_CONFIG["min_score"]:
+            continue
+        
+        # DETERMINE RISK CATEGORY
+        risk_category = get_risk_category(total_score, net_spread, is_stable)
+        filtered_stats[risk_category.lower()] = filtered_stats.get(risk_category.lower(), 0) + 1
         
         # Build opportunity record
         opportunity = {
             "symbol": symbol,
             "name": coin_info.get("name", symbol),
             "rank": coin_info.get("rank", 0),
-            "volume_24h": coin_info.get("volume_24h", 0),
+            "volume_24h": volume_24h,
             "buy_exchange": buy_exchange,
             "sell_exchange": sell_exchange,
             "avg_buy_price": round(avg_buy_price, 8),
@@ -2192,7 +2223,16 @@ async def scan_arbitrage_opportunities_professional():
             "buy_depth_usd": round(buy_depth, 2),
             "sell_depth_usd": round(sell_depth, 2),
             "time_spread_active": time_active,
+            "required_stability": required_stability,
+            "time_remaining": max(0, required_stability - time_active),
             "is_stable": is_stable,
+            "network": network,
+            "transfer_time_minutes": transfer_time,
+            "score": total_score,
+            "score_breakdown": score_data["breakdown"],
+            "risk_category": risk_category,
+            "min_spread_required": round(min_net_spread, 1),
+            "min_volume_required": min_volume,
             "fees_breakdown": {
                 "buy_fee": f"{spread_data['buy_fee_percent']}%",
                 "sell_fee": f"{spread_data['sell_fee_percent']}%",
@@ -2201,32 +2241,37 @@ async def scan_arbitrage_opportunities_professional():
             }
         }
         
-        if is_stable:
-            filtered_stats["passed_all_filters"] += 1
-            verified_opportunities.append(opportunity)
-        else:
-            filtered_stats["failed_stability"] += 1
-            # Include non-stable opportunities with a flag for transparency
-            opportunity["status"] = "TRACKING"
-            opportunity["time_remaining"] = max(0, ARBITRAGE_CONFIG["spread_stability_seconds"] - time_active)
-            verified_opportunities.append(opportunity)
+        all_opportunities.append(opportunity)
     
-    # Sort: stable opportunities first, then by net spread
-    verified_opportunities.sort(key=lambda x: (not x.get("is_stable", False), -x["net_spread"]))
+    # Sort: by risk category (HIGH_PROBABILITY first), then by score
+    category_order = {"HIGH_PROBABILITY": 0, "MODERATE": 1, "HIGH_RISK": 2}
+    all_opportunities.sort(key=lambda x: (category_order.get(x["risk_category"], 3), -x["score"]))
     
     return {
-        "opportunities": verified_opportunities,
+        "opportunities": all_opportunities,
         "total_coins_analyzed": len(coin_symbols),
         "exchanges_connected": len([p for p in exchange_prices if isinstance(p, dict) and p]),
         "scan_time": datetime.now(timezone.utc).isoformat(),
-        "filters_applied": {
-            "min_net_spread": f"{ARBITRAGE_CONFIG['min_net_spread'] * 100}%",
-            "min_net_profit": f"${ARBITRAGE_CONFIG['min_net_profit']}",
-            "min_24h_volume": f"${ARBITRAGE_CONFIG['min_24h_volume']:,}",
-            "min_orderbook_depth": f"${ARBITRAGE_CONFIG['min_orderbook_depth']:,}",
-            "max_market_cap_rank": ARBITRAGE_CONFIG["max_market_cap_rank"],
-            "stability_required_seconds": ARBITRAGE_CONFIG["spread_stability_seconds"],
-            "capital_simulated": f"${ARBITRAGE_CONFIG['capital']}"
+        "adaptive_config": {
+            "capital": f"${capital}",
+            "notional_simulated": f"${notional}",
+            "min_score": ARBITRAGE_CONFIG["min_score"],
+            "spread_thresholds": {
+                "fast_network_<3min": "3.5%",
+                "medium_3-7min": "5%",
+                "slow_>7min": "7%"
+            },
+            "stability_windows": {
+                ">10%_spread": "30s",
+                "6-10%_spread": "60s",
+                "3-6%_spread": "90s"
+            },
+            "volume_requirements": {
+                ">10%_spread": "$2M",
+                "5-10%_spread": "$5M",
+                "<5%_spread": "$10M"
+            },
+            "fast_networks": FAST_NETWORKS
         },
         "filter_stats": filtered_stats
     }
