@@ -2087,12 +2087,22 @@ async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
         "has_access": has_access,
         "price": PRODUCTS["arbitrage"]["price"],
         "features": [
-            "Real-time arbitrage scanning across 7 exchanges",
-            "Top 1000 cryptocurrencies by market cap",
-            "Instant alerts for spreads ≥ 3%",
-            "Buy/Sell exchange recommendations",
-            "Profit potential calculator"
-        ]
+            "Order book depth analysis for $300 notional execution",
+            "Net spread calculation after ALL fees (trading + withdrawal + slippage)",
+            "Real-time scanning across 7 major exchanges",
+            "Top 400 coins filtered by $5M+ daily volume",
+            "Minimum $10K order book depth within 1%",
+            "Spread stability verification (120 seconds)",
+            "Alerts only for ≥7% net spread & ≥$14 profit"
+        ],
+        "filters": {
+            "min_net_spread": "7%",
+            "min_profit": "$14 (on $200 capital)",
+            "min_volume": "$5,000,000 (24h)",
+            "min_depth": "$10,000 (within 1%)",
+            "max_rank": "Top 400",
+            "stability": "120 seconds"
+        }
     }
 
 # ============ MARKET DATA (Alpha Vantage) ============
