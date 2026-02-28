@@ -138,19 +138,21 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Suggestion buttons for quick questions
 - Educational disclaimer
 
-### 10. Crypto Arbitrage Scanner ($39.90/month) - PROFESSIONAL GRADE
-- Order book depth analysis with $300 notional simulation
-- Net spread calculation after ALL fees (trading, withdrawal, slippage)
-- Real-time scanning across 7 major exchanges:
-  - Binance, Bybit, OKX, Gate.io, BingX, KuCoin, MEXC
-- Professional filters:
-  - Top 400 coins by market cap
-  - Minimum $5M 24h volume
-  - Minimum $10K order book depth within 1%
-  - 120-second spread stability verification
-  - ≥7% net spread threshold
-  - ≥$14 minimum profit (on $200 capital)
-- Auto-refresh option (30-second intervals)
+### 10. Crypto Arbitrage Scanner ($39.90/month) - ADAPTIVE GRADE
+- **Adaptive scoring system** (0-100 score with breakdown)
+- **Dynamic spread thresholds** by network transfer time:
+  - Fast networks (<3min): 3.5% min spread
+  - Medium (3-7min): 5% min spread  
+  - Slow (>7min): 7% min spread
+- **Capital-based depth simulation** (1.2x trading capital)
+- **Adaptive stability windows** by spread size
+- **Volume-adaptive filtering** by spread percentage
+- **Fast network bonuses** (TRC20, BEP20, Polygon, etc.)
+- **Three risk categories**:
+  - 🟢 HIGH_PROBABILITY (Score ≥80)
+  - 🟡 MODERATE (Score 50-79)
+  - 🔴 HIGH_RISK (Score <50)
+- Real-time scanning across 7 major exchanges
 - Subscription-gated (premium feature)
 
 ## API Keys Configured
