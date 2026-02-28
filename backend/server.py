@@ -2278,7 +2278,7 @@ async def scan_arbitrage_opportunities_adaptive():
 
 @api_router.get("/arbitrage/scan")
 async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
-    """Professional-grade crypto arbitrage scan with strict filtering"""
+    """Adaptive crypto arbitrage scan with dynamic filtering and scoring"""
     # Check subscription access
     has_access = False
     if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
@@ -2288,20 +2288,32 @@ async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
         return {
             "opportunities": [],
             "has_access": False,
-            "message": "Subscribe to access professional arbitrage scanning",
-            "filters_applied": {
-                "min_net_spread": f"{ARBITRAGE_CONFIG['min_net_spread'] * 100}%",
-                "min_net_profit": f"${ARBITRAGE_CONFIG['min_net_profit']}",
-                "min_24h_volume": f"${ARBITRAGE_CONFIG['min_24h_volume']:,}",
-                "min_orderbook_depth": f"${ARBITRAGE_CONFIG['min_orderbook_depth']:,}",
-                "max_market_cap_rank": ARBITRAGE_CONFIG["max_market_cap_rank"],
-                "stability_required_seconds": ARBITRAGE_CONFIG["spread_stability_seconds"],
-                "capital_simulated": f"${ARBITRAGE_CONFIG['capital']}"
+            "message": "Subscribe to access adaptive arbitrage scanning",
+            "adaptive_config": {
+                "capital": f"${ARBITRAGE_CONFIG['capital']}",
+                "notional_simulated": f"${ARBITRAGE_CONFIG['capital'] * ARBITRAGE_CONFIG['capital_multiplier']}",
+                "min_score": ARBITRAGE_CONFIG["min_score"],
+                "spread_thresholds": {
+                    "fast_network_<3min": "3.5%",
+                    "medium_3-7min": "5%",
+                    "slow_>7min": "7%"
+                },
+                "stability_windows": {
+                    ">10%_spread": "30s",
+                    "6-10%_spread": "60s",
+                    "3-6%_spread": "90s"
+                },
+                "volume_requirements": {
+                    ">10%_spread": "$2M",
+                    "5-10%_spread": "$5M",
+                    "<5%_spread": "$10M"
+                },
+                "fast_networks": FAST_NETWORKS
             }
         }
     
     try:
-        result = await scan_arbitrage_opportunities_professional()
+        result = await scan_arbitrage_opportunities_adaptive()
         result["has_access"] = True
         return result
     except Exception as e:
