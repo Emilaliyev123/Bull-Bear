@@ -514,52 +514,67 @@ const Footer = () => (
             </div>
             <span className="text-xl font-bold text-white">Bull & Bear</span>
           </div>
-          <p className="text-zinc-500 text-sm">Professional trading education, signals, and market analysis for serious traders.</p>
+          <p className="text-zinc-500 text-sm mb-4">Professional trading education, signals, and market analysis for serious traders.</p>
+          <p className="text-zinc-600 text-xs">Educational platform only. Not financial advice.</p>
         </div>
 
         {/* Quick Links */}
         <div>
-          <h4 className="text-white font-semibold mb-4">Quick Links</h4>
+          <h4 className="text-white font-semibold mb-4">Products</h4>
           <ul className="space-y-2">
-            <li><Link to="/products" className="text-zinc-400 hover:text-amber-500 text-sm">Products</Link></li>
-            <li><Link to="/courses" className="text-zinc-400 hover:text-amber-500 text-sm">Courses</Link></li>
-            <li><Link to="/signals" className="text-zinc-400 hover:text-amber-500 text-sm">Signals</Link></li>
-            <li><Link to="/book" className="text-zinc-400 hover:text-amber-500 text-sm">Book</Link></li>
-            <li><Link to="/news" className="text-zinc-400 hover:text-amber-500 text-sm">News</Link></li>
+            <li><Link to="/products" className="text-zinc-400 hover:text-amber-500 text-sm">All Products</Link></li>
+            <li><Link to="/courses" className="text-zinc-400 hover:text-amber-500 text-sm">Trading Courses</Link></li>
+            <li><Link to="/signals" className="text-zinc-400 hover:text-amber-500 text-sm">Private Signals</Link></li>
+            <li><Link to="/book" className="text-zinc-400 hover:text-amber-500 text-sm">Trading Book</Link></li>
+            <li><Link to="/arbitrage" className="text-zinc-400 hover:text-amber-500 text-sm">Arbitrage Scanner</Link></li>
           </ul>
         </div>
 
-        {/* Support */}
+        {/* Company */}
         <div>
-          <h4 className="text-white font-semibold mb-4">Support</h4>
+          <h4 className="text-white font-semibold mb-4">Company</h4>
           <ul className="space-y-2">
-            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">Help Center</Link></li>
-            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">Contact Us</Link></li>
-            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">FAQ</Link></li>
+            <li><Link to="/about" className="text-zinc-400 hover:text-amber-500 text-sm">About Us</Link></li>
+            <li><Link to="/news" className="text-zinc-400 hover:text-amber-500 text-sm">Market News</Link></li>
+            <li><Link to="/support" className="text-zinc-400 hover:text-amber-500 text-sm">Contact Support</Link></li>
+            <li><Link to="/ai-advisor" className="text-zinc-400 hover:text-amber-500 text-sm">AI Advisor</Link></li>
           </ul>
         </div>
 
-        {/* Contact */}
+        {/* Legal */}
         <div>
-          <h4 className="text-white font-semibold mb-4">Contact Us</h4>
-          <a 
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="flex items-center gap-2 text-amber-500 hover:text-amber-400 mb-4"
-          >
-            <Mail size={18} />
-            {SUPPORT_EMAIL}
-          </a>
-          <p className="text-zinc-500 text-sm">We typically respond within 24 hours.</p>
+          <h4 className="text-white font-semibold mb-4">Legal</h4>
+          <ul className="space-y-2">
+            <li><Link to="/privacy-policy" className="text-zinc-400 hover:text-amber-500 text-sm">Privacy Policy</Link></li>
+            <li><Link to="/terms-and-conditions" className="text-zinc-400 hover:text-amber-500 text-sm">Terms & Conditions</Link></li>
+          </ul>
+          <div className="mt-4">
+            <h4 className="text-white font-semibold mb-2 text-sm">Contact</h4>
+            <a 
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm"
+            >
+              <Mail size={16} />
+              {SUPPORT_EMAIL}
+            </a>
+          </div>
         </div>
       </div>
 
+      {/* Risk Warning */}
+      <div className="border-t border-zinc-800 mt-8 pt-6">
+        <p className="text-zinc-600 text-xs text-center max-w-4xl mx-auto leading-relaxed">
+          <strong className="text-zinc-500">Risk Warning:</strong> Trading in financial markets involves substantial risk of loss. Past performance is not indicative of future results. Bull & Bear Trading Academy provides educational content only and does not provide investment advice. You are solely responsible for your own trading decisions.
+        </p>
+      </div>
+
       {/* Bottom */}
-      <div className="border-t border-zinc-800 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-        <p className="text-zinc-500 text-sm">© 2025 Bull & Bear Academy. All rights reserved.</p>
-        <div className="flex items-center gap-4">
-          <a href={`mailto:${SUPPORT_EMAIL}`} className="text-zinc-400 hover:text-amber-500">
-            <Mail size={20} />
-          </a>
+      <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <p className="text-zinc-500 text-sm">© 2025 Bull & Bear Trading Academy. All rights reserved.</p>
+        <div className="flex items-center gap-4 text-sm">
+          <Link to="/about" className="text-zinc-500 hover:text-amber-500">About</Link>
+          <Link to="/privacy-policy" className="text-zinc-500 hover:text-amber-500">Privacy</Link>
+          <Link to="/terms-and-conditions" className="text-zinc-500 hover:text-amber-500">Terms</Link>
         </div>
       </div>
     </div>
@@ -4631,6 +4646,603 @@ const EpointPaymentFailedPage = () => {
   );
 };
 
+// About Us Page
+const AboutPage = () => {
+  useEffect(() => {
+    document.title = "About Us | Bull & Bear Trading Academy";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', 'Learn about Bull & Bear Trading Academy - Professional trading education, courses, and market analysis. Our mission is to build disciplined, profitable traders worldwide.');
+    }
+  }, []);
+
+  return (
+    <PageWrapper>
+      <div className="max-w-5xl mx-auto px-4">
+        {/* Hero Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-16"
+        >
+          <div className="inline-flex items-center gap-2 bg-amber-500/10 border border-amber-500/30 rounded-full px-4 py-2 mb-6">
+            <Crown className="text-amber-500" size={16} />
+            <span className="text-amber-500 text-sm font-medium">About Bull & Bear</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-bold text-white mb-6">
+            Empowering Traders <span className="bg-gradient-to-r from-amber-400 to-yellow-500 bg-clip-text text-transparent">Worldwide</span>
+          </h1>
+          <p className="text-xl text-zinc-400 max-w-3xl mx-auto">
+            We are a premier trading education platform dedicated to transforming aspiring traders into disciplined, profitable professionals through comprehensive education and real-world strategies.
+          </p>
+        </motion.div>
+
+        {/* Who We Are */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-16"
+        >
+          <Card3D>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 flex items-center justify-center">
+                <TrendingUp className="text-black" size={24} />
+              </div>
+              <h2 className="text-2xl font-bold text-white">Who We Are</h2>
+            </div>
+            <p className="text-zinc-400 leading-relaxed mb-4">
+              <strong className="text-white">Bull & Bear Trading Academy</strong> is a professional trading education platform founded by experienced market practitioners. We bring together years of real-world trading experience, institutional-level knowledge, and a passion for education.
+            </p>
+            <p className="text-zinc-400 leading-relaxed">
+              Our team consists of traders, analysts, and educators who have navigated both bull and bear markets, learning valuable lessons that we now share with our global community of traders.
+            </p>
+          </Card3D>
+        </motion.section>
+
+        {/* Mission & Vision */}
+        <div className="grid md:grid-cols-2 gap-8 mb-16">
+          <motion.div
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <Card3D className="h-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                  <Target className="text-emerald-500" size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-white">Our Mission</h2>
+              </div>
+              <p className="text-zinc-400 leading-relaxed">
+                To provide world-class trading education that empowers individuals to make informed decisions in the financial markets. We believe that with proper education, discipline, and risk management, anyone can develop the skills needed to navigate the markets successfully.
+              </p>
+            </Card3D>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+          >
+            <Card3D className="h-full">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                  <Eye className="text-amber-500" size={20} />
+                </div>
+                <h2 className="text-xl font-bold text-white">Our Vision</h2>
+              </div>
+              <p className="text-zinc-400 leading-relaxed">
+                To become the most trusted trading education platform globally, building a community of disciplined, profitable traders who approach the markets with confidence, patience, and a deep understanding of risk management.
+              </p>
+            </Card3D>
+          </motion.div>
+        </div>
+
+        {/* What We Offer */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mb-16"
+        >
+          <h2 className="text-2xl font-bold text-white text-center mb-8">What We Offer</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { icon: Video, title: "Trading Courses", desc: "Comprehensive video courses from beginner to advanced levels covering technical analysis, chart patterns, and trading strategies.", color: "from-blue-500 to-cyan-500" },
+              { icon: BookOpen, title: "Educational Books", desc: "In-depth PDF guides and trading manuals with practical examples, case studies, and proven methodologies.", color: "from-purple-500 to-pink-500" },
+              { icon: BarChart3, title: "Market Analysis", desc: "Regular market insights, trend analysis, and educational breakdowns to help you understand market dynamics.", color: "from-emerald-500 to-teal-500" },
+              { icon: Brain, title: "Trading Psychology", desc: "Mental framework training to develop emotional discipline, patience, and the mindset of a professional trader.", color: "from-amber-500 to-yellow-500" },
+              { icon: Shield, title: "Risk Management", desc: "Comprehensive education on position sizing, stop losses, and capital preservation strategies.", color: "from-red-500 to-orange-500" },
+              { icon: Signal, title: "Trade Ideas", desc: "Educational trade setups and market opportunities to learn from real-world examples.", color: "from-indigo-500 to-violet-500" },
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 + i * 0.1 }}
+              >
+                <Card3D className="h-full text-center">
+                  <div className={`w-14 h-14 mx-auto rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center mb-4`}>
+                    <item.icon className="text-white" size={28} />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">{item.title}</h3>
+                  <p className="text-zinc-500 text-sm">{item.desc}</p>
+                </Card3D>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+
+        {/* Our Philosophy */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6 }}
+          className="mb-16"
+        >
+          <Card3D className="bg-gradient-to-br from-amber-500/5 to-yellow-500/5 border-amber-500/20">
+            <h2 className="text-2xl font-bold text-white mb-6 text-center">Our Trading Philosophy</h2>
+            <div className="grid md:grid-cols-3 gap-8 text-center">
+              <div>
+                <div className="text-3xl font-bold text-amber-500 mb-2">Discipline</div>
+                <p className="text-zinc-400 text-sm">Success in trading comes from consistent execution of proven strategies, not from chasing quick profits.</p>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-emerald-500 mb-2">Risk First</div>
+                <p className="text-zinc-400 text-sm">Protecting capital is paramount. We teach traders to focus on risk management before profit potential.</p>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-blue-500 mb-2">Long-Term</div>
+                <p className="text-zinc-400 text-sm">Building sustainable trading skills takes time. We focus on long-term consistency over short-term gains.</p>
+              </div>
+            </div>
+          </Card3D>
+        </motion.section>
+
+        {/* Why Trust Us */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7 }}
+          className="mb-16"
+        >
+          <h2 className="text-2xl font-bold text-white text-center mb-8">Why Choose Bull & Bear</h2>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              "Real-world trading experience from practicing professionals",
+              "Comprehensive curriculum from basics to advanced strategies",
+              "Focus on risk management and capital preservation",
+              "No unrealistic profit promises - honest, practical education",
+              "Global community of like-minded traders",
+              "Continuous updates and new content",
+              "Affordable pricing with lifetime access options",
+              "Dedicated support for all members"
+            ].map((item, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: i % 2 === 0 ? -20 : 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.8 + i * 0.05 }}
+                className="flex items-center gap-3 bg-zinc-900/50 border border-zinc-800 rounded-lg p-4"
+              >
+                <CheckCircle className="text-emerald-500 flex-shrink-0" size={20} />
+                <span className="text-zinc-300 text-sm">{item}</span>
+              </motion.div>
+            ))}
+          </div>
+        </motion.section>
+
+        {/* Important Disclaimer */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="mb-16"
+        >
+          <Card3D className="bg-zinc-900/80 border-zinc-700">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="text-amber-500 flex-shrink-0 mt-1" size={24} />
+              <div>
+                <h3 className="text-lg font-bold text-white mb-2">Important Notice</h3>
+                <p className="text-zinc-400 text-sm leading-relaxed">
+                  <strong className="text-white">Bull & Bear Trading Academy is an educational platform only.</strong> We are not a brokerage, investment advisory firm, or financial institution. We do not provide personalized investment advice, manage client funds, or guarantee trading profits. All content is for educational purposes only. Trading in financial markets involves substantial risk of loss and is not suitable for all investors. Past performance is not indicative of future results. You are solely responsible for your own trading decisions.
+                </p>
+              </div>
+            </div>
+          </Card3D>
+        </motion.section>
+
+        {/* CTA Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1 }}
+          className="text-center"
+        >
+          <Card3D className="bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border-amber-500/30">
+            <h2 className="text-2xl font-bold text-white mb-4">Start Your Trading Education Today</h2>
+            <p className="text-zinc-400 mb-6 max-w-2xl mx-auto">
+              Join thousands of traders who have transformed their approach to the markets through our comprehensive education platform.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <GoldButton onClick={() => window.location.href = '/products'} data-testid="about-cta-products">
+                <Sparkles size={18} /> View Our Products
+              </GoldButton>
+              <GoldButton variant="secondary" onClick={() => window.location.href = '/register'}>
+                Create Free Account
+              </GoldButton>
+            </div>
+          </Card3D>
+        </motion.div>
+      </div>
+    </PageWrapper>
+  );
+};
+
+// Privacy Policy Page
+const PrivacyPolicyPage = () => {
+  useEffect(() => {
+    document.title = "Privacy Policy | Bull & Bear Trading Academy";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', 'Privacy Policy for Bull & Bear Trading Academy. Learn how we collect, use, and protect your personal information.');
+    }
+  }, []);
+
+  const Section = ({ title, children }) => (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+        {title}
+      </h2>
+      <div className="text-zinc-400 leading-relaxed space-y-3 pl-4">
+        {children}
+      </div>
+    </div>
+  );
+
+  return (
+    <PageWrapper>
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="text-4xl font-bold text-white mb-4">Privacy Policy</h1>
+          <p className="text-zinc-500">Last Updated: February 28, 2026</p>
+        </motion.div>
+
+        <Card3D>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-zinc-400 mb-8">
+              At <strong className="text-white">Bull & Bear Trading Academy</strong> ("we," "us," or "our"), we are committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
+            </p>
+
+            <Section title="1. Information We Collect">
+              <p><strong className="text-white">Personal Information:</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Name and email address (for account creation)</li>
+                <li>Payment information (processed securely via Epoint.az payment gateway)</li>
+                <li>Account credentials (encrypted passwords)</li>
+              </ul>
+              
+              <p className="mt-4"><strong className="text-white">Usage Data:</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>IP address and browser type</li>
+                <li>Pages visited and time spent on our platform</li>
+                <li>Course progress and learning activity</li>
+                <li>Device information and operating system</li>
+              </ul>
+            </Section>
+
+            <Section title="2. How We Use Your Information">
+              <p>We use the collected information for:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li><strong className="text-white">Account Management:</strong> Creating and managing your user account</li>
+                <li><strong className="text-white">Service Delivery:</strong> Providing access to courses, books, and educational content</li>
+                <li><strong className="text-white">Communication:</strong> Sending important updates, course notifications, and support responses</li>
+                <li><strong className="text-white">Payment Processing:</strong> Processing transactions through our secure payment provider</li>
+                <li><strong className="text-white">Marketing:</strong> Sending promotional content (only with your explicit consent)</li>
+                <li><strong className="text-white">Improvement:</strong> Analyzing usage patterns to improve our services</li>
+              </ul>
+            </Section>
+
+            <Section title="3. Data Protection & Security">
+              <p>We implement industry-standard security measures including:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>SSL/TLS encryption for all data transmission</li>
+                <li>Secure password hashing (bcrypt)</li>
+                <li>Regular security audits and updates</li>
+                <li>Limited access to personal data on a need-to-know basis</li>
+                <li>Secure third-party payment processing (we do not store card details)</li>
+              </ul>
+            </Section>
+
+            <Section title="4. Cookies and Tracking">
+              <p>We use cookies and similar technologies to:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Maintain your login session</li>
+                <li>Remember your preferences</li>
+                <li>Analyze website traffic and usage</li>
+                <li>Improve user experience</li>
+              </ul>
+              <p className="mt-3">You can control cookies through your browser settings. Disabling cookies may affect some functionality.</p>
+            </Section>
+
+            <Section title="5. Third-Party Services">
+              <p>We work with trusted third-party service providers:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li><strong className="text-white">Epoint.az:</strong> Payment processing (Azerbaijan)</li>
+                <li><strong className="text-white">Stripe:</strong> International payment processing</li>
+                <li><strong className="text-white">Resend:</strong> Email delivery services</li>
+                <li><strong className="text-white">Hosting Provider:</strong> Secure cloud infrastructure</li>
+              </ul>
+              <p className="mt-3">These providers have their own privacy policies and are contractually obligated to protect your data.</p>
+            </Section>
+
+            <Section title="6. Your Rights">
+              <p>You have the right to:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li><strong className="text-white">Access:</strong> Request a copy of your personal data</li>
+                <li><strong className="text-white">Rectification:</strong> Correct inaccurate information</li>
+                <li><strong className="text-white">Deletion:</strong> Request deletion of your account and data</li>
+                <li><strong className="text-white">Portability:</strong> Receive your data in a portable format</li>
+                <li><strong className="text-white">Objection:</strong> Opt-out of marketing communications</li>
+                <li><strong className="text-white">Withdraw Consent:</strong> Withdraw consent at any time</li>
+              </ul>
+            </Section>
+
+            <Section title="7. Data Retention">
+              <p>We retain your personal information for as long as your account is active or as needed to provide services. We may retain certain information as required by law or for legitimate business purposes.</p>
+            </Section>
+
+            <Section title="8. Children's Privacy">
+              <p>Our services are not intended for individuals under 18 years of age. We do not knowingly collect personal information from minors.</p>
+            </Section>
+
+            <Section title="9. International Data Transfers">
+              <p>Your information may be transferred to and processed in countries other than your own. We ensure appropriate safeguards are in place for such transfers.</p>
+            </Section>
+
+            <Section title="10. Changes to This Policy">
+              <p>We may update this Privacy Policy periodically. We will notify you of significant changes via email or prominent notice on our website.</p>
+            </Section>
+
+            <Section title="11. Contact Us">
+              <p>For privacy-related inquiries or to exercise your rights, contact us at:</p>
+              <p className="mt-2">
+                <strong className="text-white">Email:</strong>{' '}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a>
+              </p>
+              <p className="mt-2">
+                <strong className="text-white">Subject Line:</strong> Privacy Request - [Your Request Type]
+              </p>
+            </Section>
+          </div>
+        </Card3D>
+
+        <div className="text-center mt-8">
+          <Link to="/terms-and-conditions" className="text-amber-500 hover:text-amber-400 text-sm">
+            View Terms & Conditions →
+          </Link>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
+// Terms and Conditions Page
+const TermsPage = () => {
+  useEffect(() => {
+    document.title = "Terms & Conditions | Bull & Bear Trading Academy";
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) {
+      metaDesc.setAttribute('content', 'Terms and Conditions for Bull & Bear Trading Academy. Read our terms of service, educational disclaimer, and refund policy.');
+    }
+  }, []);
+
+  const Section = ({ title, children }) => (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+        {title}
+      </h2>
+      <div className="text-zinc-400 leading-relaxed space-y-3 pl-4">
+        {children}
+      </div>
+    </div>
+  );
+
+  return (
+    <PageWrapper>
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Header */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center mb-12"
+        >
+          <h1 className="text-4xl font-bold text-white mb-4">Terms & Conditions</h1>
+          <p className="text-zinc-500">Last Updated: February 28, 2026</p>
+        </motion.div>
+
+        {/* Important Warning Box */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-8"
+        >
+          <Card3D className="bg-red-500/5 border-red-500/30">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="text-red-500 flex-shrink-0 mt-1" size={28} />
+              <div>
+                <h3 className="text-lg font-bold text-red-400 mb-2">IMPORTANT RISK DISCLOSURE</h3>
+                <p className="text-zinc-300 text-sm leading-relaxed">
+                  Trading in financial markets (including forex, stocks, cryptocurrencies, and derivatives) involves <strong className="text-white">substantial risk of loss</strong> and is not suitable for all investors. You should carefully consider your financial situation and risk tolerance before trading. <strong className="text-white">You could lose some or all of your invested capital.</strong> Never trade with money you cannot afford to lose.
+                </p>
+              </div>
+            </div>
+          </Card3D>
+        </motion.div>
+
+        <Card3D>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-zinc-400 mb-8">
+              By accessing and using <strong className="text-white">Bull & Bear Trading Academy</strong> ("the Platform," "we," "us"), you agree to be bound by these Terms and Conditions. Please read them carefully before using our services.
+            </p>
+
+            <Section title="1. Educational Disclaimer">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                <p className="text-amber-200">
+                  <strong>Bull & Bear Trading Academy is an EDUCATIONAL PLATFORM ONLY.</strong>
+                </p>
+                <ul className="list-disc pl-6 space-y-1 mt-3 text-zinc-300">
+                  <li>We are <strong className="text-white">NOT</strong> a broker, dealer, or investment advisor</li>
+                  <li>We do <strong className="text-white">NOT</strong> provide personalized investment advice</li>
+                  <li>We do <strong className="text-white">NOT</strong> manage client funds or execute trades</li>
+                  <li>We do <strong className="text-white">NOT</strong> guarantee any trading profits or returns</li>
+                  <li>All content is for <strong className="text-white">educational and informational purposes only</strong></li>
+                </ul>
+              </div>
+            </Section>
+
+            <Section title="2. No Guarantee of Results">
+              <p>We make no representations or guarantees regarding:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Future trading performance or profitability</li>
+                <li>Accuracy or completeness of educational content</li>
+                <li>Success of any trading strategy or approach</li>
+                <li>Market conditions or opportunities</li>
+              </ul>
+              <p className="mt-3 text-white">Past performance is not indicative of future results. Any examples or case studies are for illustration only.</p>
+            </Section>
+
+            <Section title="3. User Responsibilities">
+              <p>As a user of our platform, you agree to:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Provide accurate registration information</li>
+                <li>Maintain the security of your account credentials</li>
+                <li>Accept full responsibility for all trading decisions</li>
+                <li>Conduct your own research and due diligence</li>
+                <li>Consult qualified financial advisors when needed</li>
+                <li>Comply with all applicable laws and regulations</li>
+                <li>Use the platform for personal, non-commercial purposes only</li>
+              </ul>
+            </Section>
+
+            <Section title="4. Payment Terms">
+              <p><strong className="text-white">Pricing:</strong> All prices are displayed in the applicable currency (USD or AZN) and include applicable fees.</p>
+              <p className="mt-3"><strong className="text-white">Payment Processing:</strong> Payments are processed securely through Epoint.az (for AZN) or Stripe (for USD/USDC).</p>
+              <p className="mt-3"><strong className="text-white">Subscriptions:</strong> Monthly subscriptions renew automatically unless cancelled before the renewal date.</p>
+            </Section>
+
+            <Section title="5. Refund Policy">
+              <div className="bg-zinc-800/50 rounded-lg p-4">
+                <p><strong className="text-white">Digital Products:</strong> Due to the nature of digital products, all sales are final once access has been granted.</p>
+                <ul className="list-disc pl-6 space-y-1 mt-3">
+                  <li>One-time purchases (courses, books): No refunds after access is granted</li>
+                  <li>Subscriptions: No refunds for partial months; cancel before renewal</li>
+                  <li>Technical issues: Contact support within 48 hours for assistance</li>
+                </ul>
+                <p className="mt-3 text-zinc-500 text-sm">Exceptions may apply where required by local consumer protection laws.</p>
+              </div>
+            </Section>
+
+            <Section title="6. Intellectual Property">
+              <p>All content on this platform is protected by intellectual property rights:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Videos, PDFs, and written materials are copyrighted</li>
+                <li>Trademarks and logos are proprietary</li>
+                <li>Unauthorized reproduction, distribution, or commercial use is prohibited</li>
+                <li>You receive a personal, non-transferable license to access purchased content</li>
+              </ul>
+            </Section>
+
+            <Section title="7. Prohibited Use">
+              <p>You may NOT:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Share your account credentials with others</li>
+                <li>Copy, distribute, or resell any content</li>
+                <li>Screen record, download, or rip video content</li>
+                <li>Use content for commercial purposes without permission</li>
+                <li>Attempt to circumvent access controls or security measures</li>
+                <li>Use the platform for illegal activities</li>
+              </ul>
+              <p className="mt-3 text-red-400">Violation may result in immediate account termination without refund.</p>
+            </Section>
+
+            <Section title="8. Limitation of Liability">
+              <p>To the maximum extent permitted by law:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>We are not liable for any trading losses or financial damages</li>
+                <li>We are not liable for decisions made based on our educational content</li>
+                <li>Our total liability is limited to the amount you paid for services</li>
+                <li>We are not responsible for third-party actions or services</li>
+              </ul>
+            </Section>
+
+            <Section title="9. Indemnification">
+              <p>You agree to indemnify and hold harmless Bull & Bear Trading Academy, its officers, directors, employees, and agents from any claims, damages, or expenses arising from:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Your use of the platform</li>
+                <li>Your trading activities</li>
+                <li>Violation of these terms</li>
+                <li>Infringement of third-party rights</li>
+              </ul>
+            </Section>
+
+            <Section title="10. Account Termination">
+              <p>We reserve the right to suspend or terminate accounts for:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Violation of these terms</li>
+                <li>Fraudulent or illegal activity</li>
+                <li>Sharing account access</li>
+                <li>Any conduct harmful to the platform or community</li>
+              </ul>
+            </Section>
+
+            <Section title="11. Modifications">
+              <p>We may modify these Terms at any time. Continued use of the platform after changes constitutes acceptance of the modified terms. We will notify users of significant changes.</p>
+            </Section>
+
+            <Section title="12. Governing Law">
+              <p>These Terms are governed by and construed in accordance with applicable laws. Any disputes shall be resolved through appropriate legal channels in the jurisdiction of our principal place of business.</p>
+            </Section>
+
+            <Section title="13. Severability">
+              <p>If any provision of these Terms is found unenforceable, the remaining provisions remain in full effect.</p>
+            </Section>
+
+            <Section title="14. Contact Information">
+              <p>For questions about these Terms, contact us at:</p>
+              <p className="mt-2">
+                <strong className="text-white">Email:</strong>{' '}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a>
+              </p>
+            </Section>
+
+            <div className="mt-8 p-4 bg-zinc-800/50 rounded-lg text-center">
+              <p className="text-zinc-400 text-sm">
+                By using Bull & Bear Trading Academy, you acknowledge that you have read, understood, and agree to be bound by these Terms & Conditions.
+              </p>
+            </div>
+          </div>
+        </Card3D>
+
+        <div className="text-center mt-8">
+          <Link to="/privacy-policy" className="text-amber-500 hover:text-amber-400 text-sm">
+            View Privacy Policy →
+          </Link>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // Content Protection Hook
 const useContentProtection = () => {
   useEffect(() => {
@@ -4711,6 +5323,9 @@ function App() {
               <Route path="/payment/cancel" element={<PaymentCancelPage />} />
               <Route path="/payment-success" element={<EpointPaymentSuccessPage />} />
               <Route path="/payment-failed" element={<EpointPaymentFailedPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-and-conditions" element={<TermsPage />} />
             </Routes>
           </div>
           <Footer />

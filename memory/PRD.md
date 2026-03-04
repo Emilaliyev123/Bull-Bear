@@ -54,7 +54,41 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Disabled download button
 - Video pause on window blur
 
-## Recent Updates (Feb 28, 2026)
+## Recent Updates (Mar 4, 2026)
+
+### Legal & Informational Pages
+- **User Request**: "Create professional legal and informational pages"
+- **Implementation**:
+
+**About Us Page (`/about`):**
+- Hero section with brand positioning
+- Who We Are, Mission & Vision sections
+- What We Offer grid (6 services)
+- Trading Philosophy (Discipline, Risk First, Long-Term)
+- Why Choose Us (8 trust points)
+- Educational disclaimer + CTA section
+
+**Privacy Policy Page (`/privacy-policy`):**
+- 11 comprehensive GDPR-style sections
+- Data collection, usage, protection
+- Third-party services, user rights
+- Contact information
+
+**Terms & Conditions Page (`/terms-and-conditions`):**
+- Risk disclosure warning (prominent red box)
+- Educational disclaimer (highlighted)
+- No guarantees, user responsibilities
+- Payment terms, refund policy
+- IP protection, limitation of liability
+
+**Updated Footer:**
+- 4-column layout (Brand, Products, Company, Legal)
+- Risk warning text
+- Quick navigation links
+
+- **Status**: ✅ IMPLEMENTED
+
+## Updates (Feb 28, 2026)
 
 ### Epoint.az Payment Gateway Integration
 - **User Request**: "Integrate Epoint.az payment gateway for Azerbaijan local payments"
