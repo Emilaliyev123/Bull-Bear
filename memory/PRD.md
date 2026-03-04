@@ -29,10 +29,15 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Real-time trading signals
 - Entry, Stop Loss, Take Profit levels
 
-### 5. Payments (Stripe)
+### 5. Payments (Stripe + Epoint)
 - One-time payments for courses and book
-- Monthly subscriptions for signals
-- USDC crypto payment option
+- Monthly subscriptions for signals and arbitrage
+- USDC crypto payment option via Stripe
+- **Epoint.az Integration** (Azerbaijan local payments):
+  - AZN currency support
+  - Local bank card payments
+  - Secure signature validation
+  - Callback handling for payment confirmations
 
 ### 6. Notifications
 - In-app notifications with bell icon
@@ -50,6 +55,57 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Video pause on window blur
 
 ## Recent Updates (Feb 28, 2026)
+
+### Epoint.az Payment Gateway Integration
+- **User Request**: "Integrate Epoint.az payment gateway for Azerbaijan local payments"
+- **Implementation**:
+
+**Backend (`/app/backend/epoint_service.py`):**
+- Complete Epoint API v1.0.3 implementation
+- Secure signature generation: `base64(sha1(private_key + data + private_key))`
+- Payment request creation
+- Callback signature validation
+- Payment status checks
+- Support for refunds, card registration, saved card payments, pre-auth
+
+**API Endpoints:**
+- `POST /api/epoint/checkout/create` - Create payment session
+- `POST /api/epoint/callback` - Handle payment callbacks (result_url)
+- `GET /api/epoint/status/{order_id}` - Check payment status
+- `GET /api/epoint/transaction/{order_id}` - Get transaction details
+- `GET /api/epoint/prices` - Get product prices in AZN
+
+**Frontend Pages:**
+- `/payment-success` - Epoint success page with order details
+- `/payment-failed` - Epoint failure page with retry option
+
+**Database Schema (epoint_transactions):**
+- order_id, user_id, user_email
+- product_type, product_name, amount_azn
+- status, payment_status
+- transaction_id, bank_transaction, rrn
+- epoint_code, epoint_message
+- raw_callback_data (JSON)
+
+**Product Prices (AZN):**
+- Trading Courses: 84.90 AZN
+- Trading Book: 50.90 AZN
+- Private Signals: 33.90 AZN/month
+- Arbitrage Scanner: 67.90 AZN/month
+
+**URLs for Epoint Merchant Dashboard:**
+- Success URL: `https://bullandbear.website/payment-success`
+- Error URL: `https://bullandbear.website/payment-failed`
+- Result URL: `https://bullandbear.website/api/epoint/callback`
+
+**Security:**
+- Private key stored in backend .env only
+- Server-side signature generation
+- CSRF protection via signature validation
+- Duplicate transaction detection
+- All callbacks logged
+
+- **Status**: ✅ IMPLEMENTED - Awaiting Epoint credentials
 
 ### Adaptive Arbitrage Scanner - MAJOR UPGRADE v2
 - **User Request**: "Upgrade arbitrage bot with adaptive logic for more opportunities"

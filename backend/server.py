@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Request, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Request, BackgroundTasks, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
@@ -20,6 +20,7 @@ import jwt
 import bcrypt
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+from epoint_service import create_epoint_service, EpointService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -43,6 +44,19 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
 # Stripe Settings
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
+
+# Epoint Payment Gateway Settings (Azerbaijan)
+EPOINT_PUBLIC_KEY = os.environ.get('EPOINT_PUBLIC_KEY', '')
+EPOINT_PRIVATE_KEY = os.environ.get('EPOINT_PRIVATE_KEY', '')
+
+# Product pricing in AZN (Azerbaijani Manat) - approximate conversion from USD
+# 1 USD ≈ 1.70 AZN
+PRODUCTS_AZN = {
+    "course": {"name": "Trading Courses", "price_azn": 84.90, "type": "one_time"},
+    "book": {"name": "Trading Book", "price_azn": 50.90, "type": "one_time"},
+    "signals": {"name": "Private Signals (Monthly)", "price_azn": 33.90, "type": "subscription"},
+    "arbitrage": {"name": "Arbitrage Scanner (Monthly)", "price_azn": 67.90, "type": "subscription"}
+}
 
 # Product pricing (server-side defined - NEVER accept amounts from frontend)
 PRODUCTS = {
@@ -1124,6 +1138,427 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.error(f"Webhook error: {str(e)}")
         return {"status": "error", "message": str(e)}
+
+# ============ EPOINT PAYMENT ROUTES (Azerbaijan) ============
+
+class EpointCheckoutRequest(BaseModel):
+    product_type: str
+    origin_url: str
+    language: Optional[str] = "az"  # az, en, ru
+
+class EpointTransactionModel(BaseModel):
+    """Epoint transaction record"""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    order_id: str
+    user_id: str
+    user_email: str
+    product_type: str
+    product_name: str
+    amount_azn: float
+    currency: str = "AZN"
+    status: str = "pending"  # pending, success, failed
+    payment_status: str = "initiated"
+    transaction_id: Optional[str] = None
+    bank_transaction: Optional[str] = None
+    rrn: Optional[str] = None
+    epoint_code: Optional[str] = None
+    epoint_message: Optional[str] = None
+    raw_callback_data: Optional[Dict] = None
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
+
+def get_epoint_service(request: Request) -> EpointService:
+    """Get configured Epoint service instance"""
+    if not EPOINT_PUBLIC_KEY or not EPOINT_PRIVATE_KEY:
+        raise HTTPException(
+            status_code=500, 
+            detail="Epoint payment gateway not configured. Please contact support."
+        )
+    
+    # Get base URL from request for callbacks
+    base_url = str(request.base_url).rstrip('/')
+    # Remove /api suffix if present
+    if base_url.endswith('/api'):
+        base_url = base_url[:-4]
+    
+    return create_epoint_service(
+        public_key=EPOINT_PUBLIC_KEY,
+        private_key=EPOINT_PRIVATE_KEY,
+        base_url=base_url
+    )
+
+@api_router.post("/epoint/checkout/create")
+async def create_epoint_checkout(
+    request: Request, 
+    data: EpointCheckoutRequest, 
+    user: dict = Depends(get_current_user)
+):
+    """Create an Epoint payment session for AZN payments"""
+    
+    # Validate product type
+    if data.product_type not in PRODUCTS_AZN:
+        raise HTTPException(status_code=400, detail="Invalid product type")
+    
+    product = PRODUCTS_AZN[data.product_type]
+    
+    # Generate unique order ID
+    order_id = f"BB-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
+    
+    # Get Epoint service
+    epoint = get_epoint_service(request)
+    
+    # Create payment request
+    result = await epoint.create_payment_request(
+        order_id=order_id,
+        amount=product['price_azn'],
+        description=f"Bull & Bear - {product['name']}",
+        language=data.language
+    )
+    
+    if not result.get("success"):
+        logger.error(f"Epoint checkout creation failed: {result}")
+        raise HTTPException(
+            status_code=500, 
+            detail=result.get("error", "Failed to create payment session")
+        )
+    
+    # Create transaction record
+    transaction = EpointTransactionModel(
+        order_id=order_id,
+        user_id=user['id'],
+        user_email=user['email'],
+        product_type=data.product_type,
+        product_name=product['name'],
+        amount_azn=product['price_azn'],
+        transaction_id=result.get("transaction_id")
+    )
+    
+    await db.epoint_transactions.insert_one(transaction.model_dump())
+    
+    logger.info(f"Epoint checkout created: order_id={order_id}, user={user['email']}, amount={product['price_azn']} AZN")
+    
+    return {
+        "success": True,
+        "redirect_url": result.get("redirect_url"),
+        "order_id": order_id,
+        "amount": product['price_azn'],
+        "currency": "AZN"
+    }
+
+@api_router.post("/epoint/callback")
+async def epoint_callback(
+    request: Request,
+    data: str = Form(...),
+    signature: str = Form(...)
+):
+    """
+    Handle Epoint payment callback (result_url)
+    
+    This endpoint receives POST requests from Epoint after payment completion.
+    It validates the signature and updates the order status.
+    """
+    logger.info(f"Epoint callback received: data={data[:50]}..., signature={signature[:20]}...")
+    
+    try:
+        # Get Epoint service for signature validation
+        epoint = get_epoint_service(request)
+        
+        # Parse and validate callback
+        callback_data = epoint.parse_callback(data, signature)
+        
+        if not callback_data.get("valid"):
+            logger.error("Epoint callback: Invalid signature")
+            raise HTTPException(status_code=400, detail="Invalid signature")
+        
+        order_id = callback_data.get("order_id")
+        payment_status = callback_data.get("status")
+        
+        logger.info(f"Epoint callback validated: order_id={order_id}, status={payment_status}")
+        
+        # Find the transaction
+        transaction = await db.epoint_transactions.find_one(
+            {"order_id": order_id},
+            {"_id": 0}
+        )
+        
+        if not transaction:
+            logger.error(f"Epoint callback: Transaction not found for order_id={order_id}")
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Check for duplicate processing
+        if transaction.get("status") == "success":
+            logger.info(f"Epoint callback: Order {order_id} already processed")
+            return {"status": "ok", "message": "Already processed"}
+        
+        # Update transaction
+        update_data = {
+            "status": payment_status,
+            "payment_status": "paid" if payment_status == "success" else "failed",
+            "transaction_id": callback_data.get("transaction"),
+            "bank_transaction": callback_data.get("bank_transaction"),
+            "rrn": callback_data.get("rrn"),
+            "epoint_code": callback_data.get("code"),
+            "epoint_message": callback_data.get("message"),
+            "raw_callback_data": callback_data.get("data"),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.epoint_transactions.update_one(
+            {"order_id": order_id},
+            {"$set": update_data}
+        )
+        
+        # If payment successful, grant access
+        if payment_status == "success":
+            # Check if purchase already exists
+            existing_purchase = await db.purchases.find_one({
+                "user_id": transaction['user_id'],
+                "epoint_order_id": order_id
+            })
+            
+            if not existing_purchase:
+                # Create purchase record
+                purchase = Purchase(
+                    user_id=transaction['user_id'],
+                    product_type=transaction['product_type'],
+                    amount=transaction['amount_azn'],
+                    status="completed"
+                )
+                purchase_dict = purchase.model_dump()
+                purchase_dict['epoint_order_id'] = order_id
+                purchase_dict['currency'] = 'AZN'
+                purchase_dict['payment_method'] = 'epoint'
+                await db.purchases.insert_one(purchase_dict)
+                
+                # Grant user access based on product type
+                update_user_data = {}
+                product_type = transaction['product_type']
+                
+                if product_type == "course":
+                    update_user_data['course_access'] = True
+                elif product_type == "book":
+                    update_user_data['book_access'] = True
+                elif product_type == "signals":
+                    update_user_data['signals_subscription'] = True
+                    update_user_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                elif product_type == "arbitrage":
+                    update_user_data['arbitrage_subscription'] = True
+                    update_user_data['arbitrage_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                
+                if update_user_data:
+                    await db.users.update_one(
+                        {"id": transaction['user_id']},
+                        {"$set": update_user_data}
+                    )
+                
+                logger.info(f"Epoint payment successful: order_id={order_id}, user={transaction['user_id']}, product={product_type}")
+                
+                # Send confirmation email
+                try:
+                    user = await db.users.find_one({"id": transaction['user_id']}, {"_id": 0})
+                    if user and user.get('email'):
+                        product_info = PRODUCTS_AZN.get(product_type, {})
+                        asyncio.create_task(send_payment_confirmation_email(
+                            user['email'],
+                            user.get('name', 'Customer'),
+                            order_id,
+                            product_info.get('name', product_type),
+                            transaction['amount_azn'],
+                            'AZN'
+                        ))
+                except Exception as email_error:
+                    logger.error(f"Failed to send confirmation email: {email_error}")
+        
+        return {"status": "ok"}
+        
+    except ValueError as e:
+        logger.error(f"Epoint callback validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Epoint callback error: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+async def send_payment_confirmation_email(
+    email: str, 
+    name: str, 
+    order_id: str, 
+    product_name: str, 
+    amount: float, 
+    currency: str
+):
+    """Send payment confirmation email"""
+    try:
+        resend.api_key = os.environ.get('RESEND_API_KEY')
+        sender = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
+        
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #0a0a0a; color: #ffffff;">
+            <div style="text-align: center; padding: 20px 0; border-bottom: 2px solid #f59e0b;">
+                <h1 style="color: #f59e0b; margin: 0;">Bull & Bear</h1>
+                <p style="color: #9ca3af; margin: 5px 0;">Trading Academy</p>
+            </div>
+            
+            <div style="padding: 30px 0;">
+                <h2 style="color: #22c55e;">✓ Payment Successful!</h2>
+                <p>Hi {name},</p>
+                <p>Your payment has been successfully processed. Thank you for your purchase!</p>
+                
+                <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3 style="color: #f59e0b; margin-top: 0;">Order Details</h3>
+                    <table style="width: 100%; color: #ffffff;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #9ca3af;">Order ID:</td>
+                            <td style="padding: 8px 0; text-align: right;">{order_id}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #9ca3af;">Product:</td>
+                            <td style="padding: 8px 0; text-align: right;">{product_name}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #9ca3af;">Amount:</td>
+                            <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #f59e0b;">{amount} {currency}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <p>Your purchased content is now available in your account. Login to access it.</p>
+                
+                <p style="color: #9ca3af; font-size: 14px; margin-top: 30px;">
+                    If you have any questions, please contact our support team.
+                </p>
+            </div>
+            
+            <div style="text-align: center; padding: 20px 0; border-top: 1px solid #333;">
+                <p style="color: #6b7280; font-size: 12px;">
+                    © 2024 Bull & Bear Trading Academy. All rights reserved.
+                </p>
+            </div>
+        </div>
+        """
+        
+        resend.Emails.send({
+            "from": sender,
+            "to": email,
+            "subject": f"Payment Confirmed - {product_name}",
+            "html": html_content
+        })
+        
+        logger.info(f"Payment confirmation email sent to {email}")
+        
+    except Exception as e:
+        logger.error(f"Failed to send payment confirmation email: {e}")
+
+@api_router.get("/epoint/status/{order_id}")
+async def get_epoint_payment_status(
+    request: Request, 
+    order_id: str, 
+    user: dict = Depends(get_current_user)
+):
+    """Get payment status for an Epoint order"""
+    
+    # Find transaction
+    transaction = await db.epoint_transactions.find_one(
+        {"order_id": order_id, "user_id": user['id']},
+        {"_id": 0}
+    )
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # If already completed, return from database
+    if transaction['status'] in ['success', 'failed']:
+        return {
+            "order_id": order_id,
+            "status": transaction['status'],
+            "payment_status": transaction['payment_status'],
+            "product_type": transaction['product_type'],
+            "amount": transaction['amount_azn'],
+            "currency": "AZN",
+            "transaction_id": transaction.get('transaction_id'),
+            "message": transaction.get('epoint_message')
+        }
+    
+    # Check with Epoint API for pending transactions
+    try:
+        epoint = get_epoint_service(request)
+        status_result = await epoint.get_payment_status(order_id)
+        
+        if status_result.get("status") == "success":
+            # Update our database
+            await db.epoint_transactions.update_one(
+                {"order_id": order_id},
+                {"$set": {
+                    "status": "success",
+                    "payment_status": "paid",
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+        
+        return {
+            "order_id": order_id,
+            "status": status_result.get("status", "pending"),
+            "payment_status": status_result.get("payment_status", "pending"),
+            "product_type": transaction['product_type'],
+            "amount": transaction['amount_azn'],
+            "currency": "AZN"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error checking Epoint status: {e}")
+        return {
+            "order_id": order_id,
+            "status": transaction['status'],
+            "payment_status": transaction['payment_status'],
+            "product_type": transaction['product_type'],
+            "amount": transaction['amount_azn'],
+            "currency": "AZN"
+        }
+
+@api_router.get("/epoint/transaction/{order_id}")
+async def get_epoint_transaction_details(
+    order_id: str, 
+    user: dict = Depends(get_current_user)
+):
+    """Get full transaction details for display on success/failure pages"""
+    
+    transaction = await db.epoint_transactions.find_one(
+        {"order_id": order_id, "user_id": user['id']},
+        {"_id": 0}
+    )
+    
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    return {
+        "order_id": transaction['order_id'],
+        "product_type": transaction['product_type'],
+        "product_name": transaction['product_name'],
+        "amount": transaction['amount_azn'],
+        "currency": "AZN",
+        "status": transaction['status'],
+        "payment_status": transaction['payment_status'],
+        "transaction_id": transaction.get('transaction_id'),
+        "bank_transaction": transaction.get('bank_transaction'),
+        "rrn": transaction.get('rrn'),
+        "message": transaction.get('epoint_message'),
+        "created_at": transaction['created_at'],
+        "updated_at": transaction.get('updated_at')
+    }
+
+@api_router.get("/epoint/prices")
+async def get_epoint_prices():
+    """Get product prices in AZN for Epoint payments"""
+    return {
+        "currency": "AZN",
+        "products": {
+            key: {
+                "name": val["name"],
+                "price": val["price_azn"],
+                "type": val["type"]
+            }
+            for key, val in PRODUCTS_AZN.items()
+        }
+    }
 
 # ============ ADMIN ROUTES ============
 

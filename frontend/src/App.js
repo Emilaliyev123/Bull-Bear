@@ -9,7 +9,8 @@ import {
   Menu, X, ChevronRight, Play, Lock, CheckCircle, AlertCircle, Crown,
   BarChart3, Shield, Brain, Target, DollarSign, Clock, ArrowUpRight, ArrowDownRight,
   Settings, Users, PlusCircle, Trash2, Edit, Eye, EyeOff, Upload, FileText,
-  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell, Download, ExternalLink, Loader2
+  Video, Package, Sparkles, Mail, MessageCircle, HelpCircle, Bell, Download, ExternalLink, Loader2,
+  CreditCard
 } from "lucide-react";
 import ShaderBackground from "./components/ui/shader-background";
 
@@ -583,7 +584,21 @@ const ProductsPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(null);
-  const [useCrypto, setUseCrypto] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState('card'); // card, crypto, epoint
+  const [epointPrices, setEpointPrices] = useState(null);
+
+  useEffect(() => {
+    // Fetch Epoint prices
+    const fetchEpointPrices = async () => {
+      try {
+        const res = await api.get('/epoint/prices');
+        setEpointPrices(res.data);
+      } catch (e) {
+        console.error('Failed to fetch Epoint prices');
+      }
+    };
+    fetchEpointPrices();
+  }, []);
 
   const handlePurchase = async (productType) => {
     if (!user) {
@@ -593,24 +608,53 @@ const ProductsPage = () => {
     
     setLoading(productType);
     try {
-      // Create Stripe checkout session
-      const response = await api.post('/checkout/create', {
-        product_type: productType,
-        origin_url: window.location.origin,
-        use_crypto: useCrypto
-      }, token);
-      
-      // Redirect to Stripe checkout
-      if (response.data.checkout_url) {
-        window.location.href = response.data.checkout_url;
+      if (paymentMethod === 'epoint') {
+        // Create Epoint checkout session (AZN payment)
+        const response = await api.post('/epoint/checkout/create', {
+          product_type: productType,
+          origin_url: window.location.origin,
+          language: 'az'
+        }, token);
+        
+        if (response.data.redirect_url) {
+          window.location.href = response.data.redirect_url;
+        } else {
+          throw new Error('No checkout URL received');
+        }
       } else {
-        throw new Error('No checkout URL received');
+        // Create Stripe checkout session (USD payment)
+        const response = await api.post('/checkout/create', {
+          product_type: productType,
+          origin_url: window.location.origin,
+          use_crypto: paymentMethod === 'crypto'
+        }, token);
+        
+        if (response.data.checkout_url) {
+          window.location.href = response.data.checkout_url;
+        } else {
+          throw new Error('No checkout URL received');
+        }
       }
     } catch (e) {
       console.error('Payment error:', e);
-      alert('Payment initialization failed. Please try again.');
+      toast.error('Payment initialization failed. Please try again.');
       setLoading(null);
     }
+  };
+
+  const getPrice = (productId, usdPrice) => {
+    if (paymentMethod === 'epoint' && epointPrices?.products?.[productId]) {
+      return {
+        amount: epointPrices.products[productId].price,
+        currency: '₼',
+        suffix: 'AZN'
+      };
+    }
+    return {
+      amount: usdPrice,
+      currency: '$',
+      suffix: 'USD'
+    };
   };
 
   const products = [
@@ -723,103 +767,130 @@ const ProductsPage = () => {
             Everything you need to become a professional trader. Courses, books, and live signals - all in one place.
           </p>
           
-          {/* Crypto Payment Toggle */}
-          <div className="flex items-center justify-center gap-3 mb-4">
+          {/* Payment Method Toggle */}
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
             <button
-              onClick={() => setUseCrypto(false)}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${!useCrypto ? 'bg-amber-500 text-black font-semibold' : 'bg-zinc-800 text-zinc-400'}`}
+              onClick={() => setPaymentMethod('card')}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'card' ? 'bg-amber-500 text-black font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+              data-testid="payment-method-card"
             >
-              <DollarSign size={18} /> Card Payment
+              <DollarSign size={18} /> Card (USD)
             </button>
             <button
-              onClick={() => setUseCrypto(true)}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${useCrypto ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400'}`}
+              onClick={() => setPaymentMethod('crypto')}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'crypto' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+              data-testid="payment-method-crypto"
             >
-              <Shield size={18} /> USDC Crypto
+              <Shield size={18} /> USDC
+            </button>
+            <button
+              onClick={() => setPaymentMethod('epoint')}
+              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'epoint' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
+              data-testid="payment-method-epoint"
+            >
+              <CreditCard size={18} /> Epoint (AZN)
             </button>
           </div>
-          {useCrypto && (
+          {paymentMethod === 'crypto' && (
             <p className="text-sm text-zinc-500 mb-4">
               Pay with USDC on Ethereum, Base, or Polygon • 1.5% fee
+            </p>
+          )}
+          {paymentMethod === 'epoint' && (
+            <p className="text-sm text-emerald-400 mb-4">
+              Pay with local Azerbaijan bank cards • Prices in AZN
             </p>
           )}
         </div>
 
         {/* Products Grid */}
-        <div className="grid md:grid-cols-3 gap-8">
-          {products.map((product, index) => (
-            <motion.div
-              key={product.id}
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : product.isNew ? 'border-emerald-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
-            >
-              {product.popular && (
-                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
-                  MOST POPULAR
-                </div>
-              )}
-              {product.isNew && (
-                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center py-2 text-sm font-bold">
-                  NEW FEATURE
-                </div>
-              )}
-              
-              <div className={`p-8 ${product.popular || product.isNew ? 'pt-14' : ''}`}>
-                {/* Icon */}
-                <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-6`}>
-                  <product.icon className="text-white" size={32} />
-                </div>
-
-                {/* Title */}
-                <h3 className="text-2xl font-bold text-white mb-1">{product.title}</h3>
-                <p className="text-amber-500 text-sm mb-4">{product.subtitle}</p>
-                <p className="text-zinc-400 text-sm mb-6">{product.description}</p>
-
-                {/* Price */}
-                <div className="mb-6">
-                  <span className="text-4xl font-bold text-white">${product.price}</span>
-                  <span className="text-zinc-500 ml-2">/ {product.priceType}</span>
-                </div>
-
-                {/* Features */}
-                <ul className="space-y-3 mb-8">
-                  {product.features.map((feature, i) => (
-                    <li key={i} className="flex items-center gap-3 text-zinc-300 text-sm">
-                      <CheckCircle className="text-emerald-500 flex-shrink-0" size={16} />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-
-                {/* CTA Button */}
-                {product.hasAccess ? (
-                  <div className="space-y-3">
-                    <div className="bg-emerald-500/20 text-emerald-500 px-4 py-3 rounded-lg flex items-center justify-center gap-2">
-                      <CheckCircle size={18} />
-                      Access Granted
-                    </div>
-                    <GoldButton variant="secondary" onClick={() => navigate(product.link)} className="w-full">
-                      View Content <ChevronRight size={18} />
-                    </GoldButton>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {products.map((product, index) => {
+            const priceInfo = getPrice(product.id, product.price);
+            return (
+              <motion.div
+                key={product.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : product.isNew ? 'border-emerald-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
+              >
+                {product.popular && (
+                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
+                    MOST POPULAR
                   </div>
-                ) : (
-                  <GoldButton 
-                    onClick={() => handlePurchase(product.id)} 
-                    className="w-full"
-                    disabled={loading === product.id}
-                  >
-                    {loading === product.id ? (
-                      <>Processing...</>
-                    ) : (
-                      <><DollarSign size={18} /> Pay ${product.price}</>
-                    )}
-                  </GoldButton>
                 )}
-              </div>
-            </motion.div>
-          ))}
+                {product.isNew && (
+                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center py-2 text-sm font-bold">
+                    NEW FEATURE
+                  </div>
+                )}
+                
+                <div className={`p-6 ${product.popular || product.isNew ? 'pt-12' : ''}`}>
+                  {/* Icon */}
+                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-4`}>
+                    <product.icon className="text-white" size={28} />
+                  </div>
+
+                  {/* Title */}
+                  <h3 className="text-xl font-bold text-white mb-1">{product.title}</h3>
+                  <p className="text-amber-500 text-xs mb-3">{product.subtitle}</p>
+                  <p className="text-zinc-400 text-sm mb-4 line-clamp-2">{product.description}</p>
+
+                  {/* Price */}
+                  <div className="mb-4">
+                    <span className="text-3xl font-bold text-white">{priceInfo.currency}{priceInfo.amount}</span>
+                    <span className="text-zinc-500 text-sm ml-2">/ {product.priceType}</span>
+                    {paymentMethod === 'epoint' && (
+                      <span className="text-emerald-400 text-xs block mt-1">{priceInfo.suffix}</span>
+                    )}
+                  </div>
+
+                  {/* Features */}
+                  <ul className="space-y-2 mb-6">
+                    {product.features.slice(0, 4).map((feature, i) => (
+                      <li key={i} className="flex items-center gap-2 text-zinc-300 text-xs">
+                        <CheckCircle className="text-emerald-500 flex-shrink-0" size={14} />
+                        {feature}
+                      </li>
+                    ))}
+                    {product.features.length > 4 && (
+                      <li className="text-zinc-500 text-xs">+{product.features.length - 4} more features</li>
+                    )}
+                  </ul>
+
+                  {/* CTA Button */}
+                  {product.hasAccess ? (
+                    <div className="space-y-2">
+                      <div className="bg-emerald-500/20 text-emerald-500 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm">
+                        <CheckCircle size={16} />
+                        Access Granted
+                      </div>
+                      <GoldButton variant="secondary" onClick={() => navigate(product.link)} className="w-full text-sm">
+                        View Content <ChevronRight size={16} />
+                      </GoldButton>
+                    </div>
+                  ) : (
+                    <GoldButton 
+                      onClick={() => handlePurchase(product.id)} 
+                      className="w-full"
+                      disabled={loading === product.id}
+                      data-testid={`buy-${product.id}-btn`}
+                    >
+                      {loading === product.id ? (
+                        <>Processing...</>
+                      ) : (
+                        <>
+                          {paymentMethod === 'epoint' ? <CreditCard size={16} /> : <DollarSign size={16} />}
+                          Pay {priceInfo.currency}{priceInfo.amount}
+                        </>
+                      )}
+                    </GoldButton>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       </div>
     </PageWrapper>
@@ -4313,6 +4384,253 @@ const PaymentCancelPage = () => {
   );
 };
 
+// Epoint Payment Success Page
+const EpointPaymentSuccessPage = () => {
+  const { user, token, refreshUser } = useAuth();
+  const navigate = useNavigate();
+  const [status, setStatus] = useState('checking');
+  const [transaction, setTransaction] = useState(null);
+  const [countdown, setCountdown] = useState(5);
+
+  useEffect(() => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('order_id');
+    
+    if (!orderId) {
+      setStatus('error');
+      return;
+    }
+    
+    fetchTransactionDetails(orderId);
+  }, [user]);
+
+  // Countdown for auto-redirect
+  useEffect(() => {
+    if (status === 'success' && countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (status === 'success' && countdown === 0) {
+      const link = getProductLink();
+      navigate(link);
+    }
+  }, [status, countdown]);
+
+  const fetchTransactionDetails = async (orderId) => {
+    try {
+      const response = await api.get(`/epoint/transaction/${orderId}`, token);
+      const data = response.data;
+      
+      setTransaction(data);
+      
+      if (data.status === 'success') {
+        setStatus('success');
+        if (refreshUser) refreshUser();
+      } else if (data.status === 'failed') {
+        setStatus('failed');
+      } else {
+        // Poll for status if still pending
+        setTimeout(() => fetchTransactionDetails(orderId), 2000);
+      }
+    } catch (error) {
+      console.error('Error fetching transaction:', error);
+      setStatus('error');
+    }
+  };
+
+  const getProductLink = () => {
+    if (!transaction) return '/products';
+    switch(transaction.product_type) {
+      case 'course': return '/courses';
+      case 'book': return '/book';
+      case 'signals': return '/signals';
+      case 'arbitrage': return '/arbitrage';
+      default: return '/products';
+    }
+  };
+
+  return (
+    <PageWrapper>
+      <div className="max-w-md mx-auto px-4">
+        <Card3D className="text-center">
+          {status === 'checking' && (
+            <>
+              <Loader2 className="animate-spin text-amber-500 mx-auto mb-4" size={48} />
+              <h1 className="text-2xl font-bold text-white mb-2">Processing Payment</h1>
+              <p className="text-zinc-400">Please wait while we confirm your payment...</p>
+            </>
+          )}
+          
+          {status === 'success' && transaction && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <CheckCircle className="text-emerald-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-2">Payment Successful!</h1>
+              <p className="text-zinc-400 mb-6">
+                Thank you for your purchase. Your content is now unlocked.
+              </p>
+              
+              <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 mb-6 text-left">
+                <h3 className="text-amber-500 font-medium mb-3">Order Details</h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Order ID:</span>
+                    <span className="text-white font-mono">{transaction.order_id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Product:</span>
+                    <span className="text-white">{transaction.product_name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-500">Amount:</span>
+                    <span className="text-amber-500 font-bold">{transaction.amount} {transaction.currency}</span>
+                  </div>
+                  {transaction.transaction_id && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Transaction:</span>
+                      <span className="text-zinc-400 font-mono text-xs">{transaction.transaction_id}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <p className="text-zinc-500 text-sm mb-4">
+                Redirecting to your content in {countdown} seconds...
+              </p>
+              
+              <GoldButton onClick={() => navigate(getProductLink())} className="w-full" data-testid="access-content-btn">
+                Access Your Content Now
+              </GoldButton>
+            </>
+          )}
+          
+          {status === 'failed' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+                <X className="text-red-500" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-2">Payment Failed</h1>
+              <p className="text-zinc-400 mb-4">
+                {transaction?.message || 'Unfortunately, your payment could not be processed.'}
+              </p>
+              {transaction && (
+                <p className="text-zinc-500 text-sm mb-6">
+                  Order ID: {transaction.order_id}
+                </p>
+              )}
+              <div className="space-y-3">
+                <GoldButton onClick={() => navigate('/products')} className="w-full">
+                  Try Again
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/support')} className="w-full">
+                  Contact Support
+                </GoldButton>
+              </div>
+            </>
+          )}
+          
+          {status === 'error' && (
+            <>
+              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-zinc-700/50 flex items-center justify-center">
+                <AlertCircle className="text-zinc-400" size={48} />
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-2">Something Went Wrong</h1>
+              <p className="text-zinc-400 mb-6">
+                We couldn't verify your payment status. Please check your email for confirmation or contact support.
+              </p>
+              <div className="space-y-3">
+                <GoldButton onClick={() => navigate('/profile')} className="w-full">
+                  Check My Profile
+                </GoldButton>
+                <GoldButton variant="secondary" onClick={() => navigate('/support')} className="w-full">
+                  Contact Support
+                </GoldButton>
+              </div>
+            </>
+          )}
+        </Card3D>
+      </div>
+    </PageWrapper>
+  );
+};
+
+// Epoint Payment Failed Page
+const EpointPaymentFailedPage = () => {
+  const { user, token } = useAuth();
+  const navigate = useNavigate();
+  const [transaction, setTransaction] = useState(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const orderId = params.get('order_id');
+    
+    if (orderId && user && token) {
+      fetchTransactionDetails(orderId);
+    }
+  }, [user, token]);
+
+  const fetchTransactionDetails = async (orderId) => {
+    try {
+      const response = await api.get(`/epoint/transaction/${orderId}`, token);
+      setTransaction(response.data);
+    } catch (error) {
+      console.error('Error fetching transaction:', error);
+    }
+  };
+
+  return (
+    <PageWrapper>
+      <div className="max-w-md mx-auto px-4">
+        <Card3D className="text-center">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 flex items-center justify-center">
+            <X className="text-red-500" size={48} />
+          </div>
+          <h1 className="text-2xl font-bold text-white mb-2">Payment Failed</h1>
+          <p className="text-zinc-400 mb-4">
+            {transaction?.message || 'Your payment could not be processed. Please try again.'}
+          </p>
+          
+          {transaction && (
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 mb-6 text-left">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Order ID:</span>
+                  <span className="text-white font-mono">{transaction.order_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Product:</span>
+                  <span className="text-white">{transaction.product_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-zinc-500">Amount:</span>
+                  <span className="text-zinc-400">{transaction.amount} {transaction.currency}</span>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className="space-y-3">
+            <GoldButton onClick={() => navigate('/products')} className="w-full" data-testid="retry-payment-btn">
+              Retry Payment
+            </GoldButton>
+            <GoldButton variant="secondary" onClick={() => navigate('/support')} className="w-full">
+              Contact Support
+            </GoldButton>
+            <GoldButton variant="secondary" onClick={() => navigate('/')} className="w-full">
+              Go Home
+            </GoldButton>
+          </div>
+        </Card3D>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // Content Protection Hook
 const useContentProtection = () => {
   useEffect(() => {
@@ -4391,6 +4709,8 @@ function App() {
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/payment/success" element={<PaymentSuccessPage />} />
               <Route path="/payment/cancel" element={<PaymentCancelPage />} />
+              <Route path="/payment-success" element={<EpointPaymentSuccessPage />} />
+              <Route path="/payment-failed" element={<EpointPaymentFailedPage />} />
             </Routes>
           </div>
           <Footer />
