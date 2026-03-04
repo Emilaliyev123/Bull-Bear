@@ -599,21 +599,6 @@ const ProductsPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('card'); // card, crypto, epoint
-  const [epointPrices, setEpointPrices] = useState(null);
-
-  useEffect(() => {
-    // Fetch Epoint prices
-    const fetchEpointPrices = async () => {
-      try {
-        const res = await api.get('/epoint/prices');
-        setEpointPrices(res.data);
-      } catch (e) {
-        console.error('Failed to fetch Epoint prices');
-      }
-    };
-    fetchEpointPrices();
-  }, []);
 
   const handlePurchase = async (productType) => {
     if (!user) {
@@ -623,53 +608,22 @@ const ProductsPage = () => {
     
     setLoading(productType);
     try {
-      if (paymentMethod === 'epoint') {
-        // Create Epoint checkout session (AZN payment)
-        const response = await api.post('/epoint/checkout/create', {
-          product_type: productType,
-          origin_url: window.location.origin,
-          language: 'az'
-        }, token);
-        
-        if (response.data.redirect_url) {
-          window.location.href = response.data.redirect_url;
-        } else {
-          throw new Error('No checkout URL received');
-        }
+      // Create Epoint checkout session
+      const response = await api.post('/epoint/checkout/create', {
+        product_type: productType,
+        origin_url: window.location.origin
+      }, token);
+      
+      if (response.data.redirect_url) {
+        window.location.href = response.data.redirect_url;
       } else {
-        // Create Stripe checkout session (USD payment)
-        const response = await api.post('/checkout/create', {
-          product_type: productType,
-          origin_url: window.location.origin,
-          use_crypto: paymentMethod === 'crypto'
-        }, token);
-        
-        if (response.data.checkout_url) {
-          window.location.href = response.data.checkout_url;
-        } else {
-          throw new Error('No checkout URL received');
-        }
+        throw new Error('No checkout URL received');
       }
     } catch (e) {
       console.error('Payment error:', e);
       toast.error('Payment initialization failed. Please try again.');
       setLoading(null);
     }
-  };
-
-  const getPrice = (productId, usdPrice) => {
-    if (paymentMethod === 'epoint' && epointPrices?.products?.[productId]) {
-      return {
-        amount: epointPrices.products[productId].price,
-        currency: '₼',
-        suffix: 'AZN'
-      };
-    }
-    return {
-      amount: usdPrice,
-      currency: '$',
-      suffix: 'USD'
-    };
   };
 
   const products = [
@@ -782,130 +736,116 @@ const ProductsPage = () => {
             Everything you need to become a professional trader. Courses, books, and live signals - all in one place.
           </p>
           
-          {/* Payment Method Toggle */}
-          <div className="flex flex-wrap items-center justify-center gap-3 mb-4">
-            <button
-              onClick={() => setPaymentMethod('card')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'card' ? 'bg-amber-500 text-black font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-              data-testid="payment-method-card"
-            >
-              <DollarSign size={18} /> Card (USD)
-            </button>
-            <button
-              onClick={() => setPaymentMethod('crypto')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'crypto' ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-              data-testid="payment-method-crypto"
-            >
-              <Shield size={18} /> USDC
-            </button>
-            <button
-              onClick={() => setPaymentMethod('epoint')}
-              className={`px-4 py-2 rounded-lg transition-all flex items-center gap-2 ${paymentMethod === 'epoint' ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-semibold' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'}`}
-              data-testid="payment-method-epoint"
-            >
-              <CreditCard size={18} /> Epoint (AZN)
-            </button>
+          {/* Secure Payment Badge */}
+          <div className="flex items-center justify-center gap-2 text-sm text-zinc-500">
+            <Shield size={16} className="text-emerald-500" />
+            <span>Secure Payment Processing</span>
           </div>
-          {paymentMethod === 'crypto' && (
-            <p className="text-sm text-zinc-500 mb-4">
-              Pay with USDC on Ethereum, Base, or Polygon • 1.5% fee
-            </p>
-          )}
-          {paymentMethod === 'epoint' && (
-            <p className="text-sm text-emerald-400 mb-4">
-              Pay with local Azerbaijan bank cards • Prices in AZN
-            </p>
-          )}
         </div>
 
         {/* Products Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.map((product, index) => {
-            const priceInfo = getPrice(product.id, product.price);
-            return (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : product.isNew ? 'border-emerald-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
-              >
-                {product.popular && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
-                    MOST POPULAR
-                  </div>
-                )}
-                {product.isNew && (
-                  <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center py-2 text-sm font-bold">
-                    NEW FEATURE
-                  </div>
-                )}
-                
-                <div className={`p-6 ${product.popular || product.isNew ? 'pt-12' : ''}`}>
-                  {/* Icon */}
-                  <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-4`}>
-                    <product.icon className="text-white" size={28} />
-                  </div>
-
-                  {/* Title */}
-                  <h3 className="text-xl font-bold text-white mb-1">{product.title}</h3>
-                  <p className="text-amber-500 text-xs mb-3">{product.subtitle}</p>
-                  <p className="text-zinc-400 text-sm mb-4 line-clamp-2">{product.description}</p>
-
-                  {/* Price */}
-                  <div className="mb-4">
-                    <span className="text-3xl font-bold text-white">{priceInfo.currency}{priceInfo.amount}</span>
-                    <span className="text-zinc-500 text-sm ml-2">/ {product.priceType}</span>
-                    {paymentMethod === 'epoint' && (
-                      <span className="text-emerald-400 text-xs block mt-1">{priceInfo.suffix}</span>
-                    )}
-                  </div>
-
-                  {/* Features */}
-                  <ul className="space-y-2 mb-6">
-                    {product.features.slice(0, 4).map((feature, i) => (
-                      <li key={i} className="flex items-center gap-2 text-zinc-300 text-xs">
-                        <CheckCircle className="text-emerald-500 flex-shrink-0" size={14} />
-                        {feature}
-                      </li>
-                    ))}
-                    {product.features.length > 4 && (
-                      <li className="text-zinc-500 text-xs">+{product.features.length - 4} more features</li>
-                    )}
-                  </ul>
-
-                  {/* CTA Button */}
-                  {product.hasAccess ? (
-                    <div className="space-y-2">
-                      <div className="bg-emerald-500/20 text-emerald-500 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm">
-                        <CheckCircle size={16} />
-                        Access Granted
-                      </div>
-                      <GoldButton variant="secondary" onClick={() => navigate(product.link)} className="w-full text-sm">
-                        View Content <ChevronRight size={16} />
-                      </GoldButton>
-                    </div>
-                  ) : (
-                    <GoldButton 
-                      onClick={() => handlePurchase(product.id)} 
-                      className="w-full"
-                      disabled={loading === product.id}
-                      data-testid={`buy-${product.id}-btn`}
-                    >
-                      {loading === product.id ? (
-                        <>Processing...</>
-                      ) : (
-                        <>
-                          {paymentMethod === 'epoint' ? <CreditCard size={16} /> : <DollarSign size={16} />}
-                          Pay {priceInfo.currency}{priceInfo.amount}
-                        </>
-                      )}
-                    </GoldButton>
-                  )}
+          {products.map((product, index) => (
+            <motion.div
+              key={product.id}
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              className={`relative bg-gradient-to-br from-zinc-900 to-zinc-950 border ${product.popular ? 'border-amber-500' : product.isNew ? 'border-emerald-500' : 'border-zinc-800'} rounded-2xl overflow-hidden`}
+            >
+              {product.popular && (
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-500 text-black text-center py-2 text-sm font-bold">
+                  MOST POPULAR
                 </div>
-              </motion.div>
-            );
-          })}
+              )}
+              {product.isNew && (
+                <div className="absolute top-0 left-0 right-0 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-center py-2 text-sm font-bold">
+                  NEW FEATURE
+                </div>
+              )}
+              
+              <div className={`p-6 ${product.popular || product.isNew ? 'pt-12' : ''}`}>
+                {/* Icon */}
+                <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${product.color} flex items-center justify-center mb-4`}>
+                  <product.icon className="text-white" size={28} />
+                </div>
+
+                {/* Title */}
+                <h3 className="text-xl font-bold text-white mb-1">{product.title}</h3>
+                <p className="text-amber-500 text-xs mb-3">{product.subtitle}</p>
+                <p className="text-zinc-400 text-sm mb-4 line-clamp-2">{product.description}</p>
+
+                {/* Price */}
+                <div className="mb-4">
+                  <span className="text-3xl font-bold text-white">${product.price}</span>
+                  <span className="text-zinc-500 text-sm ml-2">/ {product.priceType}</span>
+                </div>
+
+                {/* Features */}
+                <ul className="space-y-2 mb-6">
+                  {product.features.slice(0, 4).map((feature, i) => (
+                    <li key={i} className="flex items-center gap-2 text-zinc-300 text-xs">
+                      <CheckCircle className="text-emerald-500 flex-shrink-0" size={14} />
+                      {feature}
+                    </li>
+                  ))}
+                  {product.features.length > 4 && (
+                    <li className="text-zinc-500 text-xs">+{product.features.length - 4} more features</li>
+                  )}
+                </ul>
+
+                {/* CTA Button */}
+                {product.hasAccess ? (
+                  <div className="space-y-2">
+                    <div className="bg-emerald-500/20 text-emerald-500 px-3 py-2 rounded-lg flex items-center justify-center gap-2 text-sm">
+                      <CheckCircle size={16} />
+                      Access Granted
+                    </div>
+                    <GoldButton variant="secondary" onClick={() => navigate(product.link)} className="w-full text-sm">
+                      View Content <ChevronRight size={16} />
+                    </GoldButton>
+                  </div>
+                ) : (
+                  <GoldButton 
+                    onClick={() => handlePurchase(product.id)} 
+                    className="w-full"
+                    disabled={loading === product.id}
+                    data-testid={`buy-${product.id}-btn`}
+                  >
+                    {loading === product.id ? (
+                      <>
+                        <Loader2 className="animate-spin" size={16} />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard size={16} />
+                        Pay ${product.price}
+                      </>
+                    )}
+                  </GoldButton>
+                )}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Trust Badges */}
+        <div className="mt-12 text-center">
+          <div className="inline-flex flex-wrap items-center justify-center gap-6 text-sm text-zinc-500">
+            <span className="flex items-center gap-2">
+              <Shield size={16} className="text-emerald-500" />
+              Secure Checkout
+            </span>
+            <span className="flex items-center gap-2">
+              <Lock size={16} className="text-amber-500" />
+              SSL Encrypted
+            </span>
+            <span className="flex items-center gap-2">
+              <CheckCircle size={16} className="text-blue-500" />
+              Instant Access
+            </span>
+          </div>
         </div>
       </div>
     </PageWrapper>

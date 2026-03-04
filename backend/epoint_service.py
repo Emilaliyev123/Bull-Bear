@@ -39,8 +39,8 @@ class EpointConfig:
     success_url: str
     error_url: str
     result_url: str
-    currency: str = "AZN"
-    language: str = "az"
+    currency: str = "USD"
+    language: str = "en"
 
 
 class EpointService:

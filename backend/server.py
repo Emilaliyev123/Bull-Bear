@@ -45,17 +45,16 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 # Stripe Settings
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
-# Epoint Payment Gateway Settings (Azerbaijan)
+# Epoint Payment Gateway Settings
 EPOINT_PUBLIC_KEY = os.environ.get('EPOINT_PUBLIC_KEY', '')
 EPOINT_PRIVATE_KEY = os.environ.get('EPOINT_PRIVATE_KEY', '')
 
-# Product pricing in AZN (Azerbaijani Manat) - approximate conversion from USD
-# 1 USD ≈ 1.70 AZN
-PRODUCTS_AZN = {
-    "course": {"name": "Trading Courses", "price_azn": 84.90, "type": "one_time"},
-    "book": {"name": "Trading Book", "price_azn": 50.90, "type": "one_time"},
-    "signals": {"name": "Private Signals (Monthly)", "price_azn": 33.90, "type": "subscription"},
-    "arbitrage": {"name": "Arbitrage Scanner (Monthly)", "price_azn": 67.90, "type": "subscription"}
+# Product pricing in USD for Epoint
+PRODUCTS_USD = {
+    "course": {"name": "Trading Courses", "price": 49.90, "type": "one_time"},
+    "book": {"name": "Trading Book", "price": 29.90, "type": "one_time"},
+    "signals": {"name": "Private Signals (Monthly)", "price": 19.90, "type": "subscription"},
+    "arbitrage": {"name": "Arbitrage Scanner (Monthly)", "price": 39.90, "type": "subscription"}
 }
 
 # Product pricing (server-side defined - NEVER accept amounts from frontend)
@@ -1144,7 +1143,6 @@ async def stripe_webhook(request: Request):
 class EpointCheckoutRequest(BaseModel):
     product_type: str
     origin_url: str
-    language: Optional[str] = "az"  # az, en, ru
 
 class EpointTransactionModel(BaseModel):
     """Epoint transaction record"""
@@ -1154,8 +1152,8 @@ class EpointTransactionModel(BaseModel):
     user_email: str
     product_type: str
     product_name: str
-    amount_azn: float
-    currency: str = "AZN"
+    amount: float
+    currency: str = "USD"
     status: str = "pending"  # pending, success, failed
     payment_status: str = "initiated"
     transaction_id: Optional[str] = None
@@ -1193,13 +1191,13 @@ async def create_epoint_checkout(
     data: EpointCheckoutRequest, 
     user: dict = Depends(get_current_user)
 ):
-    """Create an Epoint payment session for AZN payments"""
+    """Create an Epoint payment session"""
     
     # Validate product type
-    if data.product_type not in PRODUCTS_AZN:
+    if data.product_type not in PRODUCTS_USD:
         raise HTTPException(status_code=400, detail="Invalid product type")
     
-    product = PRODUCTS_AZN[data.product_type]
+    product = PRODUCTS_USD[data.product_type]
     
     # Generate unique order ID
     order_id = f"BB-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
@@ -1207,12 +1205,12 @@ async def create_epoint_checkout(
     # Get Epoint service
     epoint = get_epoint_service(request)
     
-    # Create payment request
+    # Create payment request with English language and USD
     result = await epoint.create_payment_request(
         order_id=order_id,
-        amount=product['price_azn'],
+        amount=product['price'],
         description=f"Bull & Bear - {product['name']}",
-        language=data.language
+        language="en"  # Always English
     )
     
     if not result.get("success"):
@@ -1229,20 +1227,20 @@ async def create_epoint_checkout(
         user_email=user['email'],
         product_type=data.product_type,
         product_name=product['name'],
-        amount_azn=product['price_azn'],
+        amount=product['price'],
         transaction_id=result.get("transaction_id")
     )
     
     await db.epoint_transactions.insert_one(transaction.model_dump())
     
-    logger.info(f"Epoint checkout created: order_id={order_id}, user={user['email']}, amount={product['price_azn']} AZN")
+    logger.info(f"Epoint checkout created: order_id={order_id}, user={user['email']}, amount=${product['price']}")
     
     return {
         "success": True,
         "redirect_url": result.get("redirect_url"),
         "order_id": order_id,
-        "amount": product['price_azn'],
-        "currency": "AZN"
+        "amount": product['price'],
+        "currency": "USD"
     }
 
 @api_router.post("/epoint/callback")
@@ -1321,12 +1319,12 @@ async def epoint_callback(
                 purchase = Purchase(
                     user_id=transaction['user_id'],
                     product_type=transaction['product_type'],
-                    amount=transaction['amount_azn'],
+                    amount=transaction['amount'],
                     status="completed"
                 )
                 purchase_dict = purchase.model_dump()
                 purchase_dict['epoint_order_id'] = order_id
-                purchase_dict['currency'] = 'AZN'
+                purchase_dict['currency'] = 'USD'
                 purchase_dict['payment_method'] = 'epoint'
                 await db.purchases.insert_one(purchase_dict)
                 
@@ -1357,14 +1355,14 @@ async def epoint_callback(
                 try:
                     user = await db.users.find_one({"id": transaction['user_id']}, {"_id": 0})
                     if user and user.get('email'):
-                        product_info = PRODUCTS_AZN.get(product_type, {})
+                        product_info = PRODUCTS_USD.get(product_type, {})
                         asyncio.create_task(send_payment_confirmation_email(
                             user['email'],
                             user.get('name', 'Customer'),
                             order_id,
                             product_info.get('name', product_type),
-                            transaction['amount_azn'],
-                            'AZN'
+                            transaction['amount'],
+                            'USD'
                         ))
                 except Exception as email_error:
                     logger.error(f"Failed to send confirmation email: {email_error}")
@@ -1472,8 +1470,8 @@ async def get_epoint_payment_status(
             "status": transaction['status'],
             "payment_status": transaction['payment_status'],
             "product_type": transaction['product_type'],
-            "amount": transaction['amount_azn'],
-            "currency": "AZN",
+            "amount": transaction['amount'],
+            "currency": "USD",
             "transaction_id": transaction.get('transaction_id'),
             "message": transaction.get('epoint_message')
         }
@@ -1499,8 +1497,8 @@ async def get_epoint_payment_status(
             "status": status_result.get("status", "pending"),
             "payment_status": status_result.get("payment_status", "pending"),
             "product_type": transaction['product_type'],
-            "amount": transaction['amount_azn'],
-            "currency": "AZN"
+            "amount": transaction['amount'],
+            "currency": "USD"
         }
         
     except Exception as e:
@@ -1510,8 +1508,8 @@ async def get_epoint_payment_status(
             "status": transaction['status'],
             "payment_status": transaction['payment_status'],
             "product_type": transaction['product_type'],
-            "amount": transaction['amount_azn'],
-            "currency": "AZN"
+            "amount": transaction['amount'],
+            "currency": "USD"
         }
 
 @api_router.get("/epoint/transaction/{order_id}")
@@ -1533,8 +1531,8 @@ async def get_epoint_transaction_details(
         "order_id": transaction['order_id'],
         "product_type": transaction['product_type'],
         "product_name": transaction['product_name'],
-        "amount": transaction['amount_azn'],
-        "currency": "AZN",
+        "amount": transaction['amount'],
+        "currency": "USD",
         "status": transaction['status'],
         "payment_status": transaction['payment_status'],
         "transaction_id": transaction.get('transaction_id'),
@@ -1547,16 +1545,16 @@ async def get_epoint_transaction_details(
 
 @api_router.get("/epoint/prices")
 async def get_epoint_prices():
-    """Get product prices in AZN for Epoint payments"""
+    """Get product prices in USD"""
     return {
-        "currency": "AZN",
+        "currency": "USD",
         "products": {
             key: {
                 "name": val["name"],
-                "price": val["price_azn"],
+                "price": val["price"],
                 "type": val["type"]
             }
-            for key, val in PRODUCTS_AZN.items()
+            for key, val in PRODUCTS_USD.items()
         }
     }
 
