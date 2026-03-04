@@ -552,10 +552,19 @@ const Footer = () => (
             <h4 className="text-white font-semibold mb-2 text-sm">Contact</h4>
             <a 
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm"
+              className="flex items-center gap-2 text-amber-500 hover:text-amber-400 text-sm mb-2"
             >
               <Mail size={16} />
               {SUPPORT_EMAIL}
+            </a>
+            <a 
+              href="tel:+994553886610"
+              className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              +994 55 388 66 10
             </a>
           </div>
         </div>
@@ -4018,20 +4027,40 @@ const SupportPage = () => {
         </div>
 
         {/* Contact Cards */}
-        <div className="grid md:grid-cols-2 gap-8 mb-16">
+        <div className="grid md:grid-cols-3 gap-6 mb-16">
           {/* Email Contact */}
           <Card3D className="text-center">
             <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-amber-500/20 to-yellow-500/20 flex items-center justify-center">
               <Mail className="text-amber-500" size={32} />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">Email Support</h3>
-            <p className="text-zinc-400 mb-4">Send us an email and we'll respond within 24 hours.</p>
+            <p className="text-zinc-400 mb-4 text-sm">Send us an email and we'll respond within 24 hours.</p>
             <a 
               href={`mailto:${SUPPORT_EMAIL}`}
-              className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 text-lg font-semibold"
+              className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 font-semibold"
             >
-              <Mail size={20} />
+              <Mail size={18} />
               {SUPPORT_EMAIL}
+            </a>
+          </Card3D>
+
+          {/* Phone Contact */}
+          <Card3D className="text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-500">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-white mb-2">Phone Support</h3>
+            <p className="text-zinc-400 mb-4 text-sm">Call us directly for immediate assistance.</p>
+            <a 
+              href="tel:+994553886610"
+              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 font-semibold"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+              </svg>
+              +994 55 388 66 10
             </a>
           </Card3D>
 
@@ -4041,9 +4070,9 @@ const SupportPage = () => {
               <MessageCircle className="text-emerald-500" size={32} />
             </div>
             <h3 className="text-xl font-bold text-white mb-2">Quick Response</h3>
-            <p className="text-zinc-400 mb-4">We typically respond to all inquiries within 24 hours.</p>
+            <p className="text-zinc-400 mb-4 text-sm">We typically respond to all inquiries within 24 hours.</p>
             <div className="flex items-center justify-center gap-2 text-emerald-500">
-              <Clock size={20} />
+              <Clock size={18} />
               <span className="font-semibold">Average: 2-4 hours</span>
             </div>
           </Card3D>
