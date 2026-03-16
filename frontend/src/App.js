@@ -2766,7 +2766,7 @@ const AdminPage = () => {
   // File upload helper
   const uploadFile = async (file, type) => {
     if (!file) {
-      alert('No file selected');
+      toast.error('No file selected');
       return null;
     }
     
@@ -2774,12 +2774,23 @@ const AdminPage = () => {
     formData.append('file', file);
     
     setUploading(true);
+    
+    // Show converting message for video files
+    const isVideo = type === 'video';
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    const needsConversion = isVideo && fileExt !== 'mp4';
+    
+    if (needsConversion) {
+      toast.info(`Uploading & converting ${fileExt.toUpperCase()} to MP4... This may take a few minutes.`);
+    }
+    
     try {
       console.log(`Uploading ${type}:`, file.name, file.size);
       const response = await axios.post(`${API}/upload/${type}`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
+        timeout: 600000, // 10 minute timeout for video conversion
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           console.log(`Upload progress: ${percentCompleted}%`);
@@ -2787,13 +2798,21 @@ const AdminPage = () => {
       });
       console.log('Upload response:', response.data);
       setUploading(false);
+      
+      // Show conversion result for videos
+      if (isVideo && response.data.converted) {
+        toast.success(`Video converted from ${response.data.original_format} to MP4 successfully!`);
+      } else if (isVideo && response.data.error) {
+        toast.warning(`Video uploaded but conversion failed: ${response.data.error}`);
+      }
+      
       // Store relative URL to avoid hardcoding preview URLs that may change
       return response.data.url;
     } catch (e) {
       setUploading(false);
       console.error('Upload error:', e);
       console.error('Error response:', e.response?.data);
-      alert('Upload failed: ' + (e.response?.data?.detail || e.message));
+      toast.error('Upload failed: ' + (e.response?.data?.detail || e.message));
       return null;
     }
   };
@@ -2801,10 +2820,18 @@ const AdminPage = () => {
   const handleVideoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    const fileExt = file.name.split('.').pop().toLowerCase();
+    const needsConversion = fileExt !== 'mp4';
+    
+    if (needsConversion) {
+      toast.info(`${fileExt.toUpperCase()} file detected. Will auto-convert to MP4 for better playback.`);
+    }
+    
     const url = await uploadFile(file, 'video');
     if (url) {
       setCourseForm(prev => ({...prev, video_url: url}));
-      alert('Video uploaded successfully!');
+      toast.success('Video uploaded successfully!');
     }
   };
 
@@ -2814,7 +2841,7 @@ const AdminPage = () => {
     const url = await uploadFile(file, 'image');
     if (url) {
       setCourseForm(prev => ({...prev, thumbnail: url}));
-      alert('Image uploaded successfully!');
+      toast.success('Thumbnail uploaded successfully!');
     }
   };
 
@@ -2824,7 +2851,7 @@ const AdminPage = () => {
     const url = await uploadFile(file, 'pdf');
     if (url) {
       setBookForm(prev => ({...prev, pdf_url: url}));
-      alert('PDF uploaded successfully!');
+      toast.success('PDF uploaded successfully!');
     }
   };
 
@@ -2834,7 +2861,7 @@ const AdminPage = () => {
     const url = await uploadFile(file, 'image');
     if (url) {
       setBookForm(prev => ({...prev, cover_url: url}));
-      alert('Cover image uploaded successfully!');
+      toast.success('Cover image uploaded successfully!');
     }
   };
 
@@ -2844,7 +2871,7 @@ const AdminPage = () => {
     const url = await uploadFile(file, 'image');
     if (url) {
       setNewsForm(prev => ({...prev, image_url: url}));
-      alert('Image uploaded successfully!');
+      toast.success('Image uploaded successfully!');
     }
   };
 
@@ -3147,10 +3174,13 @@ const AdminPage = () => {
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
                         disabled={uploading}
                       />
+                      <p className="text-zinc-500 text-xs">MP4, MOV, AVI, MKV, WebM accepted. Non-MP4 files auto-convert to MP4.</p>
                       {uploading && (
                         <div className="flex items-center gap-2 text-amber-500">
                           <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
-                          Uploading video...
+                          Uploading & converting video (may take a few minutes)...
+                        </div>
+                      )}
                         </div>
                       )}
                       <input

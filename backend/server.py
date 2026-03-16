@@ -3055,8 +3055,12 @@ async def download_book(user: dict = Depends(get_current_user)):
 # ============ FILE UPLOAD ROUTES ============
 
 @api_router.post("/upload/video")
-async def upload_video(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
-    """Upload a video file"""
+async def upload_video(
+    file: UploadFile = File(...), 
+    admin: dict = Depends(require_admin),
+    background_tasks: BackgroundTasks = None
+):
+    """Upload a video file with automatic MOV to MP4 conversion"""
     allowed_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
     file_ext = Path(file.filename).suffix.lower()
     
@@ -3064,16 +3068,146 @@ async def upload_video(file: UploadFile = File(...), admin: dict = Depends(requi
         raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {allowed_extensions}")
     
     # Generate unique filename
-    unique_filename = f"{uuid.uuid4()}{file_ext}"
-    file_path = UPLOADS_DIR / "videos" / unique_filename
+    base_name = str(uuid.uuid4())
+    temp_filename = f"{base_name}{file_ext}"
+    temp_path = UPLOADS_DIR / "videos" / temp_filename
     
-    # Save file
-    with open(file_path, "wb") as buffer:
+    # Save original file
+    with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # Return the URL with /api prefix for proper routing
-    file_url = f"/api/uploads/videos/{unique_filename}"
-    return {"url": file_url, "filename": unique_filename}
+    # If not MP4, convert to MP4
+    if file_ext != '.mp4':
+        output_filename = f"{base_name}.mp4"
+        output_path = UPLOADS_DIR / "videos" / output_filename
+        
+        logger.info(f"Converting {temp_filename} to MP4...")
+        
+        try:
+            # Run ffmpeg conversion
+            result = subprocess.run([
+                'ffmpeg', '-i', str(temp_path),
+                '-c:v', 'libx264',      # H.264 video codec
+                '-c:a', 'aac',          # AAC audio codec
+                '-preset', 'fast',       # Fast encoding
+                '-crf', '23',            # Quality (lower = better, 18-28 is good)
+                '-movflags', '+faststart',  # Enable streaming
+                '-y',                    # Overwrite output
+                str(output_path)
+            ], capture_output=True, text=True, timeout=600)  # 10 min timeout
+            
+            if result.returncode == 0:
+                # Conversion successful - delete original and return MP4
+                os.remove(temp_path)
+                logger.info(f"Successfully converted {temp_filename} to {output_filename}")
+                file_url = f"/api/uploads/videos/{output_filename}"
+                return {
+                    "url": file_url, 
+                    "filename": output_filename,
+                    "converted": True,
+                    "original_format": file_ext
+                }
+            else:
+                # Conversion failed - keep original
+                logger.error(f"FFmpeg conversion failed: {result.stderr}")
+                file_url = f"/api/uploads/videos/{temp_filename}"
+                return {
+                    "url": file_url, 
+                    "filename": temp_filename,
+                    "converted": False,
+                    "error": "Conversion failed, using original file"
+                }
+                
+        except subprocess.TimeoutExpired:
+            logger.error(f"Video conversion timed out for {temp_filename}")
+            file_url = f"/api/uploads/videos/{temp_filename}"
+            return {
+                "url": file_url, 
+                "filename": temp_filename,
+                "converted": False,
+                "error": "Conversion timed out"
+            }
+        except Exception as e:
+            logger.error(f"Video conversion error: {str(e)}")
+            file_url = f"/api/uploads/videos/{temp_filename}"
+            return {
+                "url": file_url, 
+                "filename": temp_filename,
+                "converted": False,
+                "error": str(e)
+            }
+    
+    # Already MP4 - just return
+    file_url = f"/api/uploads/videos/{temp_filename}"
+    return {"url": file_url, "filename": temp_filename, "converted": False}
+
+
+@api_router.post("/convert/video")
+async def convert_existing_video(
+    video_url: str = Form(...),
+    admin: dict = Depends(require_admin)
+):
+    """Convert an existing video file to MP4 (for admin use)"""
+    # Extract filename from URL
+    if '/api/uploads/videos/' in video_url:
+        filename = video_url.split('/api/uploads/videos/')[-1]
+    elif '/uploads/videos/' in video_url:
+        filename = video_url.split('/uploads/videos/')[-1]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid video URL format")
+    
+    input_path = UPLOADS_DIR / "videos" / filename
+    
+    if not input_path.exists():
+        raise HTTPException(status_code=404, detail="Video file not found")
+    
+    file_ext = Path(filename).suffix.lower()
+    
+    # If already MP4, return as-is
+    if file_ext == '.mp4':
+        return {
+            "success": True,
+            "message": "File is already MP4",
+            "output_url": video_url
+        }
+    
+    # Generate output filename
+    base_name = Path(filename).stem
+    output_filename = f"{base_name}.mp4"
+    output_path = UPLOADS_DIR / "videos" / output_filename
+    
+    logger.info(f"Converting existing video {filename} to MP4...")
+    
+    try:
+        result = subprocess.run([
+            'ffmpeg', '-i', str(input_path),
+            '-c:v', 'libx264',
+            '-c:a', 'aac',
+            '-preset', 'fast',
+            '-crf', '23',
+            '-movflags', '+faststart',
+            '-y',
+            str(output_path)
+        ], capture_output=True, text=True, timeout=600)
+        
+        if result.returncode == 0:
+            # Delete original file
+            os.remove(input_path)
+            logger.info(f"Successfully converted {filename} to {output_filename}")
+            return {
+                "success": True,
+                "message": "Video converted successfully",
+                "output_url": f"/api/uploads/videos/{output_filename}",
+                "original_deleted": True
+            }
+        else:
+            logger.error(f"FFmpeg error: {result.stderr}")
+            raise HTTPException(status_code=500, detail=f"Conversion failed: {result.stderr[:200]}")
+            
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=500, detail="Conversion timed out (max 10 minutes)")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Conversion error: {str(e)}")
 
 @api_router.post("/upload/pdf")
 async def upload_pdf(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
