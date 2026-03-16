@@ -228,21 +228,15 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Suggestion buttons for quick questions
 - Educational disclaimer
 
-### 10. Crypto Arbitrage Scanner ($39.90/month) - ADAPTIVE GRADE
-- **Adaptive scoring system** (0-100 score with breakdown)
-- **Dynamic spread thresholds** by network transfer time:
-  - Fast networks (<3min): 3.5% min spread
-  - Medium (3-7min): 5% min spread  
-  - Slow (>7min): 7% min spread
-- **Capital-based depth simulation** (1.2x trading capital)
-- **Adaptive stability windows** by spread size
-- **Volume-adaptive filtering** by spread percentage
-- **Fast network bonuses** (TRC20, BEP20, Polygon, etc.)
-- **Three risk categories**:
-  - 🟢 HIGH_PROBABILITY (Score ≥80)
-  - 🟡 MODERATE (Score 50-79)
-  - 🔴 HIGH_RISK (Score <50)
-- Real-time scanning across 7 major exchanges
+### 10. Crypto Arbitrage Scanner ($39.90/month) - SIMPLIFIED
+- **50 major USDT pairs** across 7 exchanges (Binance, Bybit, OKX, Gate.io, BingX, KuCoin, MEXC)
+- **Clean table view**: Coin, Buy Exchange, Buy Price, Sell Exchange, Sell Price, Net Spread %, Est. Profit
+- **Net spread after all fees**: trading fees, withdrawal fees, estimated slippage
+- **1% minimum spread filter** after all commissions
+- **Auto-refresh every 10 seconds**
+- **Sorted by highest net spread** (most profitable first)
+- **Green/grey color coding**: Green for 2%+ spreads, grey for lower
+- **No complex analytics**: removed scoring, risk categories, stability tracking, volume filters
 - Subscription-gated (premium feature)
 
 ## API Keys Configured
@@ -280,6 +274,20 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
   - 10-minute timeout for large files
 - **Fixed JSX syntax error**: Orphaned `</div>` and `)}` at line 3224 in App.js that broke the admin panel
 - **Testing**: 7/7 backend tests passed, frontend fully verified
+- **Status**: ✅ IMPLEMENTED & TESTED
+
+### Simplified Arbitrage Scanner
+- **User Request**: "Simplify the arbitrage scanner - cleaner, faster, easier to use"
+- **Implementation**:
+  - Replaced complex adaptive scoring system with simple price-comparison scanner
+  - Hardcoded 50 major USDT pairs (BTC, ETH, SOL, XRP, DOGE, etc.)
+  - Clean table UI: Coin, Buy Exchange, Buy Price, Sell Exchange, Sell Price, Net Spread %, Est. Profit
+  - 1% minimum net spread filter after all fees (trading + withdrawal + slippage)
+  - Auto-refresh every 10 seconds
+  - Sorted by highest net spread
+  - Green (≥2%) / grey color coding
+  - Removed: scoring system, risk categories, stability tracking, volume filters, order book analysis, CoinMarketCap dependency
+- **Testing**: 14/14 backend tests passed, frontend fully verified
 - **Status**: ✅ IMPLEMENTED & TESTED
 
 ## Future Enhancements
