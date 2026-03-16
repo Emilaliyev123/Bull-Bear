@@ -1849,10 +1849,9 @@ async def delete_ai_session(session_id: str, user: dict = Depends(get_current_us
         del ai_chat_sessions[session_id]
     return {"deleted": result.deleted_count}
 
-# ============ CRYPTO ARBITRAGE SCANNER (Adaptive Professional Grade) ============
+# ============ CRYPTO ARBITRAGE SCANNER (Simplified) ============
 
 import aiohttp
-from collections import defaultdict
 import time
 
 # Exchange API endpoints
@@ -1866,17 +1865,7 @@ EXCHANGE_APIS = {
     "mexc": "https://api.mexc.com/api/v3/ticker/price"
 }
 
-# Order book endpoints for depth analysis
-ORDERBOOK_APIS = {
-    "binance": "https://api.binance.com/api/v3/depth?symbol={symbol}USDT&limit=50",
-    "bybit": "https://api.bybit.com/v5/market/orderbook?category=spot&symbol={symbol}USDT&limit=50",
-    "okx": "https://www.okx.com/api/v5/market/books?instId={symbol}-USDT&sz=50",
-    "gateio": "https://api.gateio.ws/api/v4/spot/order_book?currency_pair={symbol}_USDT&limit=50",
-    "kucoin": "https://api.kucoin.com/api/v1/market/orderbook/level2_20?symbol={symbol}-USDT",
-    "mexc": "https://api.mexc.com/api/v3/depth?symbol={symbol}USDT&limit=50"
-}
-
-# Trading fees per exchange (maker/taker average)
+# Trading fees per exchange (taker fee)
 EXCHANGE_FEES = {
     "Binance": 0.001,   # 0.1%
     "Bybit": 0.001,     # 0.1%
@@ -1887,7 +1876,7 @@ EXCHANGE_FEES = {
     "MEXC": 0.001       # 0.1%
 }
 
-# Estimated withdrawal fees in USD (approximate, varies by network)
+# Estimated withdrawal fees in USD
 WITHDRAWAL_FEES_USD = {
     "Binance": 1.0,
     "Bybit": 1.0,
@@ -1898,593 +1887,126 @@ WITHDRAWAL_FEES_USD = {
     "MEXC": 1.0
 }
 
-# Network transfer times in minutes (estimates)
-NETWORK_TRANSFER_TIMES = {
-    "TRC20": 2,      # TRON - very fast
-    "BEP20": 2,      # BSC - very fast
-    "MATIC": 3,      # Polygon - fast
-    "SOL": 2,        # Solana - fast
-    "ARB": 3,        # Arbitrum - fast
-    "OP": 3,         # Optimism - fast
-    "AVAX": 3,       # Avalanche - fast
-    "ERC20": 10,     # Ethereum - slow
-    "BTC": 30,       # Bitcoin - very slow
-    "DEFAULT": 7     # Default estimate
-}
+# Major USDT trading pairs only
+MAJOR_COINS = [
+    "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
+    "MATIC", "UNI", "ATOM", "LTC", "ETC", "FIL", "NEAR", "APT", "ARB", "OP",
+    "AAVE", "MKR", "CRV", "INJ", "SUI", "SEI", "TIA", "JUP", "PEPE", "SHIB",
+    "TRX", "TON", "BCH", "ICP", "HBAR", "VET", "ALGO", "FTM", "RENDER", "GRT",
+    "WLD", "BONK", "FLOKI", "TAO", "STX", "IMX", "MANA", "SAND", "AXS", "ENS"
+]
 
-# Fast networks that get bonus score
-FAST_NETWORKS = ["TRC20", "BEP20", "MATIC", "SOL", "ARB", "OP", "AVAX"]
+# Trading capital for profit estimation
+TRADING_CAPITAL = 200
 
-# Token to likely network mapping (common tokens)
-TOKEN_NETWORKS = {
-    "TRX": "TRC20", "JST": "TRC20", "SUN": "TRC20", "BTT": "TRC20",
-    "BNB": "BEP20", "CAKE": "BEP20", "XVS": "BEP20", "BAKE": "BEP20",
-    "MATIC": "MATIC", "SAND": "MATIC", "MANA": "MATIC",
-    "SOL": "SOL", "RAY": "SOL", "SRM": "SOL",
-    "ARB": "ARB", "GMX": "ARB",
-    "OP": "OP", "VELO": "OP",
-    "AVAX": "AVAX", "JOE": "AVAX",
-    "ETH": "ERC20", "UNI": "ERC20", "LINK": "ERC20", "AAVE": "ERC20",
-    "BTC": "BTC", "WBTC": "ERC20",
-}
+# Estimated slippage
+ESTIMATED_SLIPPAGE = 0.002  # 0.2%
 
-# Slippage estimate
-ESTIMATED_SLIPPAGE = 0.005  # 0.5%
+# Minimum net spread filter (1% after fees)
+MIN_NET_SPREAD = 1.0
 
-# Spread stability tracker: {symbol_buyexchange_sellexchange: (first_seen_timestamp, last_net_spread)}
-spread_stability_tracker = {}
-
-# Base configuration
-ARBITRAGE_CONFIG = {
-    "capital": 200,               # User's trading capital
-    "capital_multiplier": 1.2,    # Simulate 1.2x capital for order book
-    "max_market_cap_rank": 400,   # Only top 400 coins
-    "min_score": 65,              # Minimum score to show opportunity
-    "pre_filter_gross_spread": 0.02,  # 2% gross spread pre-filter
-}
-
-
-def get_token_network(symbol: str) -> str:
-    """Get likely network for a token"""
-    return TOKEN_NETWORKS.get(symbol, "DEFAULT")
-
-
-def get_transfer_time(symbol: str) -> int:
-    """Get estimated transfer time in minutes"""
-    network = get_token_network(symbol)
-    return NETWORK_TRANSFER_TIMES.get(network, NETWORK_TRANSFER_TIMES["DEFAULT"])
-
-
-def get_dynamic_min_spread(transfer_time_minutes: int) -> float:
-    """
-    Dynamic net spread threshold based on transfer time:
-    - < 3 min: 3.5% minimum
-    - 3-7 min: 5% minimum
-    - > 7 min: 7% minimum
-    """
-    if transfer_time_minutes < 3:
-        return 0.035
-    elif transfer_time_minutes <= 7:
-        return 0.05
-    else:
-        return 0.07
-
-
-def get_dynamic_stability_seconds(net_spread_percent: float) -> int:
-    """
-    Dynamic stability window based on spread size:
-    - > 10% spread: 30 seconds
-    - 6-10% spread: 60 seconds
-    - 3-6% spread: 90 seconds
-    """
-    if net_spread_percent > 10:
-        return 30
-    elif net_spread_percent >= 6:
-        return 60
-    else:
-        return 90
-
-
-def get_dynamic_min_volume(net_spread_percent: float) -> float:
-    """
-    Adaptive volume filter based on spread:
-    - > 10% spread: $2M minimum
-    - 5-10% spread: $5M minimum
-    - < 5% spread: $10M minimum
-    """
-    if net_spread_percent > 10:
-        return 2_000_000
-    elif net_spread_percent >= 5:
-        return 5_000_000
-    else:
-        return 10_000_000
-
-
-def calculate_opportunity_score(
-    net_spread: float,
-    volume_24h: float,
-    buy_depth: float,
-    sell_depth: float,
-    time_active: int,
-    required_stability: int,
-    network: str,
-    capital: float
-) -> dict:
-    """
-    Calculate opportunity score (0-100):
-    - Liquidity score (0-30): based on volume and depth
-    - Spread size score (0-30): based on net spread
-    - Spread stability score (0-20): based on time active
-    - Network speed score (0-20): bonus for fast networks
-    """
-    scores = {}
-    
-    # 1. LIQUIDITY SCORE (0-30)
-    # Volume component (0-15)
-    if volume_24h >= 50_000_000:
-        volume_score = 15
-    elif volume_24h >= 20_000_000:
-        volume_score = 12
-    elif volume_24h >= 10_000_000:
-        volume_score = 10
-    elif volume_24h >= 5_000_000:
-        volume_score = 7
-    elif volume_24h >= 2_000_000:
-        volume_score = 5
-    else:
-        volume_score = 2
-    
-    # Depth component (0-15)
-    min_depth = min(buy_depth, sell_depth)
-    depth_needed = capital * 1.2
-    if min_depth >= depth_needed * 5:
-        depth_score = 15
-    elif min_depth >= depth_needed * 3:
-        depth_score = 12
-    elif min_depth >= depth_needed * 2:
-        depth_score = 10
-    elif min_depth >= depth_needed:
-        depth_score = 7
-    else:
-        depth_score = max(0, int(5 * min_depth / depth_needed))
-    
-    scores["liquidity"] = volume_score + depth_score
-    
-    # 2. SPREAD SIZE SCORE (0-30)
-    if net_spread >= 15:
-        scores["spread"] = 30
-    elif net_spread >= 10:
-        scores["spread"] = 25
-    elif net_spread >= 7:
-        scores["spread"] = 20
-    elif net_spread >= 5:
-        scores["spread"] = 15
-    elif net_spread >= 3.5:
-        scores["spread"] = 10
-    else:
-        scores["spread"] = max(0, int(net_spread * 3))
-    
-    # 3. STABILITY SCORE (0-20)
-    if time_active >= required_stability:
-        scores["stability"] = 20
-    elif time_active >= required_stability * 0.75:
-        scores["stability"] = 15
-    elif time_active >= required_stability * 0.5:
-        scores["stability"] = 10
-    elif time_active >= required_stability * 0.25:
-        scores["stability"] = 5
-    else:
-        scores["stability"] = 0
-    
-    # 4. NETWORK SPEED SCORE (0-20)
-    if network in FAST_NETWORKS:
-        scores["network"] = 20
-    elif network == "ERC20":
-        scores["network"] = 5
-    elif network == "BTC":
-        scores["network"] = 0
-    else:
-        scores["network"] = 10
-    
-    # Total score
-    total = sum(scores.values())
-    
-    return {
-        "total": total,
-        "breakdown": scores,
-        "liquidity_score": scores["liquidity"],
-        "spread_score": scores["spread"],
-        "stability_score": scores["stability"],
-        "network_score": scores["network"]
-    }
-
-
-def get_risk_category(score: int, net_spread: float, is_stable: bool) -> str:
-    """
-    Categorize opportunity risk:
-    - HIGH_PROBABILITY: score >= 80 OR (score >= 65 AND stable AND spread >= 7%)
-    - MODERATE: score >= 50 AND < 80
-    - HIGH_RISK: score < 50
-    """
-    if score >= 80:
-        return "HIGH_PROBABILITY"
-    elif score >= 65 and is_stable and net_spread >= 7:
-        return "HIGH_PROBABILITY"
-    elif score >= 50:
-        return "MODERATE"
-    else:
-        return "HIGH_RISK"
-
-async def fetch_top_coins():
-    """Fetch Top 400 coins from CoinMarketCap with volume data (no pre-filtering)"""
-    if not COINMARKETCAP_API_KEY:
-        logger.error("CoinMarketCap API key not configured")
-        return []
-    
-    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
-    headers = {
-        "X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY,
-        "Accept": "application/json"
-    }
-    params = {"limit": ARBITRAGE_CONFIG["max_market_cap_rank"], "convert": "USD"}
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, params=params, timeout=30) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    coins = []
-                    for coin in data.get("data", []):
-                        volume_24h = coin["quote"]["USD"].get("volume_24h", 0)
-                        coins.append({
-                            "symbol": coin["symbol"],
-                            "name": coin["name"],
-                            "rank": coin["cmc_rank"],
-                            "price": coin["quote"]["USD"]["price"],
-                            "market_cap": coin["quote"]["USD"]["market_cap"],
-                            "volume_24h": volume_24h
-                        })
-                    logger.info(f"Fetched {len(coins)} coins from top {ARBITRAGE_CONFIG['max_market_cap_rank']}")
-                    return coins
-                else:
-                    logger.error(f"CoinMarketCap API error: {response.status}")
-                    return []
-    except Exception as e:
-        logger.error(f"Error fetching coins: {str(e)}")
-        return []
-
-
-async def fetch_orderbook(exchange: str, symbol: str):
-    """Fetch order book (bids/asks) for a specific symbol on an exchange"""
-    if exchange.lower().replace(".", "") not in ["binance", "bybit", "okx", "gateio", "kucoin", "mexc"]:
-        return None
-    
-    exchange_key = exchange.lower().replace(".", "")
-    if exchange_key not in ORDERBOOK_APIS:
-        return None
-    
-    url = ORDERBOOK_APIS[exchange_key].format(symbol=symbol)
-    
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    
-                    # Parse based on exchange format
-                    if exchange_key == "binance":
-                        return {
-                            "bids": [[float(p), float(q)] for p, q in data.get("bids", [])],
-                            "asks": [[float(p), float(q)] for p, q in data.get("asks", [])]
-                        }
-                    elif exchange_key == "bybit":
-                        result = data.get("result", {})
-                        return {
-                            "bids": [[float(b[0]), float(b[1])] for b in result.get("b", [])],
-                            "asks": [[float(a[0]), float(a[1])] for a in result.get("a", [])]
-                        }
-                    elif exchange_key == "okx":
-                        book_data = data.get("data", [{}])[0]
-                        return {
-                            "bids": [[float(b[0]), float(b[1])] for b in book_data.get("bids", [])],
-                            "asks": [[float(a[0]), float(a[1])] for a in book_data.get("asks", [])]
-                        }
-                    elif exchange_key == "gateio":
-                        return {
-                            "bids": [[float(b[0]), float(b[1])] for b in data.get("bids", [])],
-                            "asks": [[float(a[0]), float(a[1])] for a in data.get("asks", [])]
-                        }
-                    elif exchange_key == "kucoin":
-                        book_data = data.get("data", {})
-                        return {
-                            "bids": [[float(b[0]), float(b[1])] for b in book_data.get("bids", [])],
-                            "asks": [[float(a[0]), float(a[1])] for a in book_data.get("asks", [])]
-                        }
-                    elif exchange_key == "mexc":
-                        return {
-                            "bids": [[float(p), float(q)] for p, q in data.get("bids", [])],
-                            "asks": [[float(p), float(q)] for p, q in data.get("asks", [])]
-                        }
-    except Exception as e:
-        logger.debug(f"Order book fetch failed for {symbol} on {exchange}: {str(e)}")
-    return None
-
-
-def calculate_average_fill_price(orderbook_side: list, notional_usd: float, is_buy: bool) -> tuple:
-    """
-    Simulate execution for given notional amount.
-    Returns (average_price, total_filled_usd, depth_within_1_percent)
-    """
-    if not orderbook_side:
-        return None, 0, 0
-    
-    total_filled_qty = 0
-    total_cost = 0
-    remaining_usd = notional_usd
-    best_price = orderbook_side[0][0] if orderbook_side else 0
-    depth_within_1_percent = 0
-    
-    for price, qty in orderbook_side:
-        level_value = price * qty
-        
-        # Calculate depth within 1% of best price
-        if best_price > 0:
-            price_diff = abs(price - best_price) / best_price
-            if price_diff <= 0.01:
-                depth_within_1_percent += level_value
-        
-        if remaining_usd <= 0:
-            continue
-            
-        if level_value >= remaining_usd:
-            # Partial fill at this level
-            fill_qty = remaining_usd / price
-            total_filled_qty += fill_qty
-            total_cost += remaining_usd
-            remaining_usd = 0
-        else:
-            # Full fill at this level
-            total_filled_qty += qty
-            total_cost += level_value
-            remaining_usd -= level_value
-    
-    if total_filled_qty == 0:
-        return None, 0, depth_within_1_percent
-    
-    avg_price = total_cost / total_filled_qty
-    return avg_price, total_cost, depth_within_1_percent
-
-
-def calculate_net_spread(
-    avg_buy_price: float,
-    avg_sell_price: float,
-    buy_exchange: str,
-    sell_exchange: str,
-    capital: float
-) -> dict:
-    """
-    Calculate net spread after all fees:
-    - Trading fee on buy (0.1%)
-    - Trading fee on sell (0.1%)
-    - Withdrawal fee (convert to USD)
-    - Estimated slippage (0.5%)
-    """
-    if avg_buy_price <= 0 or avg_sell_price <= 0:
-        return None
-    
-    # Gross spread
-    gross_spread = (avg_sell_price - avg_buy_price) / avg_buy_price
-    
-    # Fees
-    buy_fee_rate = EXCHANGE_FEES.get(buy_exchange, 0.001)
-    sell_fee_rate = EXCHANGE_FEES.get(sell_exchange, 0.001)
-    withdrawal_fee_usd = WITHDRAWAL_FEES_USD.get(buy_exchange, 2.0)
-    
-    # Total fee impact as percentage
-    total_fee_rate = buy_fee_rate + sell_fee_rate + ESTIMATED_SLIPPAGE
-    withdrawal_fee_rate = withdrawal_fee_usd / capital if capital > 0 else 0
-    
-    # Net spread
-    net_spread = gross_spread - total_fee_rate - withdrawal_fee_rate
-    
-    # Net profit in USD
-    net_profit_usd = capital * net_spread
-    
-    return {
-        "gross_spread": round(gross_spread * 100, 2),
-        "net_spread": round(net_spread * 100, 2),
-        "net_profit_usd": round(net_profit_usd, 2),
-        "withdrawal_fee_usd": round(withdrawal_fee_usd, 2),
-        "buy_fee_percent": round(buy_fee_rate * 100, 2),
-        "sell_fee_percent": round(sell_fee_rate * 100, 2),
-        "slippage_percent": round(ESTIMATED_SLIPPAGE * 100, 2)
-    }
-
-
-def check_spread_stability_adaptive(symbol: str, buy_exchange: str, sell_exchange: str, net_spread: float, required_seconds: int) -> tuple:
-    """
-    Track spread stability with adaptive requirements.
-    Returns (is_stable, time_active_seconds)
-    """
-    global spread_stability_tracker
-    
-    key = f"{symbol}_{buy_exchange}_{sell_exchange}"
-    current_time = time.time()
-    
-    # Any positive net spread is trackable
-    if net_spread > 0:
-        if key in spread_stability_tracker:
-            first_seen, last_spread = spread_stability_tracker[key]
-            spread_stability_tracker[key] = (first_seen, net_spread)
-            time_active = current_time - first_seen
-            is_stable = time_active >= required_seconds
-            return is_stable, int(time_active)
-        else:
-            spread_stability_tracker[key] = (current_time, net_spread)
-            return False, 0
-    else:
-        # Reset if spread becomes negative
-        if key in spread_stability_tracker:
-            del spread_stability_tracker[key]
-        return False, 0
-
-
-# Clean up old entries periodically
-def cleanup_spread_tracker():
-    """Remove stale entries from spread tracker"""
-    global spread_stability_tracker
-    current_time = time.time()
-    stale_keys = [
-        k for k, (first_seen, _) in spread_stability_tracker.items()
-        if current_time - first_seen > 600  # Remove entries older than 10 minutes
-    ]
-    for k in stale_keys:
-        del spread_stability_tracker[k]
 
 async def fetch_binance_prices():
-    """Fetch prices from Binance"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["binance"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["binance"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data:
-                        symbol = item["symbol"]
-                        if symbol.endswith("USDT"):
-                            base = symbol[:-4]
-                            prices[base] = float(item["price"])
-                    return prices
+                    return {item["symbol"][:-4]: float(item["price"])
+                            for item in data
+                            if item["symbol"].endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"Binance API error: {str(e)}")
+        logger.error(f"Binance API error: {e}")
     return {}
 
 async def fetch_bybit_prices():
-    """Fetch prices from Bybit"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["bybit"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["bybit"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data.get("result", {}).get("list", []):
-                        symbol = item.get("symbol", "")
-                        if symbol.endswith("USDT"):
-                            base = symbol[:-4]
-                            prices[base] = float(item.get("lastPrice", 0))
-                    return prices
+                    return {item["symbol"][:-4]: float(item.get("lastPrice", 0))
+                            for item in data.get("result", {}).get("list", [])
+                            if item.get("symbol", "").endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"Bybit API error: {str(e)}")
+        logger.error(f"Bybit API error: {e}")
     return {}
 
 async def fetch_okx_prices():
-    """Fetch prices from OKX"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["okx"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["okx"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data.get("data", []):
-                        inst_id = item.get("instId", "")
-                        if inst_id.endswith("-USDT"):
-                            base = inst_id[:-5]
-                            prices[base] = float(item.get("last", 0))
-                    return prices
+                    return {item["instId"][:-5]: float(item.get("last", 0))
+                            for item in data.get("data", [])
+                            if item.get("instId", "").endswith("-USDT") and item["instId"][:-5] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"OKX API error: {str(e)}")
+        logger.error(f"OKX API error: {e}")
     return {}
 
 async def fetch_gateio_prices():
-    """Fetch prices from Gate.io"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["gateio"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["gateio"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data:
-                        pair = item.get("currency_pair", "")
-                        if pair.endswith("_USDT"):
-                            base = pair[:-5]
-                            prices[base] = float(item.get("last", 0))
-                    return prices
+                    return {item["currency_pair"][:-5]: float(item.get("last", 0))
+                            for item in data
+                            if item.get("currency_pair", "").endswith("_USDT") and item["currency_pair"][:-5] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"Gate.io API error: {str(e)}")
+        logger.error(f"Gate.io API error: {e}")
     return {}
 
 async def fetch_bingx_prices():
-    """Fetch prices from BingX"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["bingx"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["bingx"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data.get("data", []):
-                        symbol = item.get("symbol", "")
-                        if "-USDT" in symbol:
-                            base = symbol.split("-")[0]
-                            prices[base] = float(item.get("lastPrice", 0))
-                    return prices
+                    return {item["symbol"].split("-")[0]: float(item.get("lastPrice", 0))
+                            for item in data.get("data", [])
+                            if "-USDT" in item.get("symbol", "") and item["symbol"].split("-")[0] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"BingX API error: {str(e)}")
+        logger.error(f"BingX API error: {e}")
     return {}
 
 async def fetch_kucoin_prices():
-    """Fetch prices from KuCoin"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["kucoin"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["kucoin"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data.get("data", {}).get("ticker", []):
-                        symbol = item.get("symbol", "")
-                        if symbol.endswith("-USDT"):
-                            base = symbol[:-5]
-                            prices[base] = float(item.get("last", 0))
-                    return prices
+                    return {item["symbol"][:-5]: float(item.get("last", 0))
+                            for item in data.get("data", {}).get("ticker", [])
+                            if item.get("symbol", "").endswith("-USDT") and item["symbol"][:-5] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"KuCoin API error: {str(e)}")
+        logger.error(f"KuCoin API error: {e}")
     return {}
 
 async def fetch_mexc_prices():
-    """Fetch prices from MEXC"""
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(EXCHANGE_APIS["mexc"], timeout=15) as response:
+            async with session.get(EXCHANGE_APIS["mexc"], timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    prices = {}
-                    for item in data:
-                        symbol = item.get("symbol", "")
-                        if symbol.endswith("USDT"):
-                            base = symbol[:-4]
-                            prices[base] = float(item.get("price", 0))
-                    return prices
+                    return {item["symbol"][:-4]: float(item.get("price", 0))
+                            for item in data
+                            if item.get("symbol", "").endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
     except Exception as e:
-        logger.error(f"MEXC API error: {str(e)}")
+        logger.error(f"MEXC API error: {e}")
     return {}
 
-async def scan_arbitrage_opportunities_adaptive():
+
+async def scan_arbitrage_simple():
     """
-    Adaptive arbitrage scanner with dynamic filtering:
-    1. Dynamic net spread threshold based on network transfer time
-    2. Capital-based depth simulation (1.2x capital)
-    3. Opportunity scoring system (0-100)
-    4. Shorter stability window for larger spreads
-    5. Volume adaptive filter based on spread size
-    6. Fast network bonus (TRC20, BEP20, Polygon)
-    7. Three risk categories (HIGH_PROBABILITY, MODERATE, HIGH_RISK)
+    Simple arbitrage scanner:
+    - Fetches prices for major USDT pairs from 7 exchanges
+    - Finds best buy/sell per coin
+    - Calculates net spread after all fees
+    - Filters by 1% minimum net spread
+    - Returns best opportunity per coin, sorted by net spread
     """
-    # Cleanup old spread tracker entries
-    cleanup_spread_tracker()
-    
-    # Fetch all coins (no pre-filtering)
-    coins = await fetch_top_coins()
-    coin_symbols = {coin["symbol"]: coin for coin in coins}
-    
     # Fetch prices from all exchanges concurrently
     exchange_prices = await asyncio.gather(
         fetch_binance_prices(),
@@ -2496,261 +2018,96 @@ async def scan_arbitrage_opportunities_adaptive():
         fetch_mexc_prices(),
         return_exceptions=True
     )
-    
-    exchanges = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"]
-    
-    # Build price map per coin
+
+    exchange_names = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"]
+    connected = sum(1 for p in exchange_prices if isinstance(p, dict) and p)
+
+    # Build price map: {coin: {exchange: price}}
     all_prices = {}
     for i, prices in enumerate(exchange_prices):
         if isinstance(prices, dict):
-            exchange_name = exchanges[i]
+            name = exchange_names[i]
             for symbol, price in prices.items():
-                if symbol in coin_symbols and price > 0:
+                if price > 0:
                     if symbol not in all_prices:
                         all_prices[symbol] = {}
-                    all_prices[symbol][exchange_name] = price
-    
-    # Find potential arbitrage opportunities (lower pre-filter threshold)
-    potential_opps = []
+                    all_prices[symbol][name] = price
+
+    # Find best opportunity per coin
+    opportunities = []
     for symbol, prices_by_exchange in all_prices.items():
         if len(prices_by_exchange) < 2:
             continue
-        
-        exchange_list = list(prices_by_exchange.items())
-        min_exchange, min_price = min(exchange_list, key=lambda x: x[1])
-        max_exchange, max_price = max(exchange_list, key=lambda x: x[1])
-        
-        if min_price > 0:
-            gross_spread = (max_price - min_price) / min_price
-            # Lower pre-filter: 2% gross spread (allows more opportunities through)
-            if gross_spread >= ARBITRAGE_CONFIG["pre_filter_gross_spread"] and gross_spread <= 0.50:
-                potential_opps.append({
-                    "symbol": symbol,
-                    "buy_exchange": min_exchange,
-                    "sell_exchange": max_exchange,
-                    "buy_price": min_price,
-                    "sell_price": max_price,
-                    "gross_spread": gross_spread
-                })
-    
-    # Sort by gross spread (highest first) for analysis
-    potential_opps.sort(key=lambda x: -x["gross_spread"])
-    
-    # Deep analysis with adaptive filtering
-    all_opportunities = []
-    filtered_stats = {
-        "total_potential": len(potential_opps),
-        "failed_orderbook": 0,
-        "failed_volume": 0,
-        "failed_depth": 0,
-        "failed_net_spread": 0,
-        "high_probability": 0,
-        "moderate": 0,
-        "high_risk": 0
-    }
-    
-    capital = ARBITRAGE_CONFIG["capital"]
-    notional = capital * ARBITRAGE_CONFIG["capital_multiplier"]  # 1.2x capital
-    
-    # Analyze opportunities
-    for opp in potential_opps[:75]:  # Analyze top 75 by gross spread
-        symbol = opp["symbol"]
-        buy_exchange = opp["buy_exchange"]
-        sell_exchange = opp["sell_exchange"]
-        coin_info = coin_symbols.get(symbol, {})
-        volume_24h = coin_info.get("volume_24h", 0)
-        
-        # Get network and transfer time
-        network = get_token_network(symbol)
-        transfer_time = get_transfer_time(symbol)
-        
-        # Fetch order books concurrently
-        buy_orderbook, sell_orderbook = await asyncio.gather(
-            fetch_orderbook(buy_exchange, symbol),
-            fetch_orderbook(sell_exchange, symbol),
-            return_exceptions=True
-        )
-        
-        if not isinstance(buy_orderbook, dict) or not isinstance(sell_orderbook, dict):
-            filtered_stats["failed_orderbook"] += 1
+
+        items = list(prices_by_exchange.items())
+        buy_exchange, buy_price = min(items, key=lambda x: x[1])
+        sell_exchange, sell_price = max(items, key=lambda x: x[1])
+
+        if buy_price <= 0 or buy_exchange == sell_exchange:
             continue
-        
-        # Calculate average fill prices for 1.2x capital
-        avg_buy_price, _, buy_depth = calculate_average_fill_price(
-            buy_orderbook.get("asks", []), notional, is_buy=True
-        )
-        avg_sell_price, _, sell_depth = calculate_average_fill_price(
-            sell_orderbook.get("bids", []), notional, is_buy=False
-        )
-        
-        if avg_buy_price is None or avg_sell_price is None:
-            filtered_stats["failed_orderbook"] += 1
+
+        # Gross spread
+        gross_spread = (sell_price - buy_price) / buy_price
+
+        # Fees
+        buy_fee = EXCHANGE_FEES.get(buy_exchange, 0.001)
+        sell_fee = EXCHANGE_FEES.get(sell_exchange, 0.001)
+        withdrawal_fee_usd = WITHDRAWAL_FEES_USD.get(buy_exchange, 2.0)
+        withdrawal_fee_pct = withdrawal_fee_usd / TRADING_CAPITAL
+
+        # Net spread after all fees
+        net_spread = gross_spread - buy_fee - sell_fee - ESTIMATED_SLIPPAGE - withdrawal_fee_pct
+        net_spread_pct = round(net_spread * 100, 2)
+
+        # Filter: minimum 1% net spread
+        if net_spread_pct < MIN_NET_SPREAD:
             continue
-        
-        # Calculate net spread after all fees
-        spread_data = calculate_net_spread(
-            avg_buy_price, avg_sell_price, buy_exchange, sell_exchange, capital
-        )
-        
-        if not spread_data:
-            filtered_stats["failed_net_spread"] += 1
-            continue
-        
-        net_spread = spread_data["net_spread"]
-        net_profit = spread_data["net_profit_usd"]
-        
-        # ADAPTIVE VOLUME FILTER
-        min_volume = get_dynamic_min_volume(net_spread)
-        if volume_24h < min_volume:
-            filtered_stats["failed_volume"] += 1
-            continue
-        
-        # DYNAMIC MIN SPREAD based on transfer time
-        min_net_spread = get_dynamic_min_spread(transfer_time) * 100
-        if net_spread < min_net_spread:
-            filtered_stats["failed_net_spread"] += 1
-            continue
-        
-        # ADAPTIVE STABILITY CHECK
-        required_stability = get_dynamic_stability_seconds(net_spread)
-        is_stable, time_active = check_spread_stability_adaptive(
-            symbol, buy_exchange, sell_exchange, net_spread, required_stability
-        )
-        
-        # CALCULATE OPPORTUNITY SCORE
-        score_data = calculate_opportunity_score(
-            net_spread=net_spread,
-            volume_24h=volume_24h,
-            buy_depth=buy_depth,
-            sell_depth=sell_depth,
-            time_active=time_active,
-            required_stability=required_stability,
-            network=network,
-            capital=capital
-        )
-        
-        total_score = score_data["total"]
-        
-        # Only include if score >= minimum threshold
-        if total_score < ARBITRAGE_CONFIG["min_score"]:
-            continue
-        
-        # DETERMINE RISK CATEGORY
-        risk_category = get_risk_category(total_score, net_spread, is_stable)
-        filtered_stats[risk_category.lower()] = filtered_stats.get(risk_category.lower(), 0) + 1
-        
-        # Build opportunity record
-        opportunity = {
-            "symbol": symbol,
-            "name": coin_info.get("name", symbol),
-            "rank": coin_info.get("rank", 0),
-            "volume_24h": volume_24h,
+
+        net_profit = round(TRADING_CAPITAL * net_spread, 2)
+
+        opportunities.append({
+            "coin": symbol,
             "buy_exchange": buy_exchange,
+            "buy_price": buy_price,
             "sell_exchange": sell_exchange,
-            "avg_buy_price": round(avg_buy_price, 8),
-            "avg_sell_price": round(avg_sell_price, 8),
-            "gross_spread": spread_data["gross_spread"],
-            "net_spread": spread_data["net_spread"],
-            "net_profit_usd": spread_data["net_profit_usd"],
-            "withdrawal_fee_usd": spread_data["withdrawal_fee_usd"],
-            "buy_depth_usd": round(buy_depth, 2),
-            "sell_depth_usd": round(sell_depth, 2),
-            "time_spread_active": time_active,
-            "required_stability": required_stability,
-            "time_remaining": max(0, required_stability - time_active),
-            "is_stable": is_stable,
-            "network": network,
-            "transfer_time_minutes": transfer_time,
-            "score": total_score,
-            "score_breakdown": score_data["breakdown"],
-            "risk_category": risk_category,
-            "min_spread_required": round(min_net_spread, 1),
-            "min_volume_required": min_volume,
-            "fees_breakdown": {
-                "buy_fee": f"{spread_data['buy_fee_percent']}%",
-                "sell_fee": f"{spread_data['sell_fee_percent']}%",
-                "slippage": f"{spread_data['slippage_percent']}%",
-                "withdrawal": f"${spread_data['withdrawal_fee_usd']}"
-            }
-        }
-        
-        all_opportunities.append(opportunity)
-    
-    # Sort: by risk category (HIGH_PROBABILITY first), then by score
-    category_order = {"HIGH_PROBABILITY": 0, "MODERATE": 1, "HIGH_RISK": 2}
-    all_opportunities.sort(key=lambda x: (category_order.get(x["risk_category"], 3), -x["score"]))
-    
+            "sell_price": sell_price,
+            "net_spread_pct": net_spread_pct,
+            "net_profit_usd": net_profit,
+        })
+
+    # Sort by highest net spread
+    opportunities.sort(key=lambda x: -x["net_spread_pct"])
+
     return {
-        "opportunities": all_opportunities,
-        "total_coins_analyzed": len(coin_symbols),
-        "exchanges_connected": len([p for p in exchange_prices if isinstance(p, dict) and p]),
-        "scan_time": datetime.now(timezone.utc).isoformat(),
-        "adaptive_config": {
-            "capital": f"${capital}",
-            "notional_simulated": f"${notional}",
-            "min_score": ARBITRAGE_CONFIG["min_score"],
-            "spread_thresholds": {
-                "fast_network_<3min": "3.5%",
-                "medium_3-7min": "5%",
-                "slow_>7min": "7%"
-            },
-            "stability_windows": {
-                ">10%_spread": "30s",
-                "6-10%_spread": "60s",
-                "3-6%_spread": "90s"
-            },
-            "volume_requirements": {
-                ">10%_spread": "$2M",
-                "5-10%_spread": "$5M",
-                "<5%_spread": "$10M"
-            },
-            "fast_networks": FAST_NETWORKS
-        },
-        "filter_stats": filtered_stats
+        "opportunities": opportunities,
+        "exchanges_connected": connected,
+        "coins_scanned": len(all_prices),
+        "capital": TRADING_CAPITAL,
+        "min_spread_filter": MIN_NET_SPREAD,
+        "scan_time": datetime.now(timezone.utc).isoformat()
     }
+
 
 @api_router.get("/arbitrage/scan")
 async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
-    """Adaptive crypto arbitrage scan with dynamic filtering and scoring"""
-    # Check subscription access
+    """Simple crypto arbitrage scan - major USDT pairs only"""
     has_access = False
     if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
         has_access = True
-    
+
     if not has_access:
         return {
             "opportunities": [],
             "has_access": False,
-            "message": "Subscribe to access adaptive arbitrage scanning",
-            "adaptive_config": {
-                "capital": f"${ARBITRAGE_CONFIG['capital']}",
-                "notional_simulated": f"${ARBITRAGE_CONFIG['capital'] * ARBITRAGE_CONFIG['capital_multiplier']}",
-                "min_score": ARBITRAGE_CONFIG["min_score"],
-                "spread_thresholds": {
-                    "fast_network_<3min": "3.5%",
-                    "medium_3-7min": "5%",
-                    "slow_>7min": "7%"
-                },
-                "stability_windows": {
-                    ">10%_spread": "30s",
-                    "6-10%_spread": "60s",
-                    "3-6%_spread": "90s"
-                },
-                "volume_requirements": {
-                    ">10%_spread": "$2M",
-                    "5-10%_spread": "$5M",
-                    "<5%_spread": "$10M"
-                },
-                "fast_networks": FAST_NETWORKS
-            }
+            "message": "Subscribe to access the arbitrage scanner",
         }
-    
+
     try:
-        result = await scan_arbitrage_opportunities_adaptive()
+        result = await scan_arbitrage_simple()
         result["has_access"] = True
         return result
     except Exception as e:
-        logger.error(f"Arbitrage scan error: {str(e)}")
+        logger.error(f"Arbitrage scan error: {e}")
         raise HTTPException(status_code=500, detail="Failed to scan arbitrage opportunities")
 
 @api_router.get("/arbitrage/status")
@@ -2759,36 +2116,16 @@ async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
     has_access = False
     if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
         has_access = True
-    
+
     return {
         "has_access": has_access,
         "price": PRODUCTS["arbitrage"]["price"],
         "features": [
-            "Adaptive scoring system (0-100 score)",
-            "Dynamic spread thresholds by network speed",
-            "Capital-based depth simulation (1.2x capital)",
-            "Shorter stability windows for large spreads",
-            "Volume-adaptive filtering",
-            "Fast network bonuses (TRC20, BEP20, Polygon)",
-            "3 risk categories: HIGH/MODERATE/HIGH_RISK"
-        ],
-        "adaptive_logic": {
-            "spread_by_network": {
-                "fast_<3min": "3.5% min",
-                "medium_3-7min": "5% min",
-                "slow_>7min": "7% min"
-            },
-            "stability_by_spread": {
-                ">10%": "30 sec",
-                "6-10%": "60 sec",
-                "3-6%": "90 sec"
-            },
-            "volume_by_spread": {
-                ">10%": "$2M min",
-                "5-10%": "$5M min",
-                "<5%": "$10M min"
-            }
-        }
+            "Major USDT pairs across 7 exchanges",
+            "Net spread after all fees & commissions",
+            "Auto-refresh every 10 seconds",
+            "Sorted by highest profit opportunity"
+        ]
     }
 
 # ============ MARKET DATA (Alpha Vantage) ============
