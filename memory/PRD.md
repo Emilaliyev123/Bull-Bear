@@ -266,6 +266,22 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - News: Empty (admin needs to add articles)
 - Book: PDF uploaded and working
 
+## Updates (Mar 16, 2026)
+
+### Automatic Video Conversion (MOV→MP4)
+- **User Request**: "Implement automatic conversion of uploaded videos (e.g., MOV) to the web-compatible MP4 format"
+- **Implementation**:
+  - Installed ffmpeg on server
+  - Backend `/api/upload/video` endpoint auto-detects non-MP4 formats (MOV, AVI, MKV, WebM)
+  - Converts to H.264/AAC MP4 with streaming optimization (`-movflags +faststart`)
+  - Deletes original file after successful conversion
+  - Returns conversion status in response (`converted: true/false`)
+  - Frontend shows progress spinner and toast notifications during conversion
+  - 10-minute timeout for large files
+- **Fixed JSX syntax error**: Orphaned `</div>` and `)}` at line 3224 in App.js that broke the admin panel
+- **Testing**: 7/7 backend tests passed, frontend fully verified
+- **Status**: ✅ IMPLEMENTED & TESTED
+
 ## Future Enhancements
 - [ ] Advanced watermarking with user info
 - [ ] User referral system
