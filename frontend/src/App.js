@@ -3181,8 +3181,6 @@ const AdminPage = () => {
                           Uploading & converting video (may take a few minutes)...
                         </div>
                       )}
-                        </div>
-                      )}
                       <input
                         placeholder="Or paste video URL here"
                         value={courseForm.video_url}
