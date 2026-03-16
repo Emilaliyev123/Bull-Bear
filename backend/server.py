@@ -1887,14 +1887,51 @@ WITHDRAWAL_FEES_USD = {
     "MEXC": 1.0
 }
 
-# Major USDT trading pairs only
-MAJOR_COINS = [
+# Major USDT trading pairs — dynamically fetched from CoinMarketCap top 1000
+# Cache to avoid hitting API rate limits on every 10s scan
+_cmc_cache = {"symbols": set(), "last_fetched": 0}
+CMC_CACHE_TTL = 300  # refresh coin list every 5 minutes
+
+
+async def fetch_top_coin_symbols():
+    """Fetch top 1000 coin symbols from CoinMarketCap (cached for 5 min)"""
+    now = time.time()
+    if _cmc_cache["symbols"] and (now - _cmc_cache["last_fetched"]) < CMC_CACHE_TTL:
+        return _cmc_cache["symbols"]
+
+    if not COINMARKETCAP_API_KEY:
+        logger.warning("CoinMarketCap API key not configured, using fallback list")
+        return _cmc_cache["symbols"] or _FALLBACK_COINS
+
+    url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
+    headers = {"X-CMC_PRO_API_KEY": COINMARKETCAP_API_KEY, "Accept": "application/json"}
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers, params={"limit": 1000, "convert": "USD"}, timeout=20) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    symbols = {coin["symbol"] for coin in data.get("data", [])}
+                    _cmc_cache["symbols"] = symbols
+                    _cmc_cache["last_fetched"] = now
+                    logger.info(f"Fetched {len(symbols)} coins from CoinMarketCap top 1000")
+                    return symbols
+                else:
+                    logger.error(f"CoinMarketCap API error: {resp.status}")
+    except Exception as e:
+        logger.error(f"CoinMarketCap fetch error: {e}")
+
+    return _cmc_cache["symbols"] or _FALLBACK_COINS
+
+
+# Fallback list if CoinMarketCap API is unavailable
+_FALLBACK_COINS = {
     "BTC", "ETH", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT", "LINK",
     "MATIC", "UNI", "ATOM", "LTC", "ETC", "FIL", "NEAR", "APT", "ARB", "OP",
     "AAVE", "MKR", "CRV", "INJ", "SUI", "SEI", "TIA", "JUP", "PEPE", "SHIB",
     "TRX", "TON", "BCH", "ICP", "HBAR", "VET", "ALGO", "FTM", "RENDER", "GRT",
     "WLD", "BONK", "FLOKI", "TAO", "STX", "IMX", "MANA", "SAND", "AXS", "ENS"
-]
+}
 
 # Trading capital for profit estimation
 TRADING_CAPITAL = 200
@@ -1914,7 +1951,7 @@ async def fetch_binance_prices():
                     data = await response.json()
                     return {item["symbol"][:-4]: float(item["price"])
                             for item in data
-                            if item["symbol"].endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
+                            if item["symbol"].endswith("USDT") and not item["symbol"][:-4].endswith("DOWN") and not item["symbol"][:-4].endswith("UP")}
     except Exception as e:
         logger.error(f"Binance API error: {e}")
     return {}
@@ -1927,7 +1964,7 @@ async def fetch_bybit_prices():
                     data = await response.json()
                     return {item["symbol"][:-4]: float(item.get("lastPrice", 0))
                             for item in data.get("result", {}).get("list", [])
-                            if item.get("symbol", "").endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
+                            if item.get("symbol", "").endswith("USDT")}
     except Exception as e:
         logger.error(f"Bybit API error: {e}")
     return {}
@@ -1940,7 +1977,7 @@ async def fetch_okx_prices():
                     data = await response.json()
                     return {item["instId"][:-5]: float(item.get("last", 0))
                             for item in data.get("data", [])
-                            if item.get("instId", "").endswith("-USDT") and item["instId"][:-5] in MAJOR_COINS}
+                            if item.get("instId", "").endswith("-USDT")}
     except Exception as e:
         logger.error(f"OKX API error: {e}")
     return {}
@@ -1953,7 +1990,7 @@ async def fetch_gateio_prices():
                     data = await response.json()
                     return {item["currency_pair"][:-5]: float(item.get("last", 0))
                             for item in data
-                            if item.get("currency_pair", "").endswith("_USDT") and item["currency_pair"][:-5] in MAJOR_COINS}
+                            if item.get("currency_pair", "").endswith("_USDT")}
     except Exception as e:
         logger.error(f"Gate.io API error: {e}")
     return {}
@@ -1966,7 +2003,7 @@ async def fetch_bingx_prices():
                     data = await response.json()
                     return {item["symbol"].split("-")[0]: float(item.get("lastPrice", 0))
                             for item in data.get("data", [])
-                            if "-USDT" in item.get("symbol", "") and item["symbol"].split("-")[0] in MAJOR_COINS}
+                            if "-USDT" in item.get("symbol", "")}
     except Exception as e:
         logger.error(f"BingX API error: {e}")
     return {}
@@ -1979,7 +2016,7 @@ async def fetch_kucoin_prices():
                     data = await response.json()
                     return {item["symbol"][:-5]: float(item.get("last", 0))
                             for item in data.get("data", {}).get("ticker", [])
-                            if item.get("symbol", "").endswith("-USDT") and item["symbol"][:-5] in MAJOR_COINS}
+                            if item.get("symbol", "").endswith("-USDT")}
     except Exception as e:
         logger.error(f"KuCoin API error: {e}")
     return {}
@@ -1992,7 +2029,7 @@ async def fetch_mexc_prices():
                     data = await response.json()
                     return {item["symbol"][:-4]: float(item.get("price", 0))
                             for item in data
-                            if item.get("symbol", "").endswith("USDT") and item["symbol"][:-4] in MAJOR_COINS}
+                            if item.get("symbol", "").endswith("USDT")}
     except Exception as e:
         logger.error(f"MEXC API error: {e}")
     return {}
@@ -2001,14 +2038,17 @@ async def fetch_mexc_prices():
 async def scan_arbitrage_simple():
     """
     Simple arbitrage scanner:
-    - Fetches prices for major USDT pairs from 7 exchanges
+    - Fetches top 1000 coins from CoinMarketCap
+    - Fetches USDT prices from 7 exchanges
+    - Filters to only CoinMarketCap top 1000 coins
     - Finds best buy/sell per coin
     - Calculates net spread after all fees
     - Filters by 1% minimum net spread
     - Returns best opportunity per coin, sorted by net spread
     """
-    # Fetch prices from all exchanges concurrently
-    exchange_prices = await asyncio.gather(
+    # Fetch top 1000 coin symbols and exchange prices concurrently
+    top_coins, *exchange_prices = await asyncio.gather(
+        fetch_top_coin_symbols(),
         fetch_binance_prices(),
         fetch_bybit_prices(),
         fetch_okx_prices(),
@@ -2019,16 +2059,20 @@ async def scan_arbitrage_simple():
         return_exceptions=True
     )
 
+    # Handle fetch_top_coin_symbols failure
+    if isinstance(top_coins, Exception) or not top_coins:
+        top_coins = _FALLBACK_COINS
+
     exchange_names = ["Binance", "Bybit", "OKX", "Gate.io", "BingX", "KuCoin", "MEXC"]
     connected = sum(1 for p in exchange_prices if isinstance(p, dict) and p)
 
-    # Build price map: {coin: {exchange: price}}
+    # Build price map: {coin: {exchange: price}} — only for top 1000 coins
     all_prices = {}
     for i, prices in enumerate(exchange_prices):
         if isinstance(prices, dict):
             name = exchange_names[i]
             for symbol, price in prices.items():
-                if price > 0:
+                if price > 0 and symbol in top_coins:
                     if symbol not in all_prices:
                         all_prices[symbol] = {}
                     all_prices[symbol][name] = price
@@ -2048,6 +2092,10 @@ async def scan_arbitrage_simple():
 
         # Gross spread
         gross_spread = (sell_price - buy_price) / buy_price
+
+        # Cap at 50% to filter ticker collisions (same symbol, different tokens)
+        if gross_spread > 0.50:
+            continue
 
         # Fees
         buy_fee = EXCHANGE_FEES.get(buy_exchange, 0.001)
@@ -2121,7 +2169,7 @@ async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
         "has_access": has_access,
         "price": PRODUCTS["arbitrage"]["price"],
         "features": [
-            "Major USDT pairs across 7 exchanges",
+            "Top 1000 CoinMarketCap coins across 7 exchanges",
             "Net spread after all fees & commissions",
             "Auto-refresh every 10 seconds",
             "Sorted by highest profit opportunity"

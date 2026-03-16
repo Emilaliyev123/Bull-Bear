@@ -229,7 +229,8 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - Educational disclaimer
 
 ### 10. Crypto Arbitrage Scanner ($39.90/month) - SIMPLIFIED
-- **50 major USDT pairs** across 7 exchanges (Binance, Bybit, OKX, Gate.io, BingX, KuCoin, MEXC)
+- **Top 1000 CoinMarketCap coins** across 7 exchanges (Binance, Bybit, OKX, Gate.io, BingX, KuCoin, MEXC)
+- **CoinMarketCap integration** — dynamically fetches top 1000 coins (cached 5 min)
 - **Clean table view**: Coin, Buy Exchange, Buy Price, Sell Exchange, Sell Price, Net Spread %, Est. Profit
 - **Net spread after all fees**: trading fees, withdrawal fees, estimated slippage
 - **1% minimum spread filter** after all commissions

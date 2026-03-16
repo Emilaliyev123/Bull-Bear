@@ -704,13 +704,13 @@ const ProductsPage = () => {
       id: 'arbitrage',
       title: 'Arbitrage Scanner',
       subtitle: 'Find Price Differences',
-      description: 'Scan 50 major USDT pairs across 7 exchanges. See net profit after all fees, auto-refreshes every 10 seconds.',
+      description: 'Scan top 1000 CoinMarketCap coins across 7 exchanges. See net profit after all fees, auto-refreshes every 10 seconds.',
       price: 39.90,
       priceType: 'monthly',
       icon: TrendingUp,
       color: 'from-emerald-500 to-teal-500',
       features: [
-        '50 Major USDT Pairs',
+        'Top 1000 CoinMarketCap Coins',
         'Net Spread After All Fees',
         '7 Major Exchanges',
         'Auto-Refresh Every 10s',
@@ -1041,7 +1041,7 @@ const HomePage = () => {
                   </div>
                 </div>
                 <p className="text-zinc-400 mb-4">
-                  Scan 50 major USDT pairs across 7 exchanges. See real net profit after all fees, 
+                  Scan top 1000 CoinMarketCap coins across 7 exchanges. See real net profit after all fees, 
                   sorted by highest opportunity. Auto-refreshes every 10 seconds.
                 </p>
                 <div className="flex flex-wrap gap-2 mb-4">
@@ -1698,7 +1698,7 @@ const ArbitragePage = () => {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Arbitrage Scanner</h1>
           <p className="text-zinc-400">
-            Best USDT pair opportunities across 7 exchanges — net profit after all fees
+            Top 1000 CoinMarketCap coins across 7 exchanges — net profit after all fees
           </p>
         </motion.div>
 
@@ -1758,7 +1758,7 @@ const ArbitragePage = () => {
                   <Crown className="text-amber-500" size={22} /> Arbitrage Scanner
                 </h3>
                 <ul className="text-sm text-zinc-400 space-y-1">
-                  <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> 50 major USDT pairs across 7 exchanges</li>
+                  <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Top 1000 CoinMarketCap coins across 7 exchanges</li>
                   <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Real net profit after all commissions & fees</li>
                   <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Auto-refresh every 10 seconds</li>
                   <li className="flex items-center gap-2"><CheckCircle size={14} className="text-emerald-500" /> Sorted by highest profit opportunity</li>
