@@ -546,7 +546,9 @@ const Footer = () => (
           <h4 className="text-white font-semibold mb-4">Legal</h4>
           <ul className="space-y-2">
             <li><Link to="/privacy-policy" className="text-zinc-400 hover:text-amber-500 text-sm">Privacy Policy</Link></li>
-            <li><Link to="/terms-and-conditions" className="text-zinc-400 hover:text-amber-500 text-sm">Terms & Conditions</Link></li>
+            <li><Link to="/terms-and-conditions" className="text-zinc-400 hover:text-amber-500 text-sm">Terms of Service</Link></li>
+            <li><Link to="/refund-policy" className="text-zinc-400 hover:text-amber-500 text-sm">Refund & Exchange Policy</Link></li>
+            <li><Link to="/cancellation-policy" className="text-zinc-400 hover:text-amber-500 text-sm">Cancellation & Payment Policy</Link></li>
           </ul>
           <div className="mt-4">
             <h4 className="text-white font-semibold mb-2 text-sm">Contact</h4>
@@ -570,8 +572,19 @@ const Footer = () => (
         </div>
       </div>
 
-      {/* Risk Warning */}
+      {/* Payment Security Notice */}
       <div className="border-t border-zinc-800 mt-8 pt-6">
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <Shield className="text-emerald-500" size={16} />
+          <span className="text-emerald-500 text-xs font-medium">Secure Payments</span>
+        </div>
+        <p className="text-zinc-600 text-xs text-center max-w-3xl mx-auto leading-relaxed" data-testid="payment-security-notice">
+          Our website does not store users' card information. All payments are processed through secure and encrypted payment systems.
+        </p>
+      </div>
+
+      {/* Risk Warning */}
+      <div className="border-t border-zinc-800 mt-6 pt-6">
         <p className="text-zinc-600 text-xs text-center max-w-4xl mx-auto leading-relaxed">
           <strong className="text-zinc-500">Risk Warning:</strong> Trading in financial markets involves substantial risk of loss. Past performance is not indicative of future results. Bull & Bear Trading Academy provides educational content only and does not provide investment advice. You are solely responsible for your own trading decisions.
         </p>
@@ -580,10 +593,12 @@ const Footer = () => (
       {/* Bottom */}
       <div className="border-t border-zinc-800 mt-6 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
         <p className="text-zinc-500 text-sm">© 2025 Bull & Bear Trading Academy. All rights reserved.</p>
-        <div className="flex items-center gap-4 text-sm">
+        <div className="flex items-center gap-4 text-sm flex-wrap justify-center">
           <Link to="/about" className="text-zinc-500 hover:text-amber-500">About</Link>
           <Link to="/privacy-policy" className="text-zinc-500 hover:text-amber-500">Privacy</Link>
           <Link to="/terms-and-conditions" className="text-zinc-500 hover:text-amber-500">Terms</Link>
+          <Link to="/refund-policy" className="text-zinc-500 hover:text-amber-500">Refund Policy</Link>
+          <Link to="/cancellation-policy" className="text-zinc-500 hover:text-amber-500">Cancellation Policy</Link>
         </div>
       </div>
     </div>
@@ -608,10 +623,15 @@ const ProductsPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(null);
+  const [agreedTerms, setAgreedTerms] = useState(false);
 
   const handlePurchase = async (productType) => {
     if (!user) {
       navigate('/login');
+      return;
+    }
+    if (!agreedTerms) {
+      toast.error('Please agree to the payment terms and conditions before proceeding.');
       return;
     }
     
@@ -837,6 +857,35 @@ const ProductsPage = () => {
               </div>
             </motion.div>
           ))}
+        </div>
+
+        {/* Payment Terms Checkbox */}
+        <div className="mt-8 max-w-2xl mx-auto">
+          <label className="flex items-start gap-3 cursor-pointer select-none bg-zinc-900/50 border border-zinc-800 rounded-lg p-4" data-testid="payment-terms-checkbox-label">
+            <input
+              type="checkbox"
+              checked={agreedTerms}
+              onChange={(e) => setAgreedTerms(e.target.checked)}
+              className="mt-1 rounded border-zinc-600 text-amber-500 focus:ring-amber-500"
+              data-testid="payment-terms-checkbox"
+            />
+            <span className="text-zinc-300 text-sm">
+              I have read and agree to the{' '}
+              <Link to="/terms-and-conditions" className="text-amber-500 hover:text-amber-400 underline">payment terms and conditions</Link>,{' '}
+              <Link to="/refund-policy" className="text-amber-500 hover:text-amber-400 underline">refund policy</Link>, and{' '}
+              <Link to="/cancellation-policy" className="text-amber-500 hover:text-amber-400 underline">cancellation policy</Link>.
+            </span>
+          </label>
+        </div>
+
+        {/* Payment Security Notice */}
+        <div className="mt-6 max-w-2xl mx-auto" data-testid="products-payment-security">
+          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4 flex items-start gap-3">
+            <Shield className="text-emerald-500 flex-shrink-0 mt-0.5" size={18} />
+            <p className="text-zinc-400 text-xs leading-relaxed">
+              Our website does not store users' card information. All payments are processed through secure and encrypted payment systems.
+            </p>
+          </div>
         </div>
 
         {/* Trust Badges */}
@@ -3866,6 +3915,30 @@ const SupportPage = () => {
           </Card3D>
         </div>
 
+        {/* Business Information */}
+        <Card3D className="mb-16" data-testid="support-business-info">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+              <FileText className="text-amber-500" size={20} />
+            </div>
+            <h2 className="text-xl font-bold text-white">Business Information</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Owner / Director</p>
+              <p className="text-white font-medium">Emil Aliyev</p>
+            </div>
+            <div>
+              <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Tax ID (VOEN)</p>
+              <p className="text-white font-medium font-mono">2306637202</p>
+            </div>
+            <div>
+              <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Legal Address</p>
+              <p className="text-white font-medium">Ganja city, Nizami district, Javadkhan street, 8D, apartment 2</p>
+            </div>
+          </div>
+        </Card3D>
+
         {/* Contact Form */}
         <Card3D className="mb-16">
           <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
@@ -4610,6 +4683,47 @@ const AboutPage = () => {
           </Card3D>
         </motion.section>
 
+        {/* Business Information */}
+        <motion.section
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.95 }}
+          className="mb-16"
+          data-testid="business-info-section"
+        >
+          <Card3D>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                <FileText className="text-amber-500" size={20} />
+              </div>
+              <h2 className="text-xl font-bold text-white">Business Information</h2>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <div>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Owner / Director</p>
+                  <p className="text-white font-medium">Emil Aliyev</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Tax ID (VOEN)</p>
+                  <p className="text-white font-medium font-mono">2306637202</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Legal Address</p>
+                  <p className="text-white font-medium">Ganja city, Nizami district, Javadkhan street, 8D, apartment 2</p>
+                </div>
+                <div>
+                  <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">Contact</p>
+                  <p className="text-white font-medium">+994 55 388 66 10</p>
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400 text-sm">{SUPPORT_EMAIL}</a>
+                </div>
+              </div>
+            </div>
+          </Card3D>
+        </motion.section>
+
         {/* CTA Section */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -4892,9 +5006,14 @@ const TermsPage = () => {
             </Section>
 
             <Section title="4. Payment Terms">
-              <p><strong className="text-white">Pricing:</strong> All prices are displayed in the applicable currency (USD or AZN) and include applicable fees.</p>
-              <p className="mt-3"><strong className="text-white">Payment Processing:</strong> Payments are processed securely through Epoint.az (for AZN) or Stripe (for USD/USDC).</p>
+              <p><strong className="text-white">Pricing:</strong> All prices are displayed in USD (United States Dollar).</p>
+              <p className="mt-3"><strong className="text-white">Payment Processing:</strong> Payments are processed securely through Epoint.az payment gateway.</p>
               <p className="mt-3"><strong className="text-white">Subscriptions:</strong> Monthly subscriptions renew automatically unless cancelled before the renewal date.</p>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 mt-3">
+                <p className="text-emerald-300 text-sm">
+                  <strong>Payment Security:</strong> Our website does not store users' card information. All payments are processed through secure and encrypted payment systems.
+                </p>
+              </div>
             </Section>
 
             <Section title="5. Refund Policy">
@@ -4976,10 +5095,16 @@ const TermsPage = () => {
 
             <Section title="14. Contact Information">
               <p>For questions about these Terms, contact us at:</p>
-              <p className="mt-2">
-                <strong className="text-white">Email:</strong>{' '}
-                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a>
-              </p>
+              <div className="bg-zinc-800/50 rounded-lg p-4 mt-2">
+                <p><strong className="text-white">Owner:</strong> Emil Aliyev</p>
+                <p><strong className="text-white">Tax ID (VOEN):</strong> 2306637202</p>
+                <p><strong className="text-white">Legal Address:</strong> Ganja city, Nizami district, Javadkhan street, 8D, apartment 2</p>
+                <p className="mt-2">
+                  <strong className="text-white">Email:</strong>{' '}
+                  <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a>
+                </p>
+                <p><strong className="text-white">Phone:</strong> +994 55 388 66 10</p>
+              </div>
             </Section>
 
             <div className="mt-8 p-4 bg-zinc-800/50 rounded-lg text-center">
@@ -4999,6 +5124,296 @@ const TermsPage = () => {
     </PageWrapper>
   );
 };
+
+
+// Refund & Exchange Policy Page
+const RefundPolicyPage = () => {
+  useEffect(() => {
+    document.title = "Refund & Exchange Policy | Bull & Bear Trading Academy";
+  }, []);
+
+  const Section = ({ title, children }) => (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+        {title}
+      </h2>
+      <div className="text-zinc-400 leading-relaxed space-y-3 pl-4">
+        {children}
+      </div>
+    </div>
+  );
+
+  return (
+    <PageWrapper>
+      <div className="max-w-4xl mx-auto px-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-white mb-4">Refund & Exchange Policy</h1>
+          <p className="text-zinc-500">Last Updated: March 16, 2026</p>
+        </motion.div>
+
+        <Card3D>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-zinc-400 mb-8">
+              This Refund & Exchange Policy outlines the conditions under which <strong className="text-white">Bull & Bear Trading Academy</strong> ("we," "us," or "our") processes refund and exchange requests for digital products and subscription services purchased through our platform.
+            </p>
+
+            <Section title="1. General Provisions">
+              <p>All products offered on our platform are <strong className="text-white">digital products</strong> (online courses, e-books, trading signals, and scanner subscriptions). Due to the nature of digital goods, special conditions apply to refund and exchange requests.</p>
+              <p>By completing a purchase, you acknowledge and accept the terms outlined in this policy.</p>
+            </Section>
+
+            <Section title="2. Refund Eligibility">
+              <p><strong className="text-white">One-Time Purchases (Courses, Books):</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Refund requests must be submitted within <strong className="text-white">48 hours</strong> of purchase</li>
+                <li>Refunds are only available if the content has <strong className="text-white">not been accessed or downloaded</strong></li>
+                <li>Once digital content has been viewed, streamed, or downloaded, the sale is considered final</li>
+                <li>Technical issues preventing access do not count as "content accessed" — contact support for assistance</li>
+              </ul>
+              <p className="mt-4"><strong className="text-white">Subscription Services (Signals, Arbitrage Scanner):</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Subscriptions may be cancelled at any time before the next billing cycle</li>
+                <li>No partial refunds are issued for unused portions of a subscription period</li>
+                <li>Access continues until the end of the current paid period after cancellation</li>
+              </ul>
+            </Section>
+
+            <Section title="3. Non-Refundable Conditions">
+              <p>Refunds will <strong className="text-white">NOT</strong> be issued in the following cases:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Content has been accessed, viewed, streamed, or downloaded</li>
+                <li>More than 48 hours have passed since the purchase</li>
+                <li>The user has violated our Terms of Service</li>
+                <li>Dissatisfaction with trading results (our products are educational, not investment advice)</li>
+                <li>Change of mind after accessing content</li>
+              </ul>
+            </Section>
+
+            <Section title="4. Exchange Policy">
+              <p>We do not offer exchanges between different products. Each product must be purchased separately. If you purchased the wrong product by mistake:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Contact support within 24 hours of purchase</li>
+                <li>If the original product has not been accessed, we may issue a credit toward another product</li>
+                <li>Product credits are non-transferable and must be used within 30 days</li>
+              </ul>
+            </Section>
+
+            <Section title="5. How to Request a Refund">
+              <p>To request a refund, please:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Send an email to <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a></li>
+                <li>Include your registered email address and order details</li>
+                <li>Provide a brief reason for the refund request</li>
+                <li>Refund requests are processed within <strong className="text-white">5-10 business days</strong></li>
+              </ul>
+            </Section>
+
+            <Section title="6. Refund Processing">
+              <p>Approved refunds will be returned to the original payment method. Processing times depend on your payment provider and may take up to 10 business days to appear in your account.</p>
+            </Section>
+
+            <Section title="7. Disputes">
+              <p>If you believe a charge is unauthorized or incorrect, please contact us before initiating a chargeback with your bank. We are committed to resolving disputes fairly and promptly.</p>
+            </Section>
+
+            <Section title="8. Business Information">
+              <div className="bg-zinc-800/50 rounded-lg p-4">
+                <p><strong className="text-white">Owner:</strong> Emil Aliyev</p>
+                <p><strong className="text-white">Tax ID (VOEN):</strong> 2306637202</p>
+                <p><strong className="text-white">Legal Address:</strong> Ganja city, Nizami district, Javadkhan street, 8D, apartment 2</p>
+                <p><strong className="text-white">Email:</strong> <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a></p>
+                <p><strong className="text-white">Phone:</strong> +994 55 388 66 10</p>
+              </div>
+            </Section>
+
+            <div className="mt-8 p-4 bg-zinc-800/50 rounded-lg text-center">
+              <p className="text-zinc-400 text-sm">
+                By making a purchase on Bull & Bear Trading Academy, you acknowledge that you have read and agree to this Refund & Exchange Policy.
+              </p>
+            </div>
+          </div>
+        </Card3D>
+
+        <div className="text-center mt-8 flex justify-center gap-6">
+          <Link to="/terms-and-conditions" className="text-amber-500 hover:text-amber-400 text-sm">Terms of Service</Link>
+          <Link to="/cancellation-policy" className="text-amber-500 hover:text-amber-400 text-sm">Cancellation Policy</Link>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
+// Cancellation & Payment Policy Page
+const CancellationPolicyPage = () => {
+  useEffect(() => {
+    document.title = "Cancellation & Payment Policy | Bull & Bear Trading Academy";
+  }, []);
+
+  const Section = ({ title, children }) => (
+    <div className="mb-8">
+      <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full bg-amber-500"></div>
+        {title}
+      </h2>
+      <div className="text-zinc-400 leading-relaxed space-y-3 pl-4">
+        {children}
+      </div>
+    </div>
+  );
+
+  return (
+    <PageWrapper>
+      <div className="max-w-4xl mx-auto px-4">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
+          <h1 className="text-4xl font-bold text-white mb-4">Cancellation & Payment Policy</h1>
+          <p className="text-zinc-500">Last Updated: March 16, 2026</p>
+        </motion.div>
+
+        {/* Payment Security Banner */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
+          <Card3D className="bg-emerald-500/5 border-emerald-500/20">
+            <div className="flex items-start gap-4">
+              <Shield className="text-emerald-500 flex-shrink-0 mt-1" size={24} />
+              <div>
+                <h3 className="text-lg font-bold text-emerald-400 mb-2">Payment Security</h3>
+                <p className="text-zinc-300 text-sm leading-relaxed">
+                  Our website does not store users' card information. All payments are processed through secure and encrypted payment systems. Your financial data is protected at all times.
+                </p>
+              </div>
+            </div>
+          </Card3D>
+        </motion.div>
+
+        <Card3D>
+          <div className="prose prose-invert max-w-none">
+            <p className="text-zinc-400 mb-8">
+              This Cancellation & Payment Policy governs the payment processing, subscription management, and cancellation procedures for all products and services provided by <strong className="text-white">Bull & Bear Trading Academy</strong>.
+            </p>
+
+            <Section title="1. Payment Methods">
+              <p>We accept the following payment methods:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Visa and MasterCard credit/debit cards</li>
+                <li>Other payment methods supported by our payment processor (Epoint.az)</li>
+              </ul>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 mt-3">
+                <p className="text-emerald-300 text-sm">
+                  <strong>Security Notice:</strong> Our website does not store users' card information. All payments are processed through secure and encrypted payment gateways operated by licensed payment processors.
+                </p>
+              </div>
+            </Section>
+
+            <Section title="2. Payment Processing">
+              <ul className="list-disc pl-6 space-y-1">
+                <li>All prices are displayed in <strong className="text-white">USD (United States Dollar)</strong></li>
+                <li>Payments are processed immediately upon confirmation</li>
+                <li>You will receive an email confirmation after a successful payment</li>
+                <li>Access to purchased products is granted instantly after payment confirmation</li>
+                <li>If payment fails, no charge will be applied to your account</li>
+              </ul>
+            </Section>
+
+            <Section title="3. One-Time Purchases">
+              <p><strong className="text-white">Trading Courses ($49.90) and Trading Book ($29.90):</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>One-time payment grants <strong className="text-white">lifetime access</strong> to the purchased content</li>
+                <li>No recurring charges or hidden fees</li>
+                <li>Access is tied to your registered account</li>
+                <li>Content updates are included at no additional cost</li>
+              </ul>
+            </Section>
+
+            <Section title="4. Subscription Services">
+              <p><strong className="text-white">Private Signals ($19.90/month) and Arbitrage Scanner ($39.90/month):</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Subscriptions are billed on a <strong className="text-white">monthly recurring basis</strong></li>
+                <li>The subscription period begins on the date of purchase</li>
+                <li>Renewal occurs automatically on the same date each month</li>
+                <li>You will be notified before each renewal charge</li>
+              </ul>
+            </Section>
+
+            <Section title="5. Cancellation of Subscriptions">
+              <p>You may cancel your subscription at any time by:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Contacting our support team at <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a></li>
+                <li>Calling us at <strong className="text-white">+994 55 388 66 10</strong></li>
+              </ul>
+              <p className="mt-3"><strong className="text-white">Important cancellation terms:</strong></p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Cancellation must be requested at least <strong className="text-white">24 hours before</strong> the next billing date</li>
+                <li>Access continues until the end of the current paid billing period</li>
+                <li>No partial refunds for unused days within a billing period</li>
+                <li>You may re-subscribe at any time at the current rate</li>
+              </ul>
+            </Section>
+
+            <Section title="6. Failed Payments">
+              <ul className="list-disc pl-6 space-y-1">
+                <li>If a recurring payment fails, we will attempt to process it again within 3 business days</li>
+                <li>If payment cannot be processed after 3 attempts, the subscription will be suspended</li>
+                <li>Access will be restored upon successful payment</li>
+                <li>No penalty fees are charged for failed payments</li>
+              </ul>
+            </Section>
+
+            <Section title="7. Price Changes">
+              <ul className="list-disc pl-6 space-y-1">
+                <li>We reserve the right to modify prices at any time</li>
+                <li>Existing subscribers will be notified at least 30 days before any price change</li>
+                <li>Price changes do not apply to the current billing period</li>
+                <li>You may cancel before the new price takes effect</li>
+              </ul>
+            </Section>
+
+            <Section title="8. Chargebacks and Disputes">
+              <p>If you have concerns about a charge:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Please contact us <strong className="text-white">before</strong> initiating a chargeback with your bank</li>
+                <li>We are committed to resolving all payment disputes fairly and promptly</li>
+                <li>Unauthorized chargebacks may result in account suspension</li>
+              </ul>
+            </Section>
+
+            <Section title="9. Business Information">
+              <div className="bg-zinc-800/50 rounded-lg p-4">
+                <p><strong className="text-white">Owner:</strong> Emil Aliyev</p>
+                <p><strong className="text-white">Tax ID (VOEN):</strong> 2306637202</p>
+                <p><strong className="text-white">Legal Address:</strong> Ganja city, Nizami district, Javadkhan street, 8D, apartment 2</p>
+                <p><strong className="text-white">Email:</strong> <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a></p>
+                <p><strong className="text-white">Phone:</strong> +994 55 388 66 10</p>
+              </div>
+            </Section>
+
+            <Section title="10. Contact Us">
+              <p>For any payment or cancellation inquiries, please contact us:</p>
+              <p className="mt-2">
+                <strong className="text-white">Email:</strong>{' '}
+                <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500 hover:text-amber-400">{SUPPORT_EMAIL}</a>
+              </p>
+              <p>
+                <strong className="text-white">Phone:</strong> +994 55 388 66 10
+              </p>
+            </Section>
+
+            <div className="mt-8 p-4 bg-zinc-800/50 rounded-lg text-center">
+              <p className="text-zinc-400 text-sm">
+                By making a purchase on Bull & Bear Trading Academy, you acknowledge that you have read and agree to this Cancellation & Payment Policy.
+              </p>
+            </div>
+          </div>
+        </Card3D>
+
+        <div className="text-center mt-8 flex justify-center gap-6">
+          <Link to="/terms-and-conditions" className="text-amber-500 hover:text-amber-400 text-sm">Terms of Service</Link>
+          <Link to="/refund-policy" className="text-amber-500 hover:text-amber-400 text-sm">Refund Policy</Link>
+        </div>
+      </div>
+    </PageWrapper>
+  );
+};
+
 
 // Content Protection Hook
 const useContentProtection = () => {
@@ -5083,6 +5498,8 @@ function App() {
               <Route path="/about" element={<AboutPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/terms-and-conditions" element={<TermsPage />} />
+              <Route path="/refund-policy" element={<RefundPolicyPage />} />
+              <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
             </Routes>
           </div>
           <Footer />
