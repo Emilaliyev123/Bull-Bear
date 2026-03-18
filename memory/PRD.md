@@ -281,14 +281,27 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - **User Request**: "Simplify the arbitrage scanner - cleaner, faster, easier to use"
 - **Implementation**:
   - Replaced complex adaptive scoring system with simple price-comparison scanner
-  - Hardcoded 50 major USDT pairs (BTC, ETH, SOL, XRP, DOGE, etc.)
+  - Top 1000 CoinMarketCap coins dynamically fetched (cached 5 min)
   - Clean table UI: Coin, Buy Exchange, Buy Price, Sell Exchange, Sell Price, Net Spread %, Est. Profit
   - 1% minimum net spread filter after all fees (trading + withdrawal + slippage)
   - Auto-refresh every 10 seconds
   - Sorted by highest net spread
   - Green (≥2%) / grey color coding
-  - Removed: scoring system, risk categories, stability tracking, volume filters, order book analysis, CoinMarketCap dependency
+  - Removed: scoring system, risk categories, stability tracking, volume filters, order book analysis
 - **Testing**: 14/14 backend tests passed, frontend fully verified
+- **Status**: ✅ IMPLEMENTED & TESTED
+
+### Legal Compliance Updates (Mar 18, 2026)
+- **Payment Security Notice**: Added to footer, products page, terms page, and cancellation policy page
+  - Text: "Our website does not store users' card information. All payments are processed through secure and encrypted payment systems."
+- **New Legal Pages**:
+  - Refund & Exchange Policy (/refund-policy) — 8 sections with professional legal content
+  - Cancellation & Payment Policy (/cancellation-policy) — 10 sections with payment security banner
+- **Payment Terms Checkbox**: Required on products page before purchase — blocks payment if unchecked
+- **Business Information** (Emil Aliyev, VOEN: 2306637202, Ganja city address) added to:
+  - About Us page, Support/Contact page, Terms page, Refund Policy page, Cancellation Policy page
+- **Footer updated**: Links to all legal pages, payment security notice, bottom navigation
+- **Testing**: 12/12 frontend tests passed
 - **Status**: ✅ IMPLEMENTED & TESTED
 
 ## Future Enhancements
