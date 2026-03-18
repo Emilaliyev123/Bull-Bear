@@ -637,7 +637,7 @@ const ProductsPage = () => {
     
     setLoading(productType);
     try {
-      // Create Epoint checkout session
+      // Create Yigim checkout session
       const response = await api.post('/epoint/checkout/create', {
         product_type: productType,
         origin_url: window.location.origin
@@ -4796,7 +4796,7 @@ const PrivacyPolicyPage = () => {
               <p><strong className="text-white">Personal Information:</strong></p>
               <ul className="list-disc pl-6 space-y-1">
                 <li>Name and email address (for account creation)</li>
-                <li>Payment information (processed securely via Epoint.az payment gateway)</li>
+                <li>Payment information (processed securely via Yigim.az payment gateway)</li>
                 <li>Account credentials (encrypted passwords)</li>
               </ul>
               
@@ -4846,7 +4846,7 @@ const PrivacyPolicyPage = () => {
             <Section title="5. Third-Party Services">
               <p>We work with trusted third-party service providers:</p>
               <ul className="list-disc pl-6 space-y-1">
-                <li><strong className="text-white">Epoint.az:</strong> Payment processing (Azerbaijan)</li>
+                <li><strong className="text-white">Yigim.az:</strong> Payment processing (Azerbaijan)</li>
                 <li><strong className="text-white">Stripe:</strong> International payment processing</li>
                 <li><strong className="text-white">Resend:</strong> Email delivery services</li>
                 <li><strong className="text-white">Hosting Provider:</strong> Secure cloud infrastructure</li>
@@ -5007,7 +5007,7 @@ const TermsPage = () => {
 
             <Section title="4. Payment Terms">
               <p><strong className="text-white">Pricing:</strong> All prices are displayed in USD (United States Dollar).</p>
-              <p className="mt-3"><strong className="text-white">Payment Processing:</strong> Payments are processed securely through Epoint.az payment gateway.</p>
+              <p className="mt-3"><strong className="text-white">Payment Processing:</strong> Payments are processed securely through Yigim.az payment gateway.</p>
               <p className="mt-3"><strong className="text-white">Subscriptions:</strong> Monthly subscriptions renew automatically unless cancelled before the renewal date.</p>
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 mt-3">
                 <p className="text-emerald-300 text-sm">
@@ -5018,13 +5018,13 @@ const TermsPage = () => {
 
             <Section title="5. Refund Policy">
               <div className="bg-zinc-800/50 rounded-lg p-4">
-                <p><strong className="text-white">Digital Products:</strong> Due to the nature of digital products, all sales are final once access has been granted.</p>
+                <p><strong className="text-white">Digital Products:</strong> All sales of one-time digital products (courses, books) are <strong className="text-red-400">final and non-refundable</strong>.</p>
                 <ul className="list-disc pl-6 space-y-1 mt-3">
-                  <li>One-time purchases (courses, books): No refunds after access is granted</li>
+                  <li>One-time purchases (courses, books): No refunds — all sales are final</li>
                   <li>Subscriptions: No refunds for partial months; cancel before renewal</li>
-                  <li>Technical issues: Contact support within 48 hours for assistance</li>
+                  <li>Technical issues: Contact support for assistance</li>
                 </ul>
-                <p className="mt-3 text-zinc-500 text-sm">Exceptions may apply where required by local consumer protection laws.</p>
+                <p className="mt-3 text-zinc-500 text-sm">For full details, see our <a href="/refund-policy" className="text-amber-500 hover:text-amber-400">Refund & Exchange Policy</a>.</p>
               </div>
             </Section>
 
@@ -5165,12 +5165,11 @@ const RefundPolicyPage = () => {
 
             <Section title="2. Refund Eligibility">
               <p><strong className="text-white">One-Time Purchases (Courses, Books):</strong></p>
-              <ul className="list-disc pl-6 space-y-1">
-                <li>Refund requests must be submitted within <strong className="text-white">48 hours</strong> of purchase</li>
-                <li>Refunds are only available if the content has <strong className="text-white">not been accessed or downloaded</strong></li>
-                <li>Once digital content has been viewed, streamed, or downloaded, the sale is considered final</li>
-                <li>Technical issues preventing access do not count as "content accessed" — contact support for assistance</li>
-              </ul>
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                <p className="text-red-300">
+                  <strong>All sales of one-time digital products (Trading Courses and Trading Book) are final and non-refundable.</strong> Due to the instant-access nature of digital content, no refunds will be issued once the purchase is completed, regardless of whether the content has been accessed.
+                </p>
+              </div>
               <p className="mt-4"><strong className="text-white">Subscription Services (Signals, Arbitrage Scanner):</strong></p>
               <ul className="list-disc pl-6 space-y-1">
                 <li>Subscriptions may be cancelled at any time before the next billing cycle</li>
@@ -5182,11 +5181,11 @@ const RefundPolicyPage = () => {
             <Section title="3. Non-Refundable Conditions">
               <p>Refunds will <strong className="text-white">NOT</strong> be issued in the following cases:</p>
               <ul className="list-disc pl-6 space-y-1">
-                <li>Content has been accessed, viewed, streamed, or downloaded</li>
-                <li>More than 48 hours have passed since the purchase</li>
+                <li>All one-time purchases (courses, books) — these are final sales</li>
+                <li>Subscription services for the current billing period</li>
                 <li>The user has violated our Terms of Service</li>
                 <li>Dissatisfaction with trading results (our products are educational, not investment advice)</li>
-                <li>Change of mind after accessing content</li>
+                <li>Change of mind after purchase</li>
               </ul>
             </Section>
 
@@ -5295,7 +5294,7 @@ const CancellationPolicyPage = () => {
               <p>We accept the following payment methods:</p>
               <ul className="list-disc pl-6 space-y-1">
                 <li>Visa and MasterCard credit/debit cards</li>
-                <li>Other payment methods supported by our payment processor (Epoint.az)</li>
+                <li>Other payment methods supported by our payment processor (Yigim.az)</li>
               </ul>
               <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 mt-3">
                 <p className="text-emerald-300 text-sm">
