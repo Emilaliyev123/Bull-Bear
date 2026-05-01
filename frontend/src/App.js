@@ -1320,6 +1320,13 @@ const CoursesPage = () => {
                         onError={(e) => console.error('Video error:', e.target.error)}
                       />
                     </div>
+                  ) : (hasAccess || selectedCourse.is_free) && !selectedCourse.video_url ? (
+                    <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
+                      <div className="text-center">
+                        <Upload className="text-zinc-500 mx-auto mb-2" size={48} />
+                        <p className="text-zinc-400">Video not yet uploaded for this lesson</p>
+                      </div>
+                    </div>
                   ) : (
                     <div className="aspect-video bg-zinc-800 rounded-lg mb-4 flex items-center justify-center">
                       <div className="text-center">
