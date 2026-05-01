@@ -47,6 +47,21 @@ const getMediaUrl = (url) => {
   return url;
 };
 
+// Convert video URL to streaming endpoint for proper Range request support
+const getVideoStreamUrl = (url) => {
+  if (!url) return '';
+  // Extract filename from various URL formats
+  let filename = '';
+  if (url.includes('/uploads/videos/')) {
+    filename = url.split('/uploads/videos/').pop();
+  } else if (url.includes('/stream/video/')) {
+    filename = url.split('/stream/video/').pop();
+  } else {
+    return getMediaUrl(url);
+  }
+  return `${BACKEND_URL}/api/stream/video/${filename}`;
+};
+
 // Push Notification Helper
 const usePushNotifications = () => {
   const [isSupported, setIsSupported] = useState(false);
@@ -1301,7 +1316,7 @@ const CoursesPage = () => {
                         playsInline
                         autoPlay={false}
                         className="w-full h-full rounded-lg protected-video"
-                        src={getMediaUrl(selectedCourse.video_url)}
+                        src={getVideoStreamUrl(selectedCourse.video_url)}
                         onError={(e) => console.error('Video error:', e.target.error)}
                       />
                     </div>
