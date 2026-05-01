@@ -3076,8 +3076,14 @@ const AdminPage = () => {
                 </div>
 
                 <div className="flex gap-3">
-                  <GoldButton type="submit">
-                    {editingCourse ? <><Edit size={18} /> Update Course</> : <><PlusCircle size={18} /> Add Course</>}
+                  <GoldButton type="submit" disabled={uploading}>
+                    {uploading ? (
+                      <><Loader2 className="animate-spin" size={18} /> Wait for upload...</>
+                    ) : editingCourse ? (
+                      <><Edit size={18} /> Update Course</>
+                    ) : (
+                      <><PlusCircle size={18} /> Add Course</>
+                    )}
                   </GoldButton>
                   {editingCourse && (
                     <GoldButton type="button" variant="secondary" onClick={() => {
