@@ -2568,6 +2568,8 @@ const AdminPage = () => {
   const [book, setBook] = useState(null);
   const [editingCourse, setEditingCourse] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState(''); // 'uploading' | 'converting' | ''
   
   // Form states
   const [courseForm, setCourseForm] = useState({ title: '', description: '', category: 'beginner', video_url: '', thumbnail: '', duration: '', is_free: false });
@@ -2605,45 +2607,58 @@ const AdminPage = () => {
     formData.append('file', file);
     
     setUploading(true);
+    setUploadProgress(0);
     
-    // Show converting message for video files
     const isVideo = type === 'video';
     const fileExt = file.name.split('.').pop().toLowerCase();
     const needsConversion = isVideo && fileExt !== 'mp4';
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     
-    if (needsConversion) {
-      toast.info(`Uploading & converting ${fileExt.toUpperCase()} to MP4... This may take a few minutes.`);
+    if (isVideo) {
+      setUploadStage('uploading');
+      toast.info(`Uploading ${fileExt.toUpperCase()} video (${fileSizeMB} MB)...`);
     }
     
     try {
-      console.log(`Uploading ${type}:`, file.name, file.size);
+      console.log(`Uploading ${type}:`, file.name, `${fileSizeMB} MB`);
       const response = await axios.post(`${API}/upload/${type}`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        timeout: 600000, // 10 minute timeout for video conversion
+        timeout: 900000, // 15 minute timeout
         onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          console.log(`Upload progress: ${percentCompleted}%`);
+          const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(pct);
+          if (pct >= 100 && needsConversion) {
+            setUploadStage('converting');
+          }
         }
       });
       console.log('Upload response:', response.data);
       setUploading(false);
+      setUploadProgress(0);
+      setUploadStage('');
       
-      // Show conversion result for videos
-      if (isVideo && response.data.converted) {
-        toast.success(`Video converted from ${response.data.original_format} to MP4 successfully!`);
-      } else if (isVideo && response.data.error) {
-        toast.warning(`Video uploaded but conversion failed: ${response.data.error}`);
+      if (isVideo) {
+        if (response.data.converted) {
+          toast.success(`Converted ${response.data.original_format.toUpperCase()} to MP4${response.data.size_mb ? ` (${response.data.size_mb} MB)` : ''}`);
+        } else if (response.data.optimized) {
+          toast.success('Video optimized for web playback');
+        } else if (response.data.error) {
+          toast.warning(`Uploaded but: ${response.data.error}`);
+        } else {
+          toast.success('Video uploaded successfully!');
+        }
       }
       
-      // Store relative URL to avoid hardcoding preview URLs that may change
       return response.data.url;
     } catch (e) {
       setUploading(false);
+      setUploadProgress(0);
+      setUploadStage('');
       console.error('Upload error:', e);
-      console.error('Error response:', e.response?.data);
-      toast.error('Upload failed: ' + (e.response?.data?.detail || e.message));
+      const errorMsg = e.response?.data?.detail || e.message;
+      toast.error('Upload failed: ' + errorMsg);
       return null;
     }
   };
@@ -2652,17 +2667,16 @@ const AdminPage = () => {
     const file = e.target.files[0];
     if (!file) return;
     
+    const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
     const fileExt = file.name.split('.').pop().toLowerCase();
-    const needsConversion = fileExt !== 'mp4';
     
-    if (needsConversion) {
-      toast.info(`${fileExt.toUpperCase()} file detected. Will auto-convert to MP4 for better playback.`);
+    if (fileExt !== 'mp4') {
+      toast.info(`${fileExt.toUpperCase()} detected (${fileSizeMB} MB). Will auto-convert to MP4.`);
     }
     
     const url = await uploadFile(file, 'video');
     if (url) {
       setCourseForm(prev => ({...prev, video_url: url}));
-      toast.success('Video uploaded successfully!');
     }
   };
 
@@ -3000,16 +3014,33 @@ const AdminPage = () => {
                     <div className="space-y-2">
                       <input
                         type="file"
-                        accept="video/*,.mp4,.mov,.avi,.mkv,.webm"
+                        accept="video/*,.mp4,.mov,.avi,.mkv,.webm,.flv,.wmv,.m4v,.3gp,.ts,.mts,.mpg,.mpeg"
                         onChange={handleVideoUpload}
                         className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-amber-500 file:text-black file:font-semibold hover:file:bg-amber-400 file:cursor-pointer"
                         disabled={uploading}
                       />
-                      <p className="text-zinc-500 text-xs">MP4, MOV, AVI, MKV, WebM accepted. Non-MP4 files auto-convert to MP4.</p>
+                      <p className="text-zinc-500 text-xs">All video formats accepted (MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V, 3GP, TS, MPG, MPEG). Non-MP4 files are automatically converted.</p>
                       {uploading && (
-                        <div className="flex items-center gap-2 text-amber-500">
-                          <div className="animate-spin w-4 h-4 border-2 border-amber-500 border-t-transparent rounded-full"></div>
-                          Uploading & converting video (may take a few minutes)...
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-amber-500 text-sm">
+                            <Loader2 className="animate-spin" size={16} />
+                            {uploadStage === 'converting' 
+                              ? 'Converting to MP4 (please wait)...'
+                              : `Uploading... ${uploadProgress}%`}
+                          </div>
+                          <div className="w-full bg-zinc-800 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all duration-300 ${
+                                uploadStage === 'converting' 
+                                  ? 'bg-amber-500 animate-pulse w-full' 
+                                  : 'bg-emerald-500'
+                              }`}
+                              style={uploadStage !== 'converting' ? { width: `${uploadProgress}%` } : {}}
+                            />
+                          </div>
+                          {uploadStage === 'converting' && (
+                            <p className="text-zinc-500 text-xs">Server is converting your video to MP4 format. This may take a few minutes for large files.</p>
+                          )}
                         </div>
                       )}
                       <input

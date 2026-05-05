@@ -188,3 +188,6 @@ frontend/node_modules/.cache/default-development/1.pack
 # Environment files
 *.env
 *.env.*
+backend/uploads/videos/8d37a6b2-aa54-4d9a-9bb5-889d0008254a.mov
+backend/uploads/videos/391415c5-e79b-4f4d-8d55-3b8018505cca.mov
+backend/uploads/videos/e3bddf8d-1146-443a-ace8-4cdd347449b4.mov

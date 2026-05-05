@@ -2445,72 +2445,183 @@ async def upload_video(
     admin: dict = Depends(require_admin),
     background_tasks: BackgroundTasks = None
 ):
-    """Upload a video file with automatic MOV to MP4 conversion"""
-    allowed_extensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+    """Upload any video file with automatic conversion to web-compatible MP4"""
+    # Accept virtually all video formats
+    allowed_extensions = [
+        '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v',
+        '.3gp', '.ts', '.mts', '.mpg', '.mpeg', '.vob', '.ogv', '.f4v',
+        '.rm', '.rmvb', '.asf', '.divx', '.mxf', '.m2ts', '.m2v', '.dat'
+    ]
     file_ext = Path(file.filename).suffix.lower()
     
+    if not file_ext:
+        raise HTTPException(status_code=400, detail="File must have an extension")
+    
     if file_ext not in allowed_extensions:
-        raise HTTPException(status_code=400, detail=f"Invalid file type. Allowed: {allowed_extensions}")
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported format '{file_ext}'. Supported: MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V, 3GP, TS, MPG, MPEG, and more."
+        )
     
     # Generate unique filename
     base_name = str(uuid.uuid4())
     temp_filename = f"{base_name}{file_ext}"
     temp_path = UPLOADS_DIR / "videos" / temp_filename
     
-    # Save original file
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Save uploaded file in chunks (handles large files)
+    try:
+        file_size = 0
+        with open(temp_path, "wb") as buffer:
+            while chunk := await file.read(1024 * 1024):  # 1MB chunks
+                buffer.write(chunk)
+                file_size += len(chunk)
+        logger.info(f"Saved {temp_filename} ({file_size / (1024*1024):.1f} MB)")
+    except Exception as e:
+        logger.error(f"Failed to save upload: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file")
     
-    # If not MP4, convert to MP4
-    if file_ext != '.mp4':
+    # Validate it's actually a video using ffprobe
+    try:
+        probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+             str(temp_path)],
+            capture_output=True, text=True, timeout=30
+        )
+        if 'video' not in probe.stdout:
+            os.remove(temp_path)
+            raise HTTPException(status_code=400, detail="File does not contain a valid video stream")
+    except subprocess.TimeoutExpired:
+        pass  # Skip validation if ffprobe times out, try conversion anyway
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Skip validation on error, try conversion anyway
+    
+    # Check if audio stream exists (some formats may not have audio)
+    has_audio = False
+    try:
+        audio_probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+             str(temp_path)],
+            capture_output=True, text=True, timeout=30
+        )
+        has_audio = 'audio' in audio_probe.stdout
+    except Exception:
+        has_audio = True  # Assume audio exists; ffmpeg will handle if not
+    
+    # Convert to web-compatible MP4 (even MP4 files may need re-encoding for browser support)
+    needs_conversion = file_ext != '.mp4'
+    
+    if needs_conversion:
         output_filename = f"{base_name}.mp4"
         output_path = UPLOADS_DIR / "videos" / output_filename
         
-        logger.info(f"Converting {temp_filename} to MP4...")
+        logger.info(f"Converting {temp_filename} to MP4 (has_audio={has_audio})...")
+        
+        # Build ffmpeg command with maximum compatibility
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', str(temp_path),
+            '-c:v', 'libx264',           # H.264 video codec (universal browser support)
+            '-preset', 'fast',            # Balance speed vs compression
+            '-crf', '23',                 # Good quality (18-28 range)
+            '-pix_fmt', 'yuv420p',        # Required for browser compatibility
+            '-movflags', '+faststart',    # Enable web streaming (moov atom at start)
+            '-max_muxing_queue_size', '9999',  # Prevent muxing errors
+        ]
+        
+        # Handle audio
+        if has_audio:
+            ffmpeg_cmd.extend(['-c:a', 'aac', '-b:a', '128k'])
+        else:
+            ffmpeg_cmd.extend(['-an'])  # No audio stream
+        
+        # Scale down to max 1080p if larger (saves space, faster streaming)
+        ffmpeg_cmd.extend([
+            '-vf', 'scale=min(iw\\,1920):min(ih\\,1080):force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2',
+        ])
+        
+        ffmpeg_cmd.extend(['-y', str(output_path)])
         
         try:
-            # Run ffmpeg conversion
-            result = subprocess.run([
-                'ffmpeg', '-i', str(temp_path),
-                '-c:v', 'libx264',      # H.264 video codec
-                '-c:a', 'aac',          # AAC audio codec
-                '-preset', 'fast',       # Fast encoding
-                '-crf', '23',            # Quality (lower = better, 18-28 is good)
-                '-movflags', '+faststart',  # Enable streaming
-                '-y',                    # Overwrite output
-                str(output_path)
-            ], capture_output=True, text=True, timeout=600)  # 10 min timeout
+            result = subprocess.run(
+                ffmpeg_cmd,
+                capture_output=True, text=True, timeout=900  # 15 min timeout
+            )
             
-            if result.returncode == 0:
-                # Conversion successful - delete original and return MP4
+            if result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                # Conversion successful
                 os.remove(temp_path)
-                logger.info(f"Successfully converted {temp_filename} to {output_filename}")
+                output_size = output_path.stat().st_size / (1024 * 1024)
+                logger.info(f"Converted {temp_filename} -> {output_filename} ({output_size:.1f} MB)")
                 file_url = f"/api/uploads/videos/{output_filename}"
                 return {
                     "url": file_url, 
                     "filename": output_filename,
                     "converted": True,
-                    "original_format": file_ext
+                    "original_format": file_ext,
+                    "size_mb": round(output_size, 1)
                 }
             else:
-                # Conversion failed - keep original
-                logger.error(f"FFmpeg conversion failed: {result.stderr}")
-                file_url = f"/api/uploads/videos/{temp_filename}"
-                return {
-                    "url": file_url, 
-                    "filename": temp_filename,
-                    "converted": False,
-                    "error": "Conversion failed, using original file"
-                }
+                # First attempt failed, try with simpler options
+                logger.warning(f"FFmpeg conversion failed (attempt 1), trying fallback: {result.stderr[:200]}")
                 
+                # Fallback: simpler encoding without scaling filter
+                fallback_cmd = [
+                    'ffmpeg', '-i', str(temp_path),
+                    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                    '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+                    '-max_muxing_queue_size', '9999',
+                    '-c:a', 'aac' if has_audio else '-an',
+                    '-y', str(output_path)
+                ]
+                if not has_audio:
+                    fallback_cmd = [x for x in fallback_cmd if x != '-an']
+                    # Re-add -an properly
+                    idx = fallback_cmd.index('-y')
+                    fallback_cmd.insert(idx, '-an')
+                
+                result2 = subprocess.run(
+                    fallback_cmd,
+                    capture_output=True, text=True, timeout=900
+                )
+                
+                if result2.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                    os.remove(temp_path)
+                    output_size = output_path.stat().st_size / (1024 * 1024)
+                    logger.info(f"Fallback conversion succeeded: {output_filename} ({output_size:.1f} MB)")
+                    file_url = f"/api/uploads/videos/{output_filename}"
+                    return {
+                        "url": file_url,
+                        "filename": output_filename,
+                        "converted": True,
+                        "original_format": file_ext,
+                        "size_mb": round(output_size, 1)
+                    }
+                else:
+                    # Both attempts failed - keep original
+                    logger.error(f"Both conversion attempts failed: {result2.stderr[:200]}")
+                    if output_path.exists():
+                        os.remove(output_path)
+                    file_url = f"/api/uploads/videos/{temp_filename}"
+                    return {
+                        "url": file_url,
+                        "filename": temp_filename,
+                        "converted": False,
+                        "error": "Conversion failed, original file kept. It may not play in all browsers."
+                    }
+                    
         except subprocess.TimeoutExpired:
             logger.error(f"Video conversion timed out for {temp_filename}")
+            if output_path.exists():
+                os.remove(output_path)
             file_url = f"/api/uploads/videos/{temp_filename}"
             return {
                 "url": file_url, 
                 "filename": temp_filename,
                 "converted": False,
-                "error": "Conversion timed out"
+                "error": "Conversion timed out (video too large). Original file kept."
             }
         except Exception as e:
             logger.error(f"Video conversion error: {str(e)}")
@@ -2522,9 +2633,38 @@ async def upload_video(
                 "error": str(e)
             }
     
-    # Already MP4 - just return
-    file_url = f"/api/uploads/videos/{temp_filename}"
-    return {"url": file_url, "filename": temp_filename, "converted": False}
+    # Already MP4 - verify it's web-compatible, re-mux if needed
+    try:
+        # Check if MP4 has faststart (moov atom at beginning)
+        probe_result = subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=format_name',
+             '-of', 'csv=p=0', str(temp_path)],
+            capture_output=True, text=True, timeout=30
+        )
+        
+        # Re-mux to ensure faststart and browser compatibility
+        output_filename = f"{base_name}_web.mp4"
+        output_path = UPLOADS_DIR / "videos" / output_filename
+        
+        remux = subprocess.run([
+            'ffmpeg', '-i', str(temp_path),
+            '-c', 'copy', '-movflags', '+faststart',
+            '-y', str(output_path)
+        ], capture_output=True, text=True, timeout=120)
+        
+        if remux.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+            os.remove(temp_path)
+            file_url = f"/api/uploads/videos/{output_filename}"
+            return {"url": file_url, "filename": output_filename, "converted": False, "optimized": True}
+        else:
+            # Remux failed, use original
+            if output_path.exists():
+                os.remove(output_path)
+            file_url = f"/api/uploads/videos/{temp_filename}"
+            return {"url": file_url, "filename": temp_filename, "converted": False}
+    except Exception:
+        file_url = f"/api/uploads/videos/{temp_filename}"
+        return {"url": file_url, "filename": temp_filename, "converted": False}
 
 
 @api_router.post("/convert/video")
