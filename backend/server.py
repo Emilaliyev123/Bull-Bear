@@ -2480,39 +2480,56 @@ async def upload_video(
         logger.error(f"Failed to save upload: {e}")
         raise HTTPException(status_code=500, detail="Failed to save uploaded file")
     
+    # Check if ffmpeg is available
+    import shutil
+    ffmpeg_available = bool(shutil.which('ffmpeg'))
+    
     # Validate it's actually a video using ffprobe
-    try:
-        probe = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
-             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
-             str(temp_path)],
-            capture_output=True, text=True, timeout=30
-        )
-        if 'video' not in probe.stdout:
-            os.remove(temp_path)
-            raise HTTPException(status_code=400, detail="File does not contain a valid video stream")
-    except subprocess.TimeoutExpired:
-        pass  # Skip validation if ffprobe times out, try conversion anyway
-    except HTTPException:
-        raise
-    except Exception:
-        pass  # Skip validation on error, try conversion anyway
+    if ffmpeg_available:
+        try:
+            probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                 '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+                 str(temp_path)],
+                capture_output=True, text=True, timeout=30
+            )
+            if 'video' not in probe.stdout:
+                os.remove(temp_path)
+                raise HTTPException(status_code=400, detail="File does not contain a valid video stream")
+        except subprocess.TimeoutExpired:
+            pass
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     
     # Check if audio stream exists (some formats may not have audio)
-    has_audio = False
-    try:
-        audio_probe = subprocess.run(
-            ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
-             '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
-             str(temp_path)],
-            capture_output=True, text=True, timeout=30
-        )
-        has_audio = 'audio' in audio_probe.stdout
-    except Exception:
-        has_audio = True  # Assume audio exists; ffmpeg will handle if not
+    has_audio = True
+    if ffmpeg_available:
+        try:
+            audio_probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                 '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+                 str(temp_path)],
+                capture_output=True, text=True, timeout=30
+            )
+            has_audio = 'audio' in audio_probe.stdout
+        except Exception:
+            has_audio = True
     
     # Convert to web-compatible MP4 (even MP4 files may need re-encoding for browser support)
     needs_conversion = file_ext != '.mp4'
+    
+    # If ffmpeg not available, skip conversion and return original
+    if not ffmpeg_available and needs_conversion:
+        logger.warning(f"ffmpeg not available, keeping original {file_ext} file without conversion")
+        file_url = f"/api/uploads/videos/{temp_filename}"
+        return {
+            "url": file_url,
+            "filename": temp_filename,
+            "converted": False,
+            "error": "Video saved but not converted (ffmpeg unavailable). It may not play in all browsers."
+        }
     
     if needs_conversion:
         output_filename = f"{base_name}.mp4"
@@ -2634,6 +2651,10 @@ async def upload_video(
             }
     
     # Already MP4 - verify it's web-compatible, re-mux if needed
+    if not ffmpeg_available:
+        file_url = f"/api/uploads/videos/{temp_filename}"
+        return {"url": file_url, "filename": temp_filename, "converted": False}
+    
     try:
         # Check if MP4 has faststart (moov atom at beginning)
         probe_result = subprocess.run(
@@ -2794,6 +2815,22 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup():
+    # Ensure ffmpeg is installed for video conversion
+    import shutil
+    if not shutil.which('ffmpeg'):
+        logger.warning("ffmpeg not found, installing...")
+        try:
+            subprocess.run(['apt-get', 'update', '-qq'], capture_output=True, timeout=60)
+            subprocess.run(['apt-get', 'install', '-y', '-qq', 'ffmpeg'], capture_output=True, timeout=120)
+            if shutil.which('ffmpeg'):
+                logger.info("ffmpeg installed successfully")
+            else:
+                logger.error("ffmpeg installation failed")
+        except Exception as e:
+            logger.error(f"Failed to install ffmpeg: {e}")
+    else:
+        logger.info(f"ffmpeg found at {shutil.which('ffmpeg')}")
+
     # Create default admin user if not exists
     admin = await db.users.find_one({"email": "admin@bullbear.com"})
     if not admin:
