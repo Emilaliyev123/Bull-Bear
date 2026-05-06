@@ -1324,6 +1324,17 @@ async def create_yigim_checkout(
         base_url = base_url[:-4]
     callback_url = f"{base_url}/api/yigim/callback"
 
+    # Persist transaction BEFORE calling Yigim so failed attempts are auditable
+    transaction = YigimTransactionModel(
+        reference=reference,
+        user_id=user['id'],
+        user_email=user['email'],
+        product_type=data.product_type,
+        product_name=product['name'],
+        amount=product['price'],
+    )
+    await db.yigim_transactions.insert_one(transaction.model_dump())
+
     result = await yigim.create_payment(
         reference=reference,
         amount=product['price'],
@@ -1334,22 +1345,38 @@ async def create_yigim_checkout(
     )
 
     if not result.get("success"):
-        logger.error(f"Yigim checkout creation failed: {result}")
-        raise HTTPException(
-            status_code=500,
-            detail=result.get("error", "Failed to create payment session")
+        # Mark the transaction as failed for auditability
+        await db.yigim_transactions.update_one(
+            {"reference": reference},
+            {"$set": {
+                "status": "failed",
+                "payment_status": "creation_failed",
+                "yigim_message": result.get("error"),
+                "raw_status_data": result,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }}
         )
+        logger.error(f"Yigim checkout creation failed: {result}")
 
-    transaction = YigimTransactionModel(
-        reference=reference,
-        user_id=user['id'],
-        user_email=user['email'],
-        product_type=data.product_type,
-        product_name=product['name'],
-        amount=product['price'],
-    )
-
-    await db.yigim_transactions.insert_one(transaction.model_dump())
+        # User-friendly message — different language depending on the upstream error
+        upstream_error = (result.get("error") or "").lower()
+        if "merchant" in upstream_error:
+            user_msg = (
+                "Payment provider not yet activated. The Yigim merchant account "
+                "for this site is awaiting approval. Please contact support to "
+                "complete your purchase."
+            )
+        elif "signature" in upstream_error:
+            user_msg = (
+                "Payment configuration error. Please contact support — our team "
+                "has been notified."
+            )
+        else:
+            user_msg = (
+                f"Could not start payment: {result.get('error', 'Unknown error')}. "
+                "Please try again or contact support."
+            )
+        raise HTTPException(status_code=502, detail=user_msg)
 
     logger.info(f"Yigim checkout created: ref={reference}, user={user['email']}, amount=${product['price']}")
 

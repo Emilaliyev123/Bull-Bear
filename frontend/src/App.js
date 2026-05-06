@@ -665,7 +665,8 @@ const ProductsPage = () => {
       }
     } catch (e) {
       console.error('Payment error:', e);
-      toast.error('Payment initialization failed. Please try again.');
+      const detail = e?.response?.data?.detail || 'Payment initialization failed. Please try again.';
+      toast.error(detail, { duration: 7000 });
       setLoading(null);
     }
   };
@@ -1751,7 +1752,8 @@ const ArbitragePage = () => {
         window.location.href = response.data.redirect_url;
       }
     } catch (e) {
-      toast.error('Failed to start checkout');
+      const detail = e?.response?.data?.detail || 'Failed to start checkout';
+      toast.error(detail, { duration: 6000 });
     }
   };
 
