@@ -20,7 +20,8 @@ import jwt
 import bcrypt
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-from epoint_service import create_epoint_service, EpointService
+from fastapi.responses import RedirectResponse
+from yigim_service import YigimService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -45,11 +46,14 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 # Stripe Settings
 STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', '')
 
-# Epoint Payment Gateway Settings
-EPOINT_PUBLIC_KEY = os.environ.get('EPOINT_PUBLIC_KEY', '')
-EPOINT_PRIVATE_KEY = os.environ.get('EPOINT_PRIVATE_KEY', '')
+# Yigim.az (MAGNET) Payment Gateway Settings
+YIGIM_MERCHANT = os.environ.get('YIGIM_MERCHANT', '')
+YIGIM_API_KEY = os.environ.get('YIGIM_API_KEY', '')
+YIGIM_BILLER = os.environ.get('YIGIM_BILLER', '')
+YIGIM_TEMPLATE = os.environ.get('YIGIM_TEMPLATE', 'default')
+YIGIM_SANDBOX = os.environ.get('YIGIM_SANDBOX', 'true').lower() == 'true'
 
-# Product pricing in USD for Epoint
+# Product pricing in USD for Yigim
 PRODUCTS_USD = {
     "course": {"name": "Trading Courses", "price": 49.90, "type": "one_time"},
     "book": {"name": "Trading Book", "price": 29.90, "type": "one_time"},
@@ -1138,243 +1142,259 @@ async def stripe_webhook(request: Request):
         logger.error(f"Webhook error: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-# ============ EPOINT PAYMENT ROUTES (Azerbaijan) ============
+# ============ YIGIM PAYMENT ROUTES (Azerbaijan) ============
 
-class EpointCheckoutRequest(BaseModel):
+class YigimCheckoutRequest(BaseModel):
     product_type: str
     origin_url: str
 
-class EpointTransactionModel(BaseModel):
-    """Epoint transaction record"""
+class YigimTransactionModel(BaseModel):
+    """Yigim transaction record"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    order_id: str
+    reference: str  # Yigim payment reference (also used as order_id externally)
     user_id: str
     user_email: str
     product_type: str
     product_name: str
     amount: float
     currency: str = "USD"
+    currency_code: int = 840  # ISO 4217
     status: str = "pending"  # pending, success, failed
     payment_status: str = "initiated"
-    transaction_id: Optional[str] = None
-    bank_transaction: Optional[str] = None
-    rrn: Optional[str] = None
-    epoint_code: Optional[str] = None
-    epoint_message: Optional[str] = None
-    raw_callback_data: Optional[Dict] = None
+    yigim_status_code: Optional[str] = None  # "00" = approved
+    yigim_message: Optional[str] = None
+    raw_status_data: Optional[Dict] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: Optional[str] = None
 
-def get_epoint_service(request: Request) -> EpointService:
-    """Get configured Epoint service instance"""
-    if not EPOINT_PUBLIC_KEY or not EPOINT_PRIVATE_KEY:
+def get_yigim_service() -> YigimService:
+    """Get configured Yigim service instance"""
+    if not YIGIM_MERCHANT or not YIGIM_API_KEY:
         raise HTTPException(
-            status_code=500, 
-            detail="Epoint payment gateway not configured. Please contact support."
+            status_code=500,
+            detail="Yigim payment gateway not configured. Please contact support."
         )
-    
-    # Get base URL from request for callbacks
-    base_url = str(request.base_url).rstrip('/')
-    # Remove /api suffix if present
-    if base_url.endswith('/api'):
-        base_url = base_url[:-4]
-    
-    return create_epoint_service(
-        public_key=EPOINT_PUBLIC_KEY,
-        private_key=EPOINT_PRIVATE_KEY,
-        base_url=base_url
+
+    return YigimService(
+        merchant=YIGIM_MERCHANT,
+        api_key=YIGIM_API_KEY,
+        biller=YIGIM_BILLER or YIGIM_MERCHANT,
+        template=YIGIM_TEMPLATE,
+        base_url="",
+        sandbox=YIGIM_SANDBOX
     )
 
-@api_router.post("/epoint/checkout/create")
-async def create_epoint_checkout(
-    request: Request, 
-    data: EpointCheckoutRequest, 
+async def grant_yigim_entitlement(transaction: dict) -> bool:
+    """
+    Idempotently grant entitlement for a successful Yigim payment.
+    Returns True if entitlement was newly granted, False if already granted.
+    """
+    reference = transaction['reference']
+    user_id = transaction['user_id']
+    product_type = transaction['product_type']
+
+    # Idempotency check on purchases collection
+    existing_purchase = await db.purchases.find_one({
+        "user_id": user_id,
+        "yigim_reference": reference
+    })
+    if existing_purchase:
+        return False
+
+    # Create purchase record
+    purchase = Purchase(
+        user_id=user_id,
+        product_type=product_type,
+        amount=transaction['amount'],
+        status="completed"
+    )
+    purchase_dict = purchase.model_dump()
+    purchase_dict['yigim_reference'] = reference
+    purchase_dict['currency'] = 'USD'
+    purchase_dict['payment_method'] = 'yigim'
+    await db.purchases.insert_one(purchase_dict)
+
+    # Grant user access flags
+    update_user_data = {}
+    if product_type == "course":
+        update_user_data['course_access'] = True
+    elif product_type == "book":
+        update_user_data['book_access'] = True
+    elif product_type == "signals":
+        update_user_data['signals_subscription'] = True
+        update_user_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    elif product_type == "arbitrage":
+        update_user_data['arbitrage_subscription'] = True
+        update_user_data['arbitrage_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+
+    if update_user_data:
+        await db.users.update_one(
+            {"id": user_id},
+            {"$set": update_user_data}
+        )
+
+    logger.info(f"Yigim entitlement granted: ref={reference}, user={user_id}, product={product_type}")
+
+    # Send confirmation email asynchronously
+    try:
+        user = await db.users.find_one({"id": user_id}, {"_id": 0})
+        if user and user.get('email'):
+            product_info = PRODUCTS_USD.get(product_type, {})
+            asyncio.create_task(send_payment_confirmation_email(
+                user['email'],
+                user.get('name', 'Customer'),
+                reference,
+                product_info.get('name', product_type),
+                transaction['amount'],
+                'USD'
+            ))
+    except Exception as email_error:
+        logger.error(f"Failed to send confirmation email: {email_error}")
+
+    return True
+
+
+async def _refresh_yigim_status(reference: str) -> dict:
+    """Re-verify a Yigim transaction status. Updates DB and grants entitlement on success.
+    Returns the latest transaction document.
+    """
+    transaction = await db.yigim_transactions.find_one(
+        {"reference": reference},
+        {"_id": 0}
+    )
+    if not transaction:
+        return None
+
+    if transaction.get("status") == "success":
+        return transaction
+
+    yigim = get_yigim_service()
+    status_data = await yigim.get_payment_status(reference)
+    yigim_status = status_data.get("status")
+
+    update_data = {
+        "yigim_status_code": yigim_status,
+        "yigim_message": status_data.get("message"),
+        "raw_status_data": status_data,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    if yigim.is_payment_approved(yigim_status):
+        update_data["status"] = "success"
+        update_data["payment_status"] = "paid"
+    elif yigim_status in ["S0", "S1", None]:
+        # Still pending / waiting for input — don't change overall status
+        pass
+    else:
+        update_data["status"] = "failed"
+        update_data["payment_status"] = "failed"
+
+    await db.yigim_transactions.update_one(
+        {"reference": reference},
+        {"$set": update_data}
+    )
+    transaction.update(update_data)
+
+    if update_data.get("status") == "success":
+        await grant_yigim_entitlement(transaction)
+
+    return transaction
+
+
+@api_router.post("/yigim/checkout/create")
+async def create_yigim_checkout(
+    request: Request,
+    data: YigimCheckoutRequest,
     user: dict = Depends(get_current_user)
 ):
-    """Create an Epoint payment session"""
-    
-    # Validate product type
+    """Create a Yigim payment session"""
     if data.product_type not in PRODUCTS_USD:
         raise HTTPException(status_code=400, detail="Invalid product type")
-    
+
     product = PRODUCTS_USD[data.product_type]
-    
-    # Generate unique order ID
-    order_id = f"BB-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
-    
-    # Get Epoint service
-    epoint = get_epoint_service(request)
-    
-    # Create payment request with English language and USD
-    result = await epoint.create_payment_request(
-        order_id=order_id,
+
+    # Generate unique reference (used as order_id externally)
+    reference = f"BB-{uuid.uuid4().hex[:8].upper()}-{int(datetime.now().timestamp())}"
+
+    yigim = get_yigim_service()
+
+    # Build callback URL — Yigim redirects user here with ?reference=...
+    base_url = str(request.base_url).rstrip('/')
+    if base_url.endswith('/api'):
+        base_url = base_url[:-4]
+    callback_url = f"{base_url}/api/yigim/callback"
+
+    result = await yigim.create_payment(
+        reference=reference,
         amount=product['price'],
+        currency=840,  # USD
         description=f"Bull & Bear - {product['name']}",
-        language="en"  # Always English
+        language="en",
+        callback_url=callback_url
     )
-    
+
     if not result.get("success"):
-        logger.error(f"Epoint checkout creation failed: {result}")
+        logger.error(f"Yigim checkout creation failed: {result}")
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=result.get("error", "Failed to create payment session")
         )
-    
-    # Create transaction record
-    transaction = EpointTransactionModel(
-        order_id=order_id,
+
+    transaction = YigimTransactionModel(
+        reference=reference,
         user_id=user['id'],
         user_email=user['email'],
         product_type=data.product_type,
         product_name=product['name'],
         amount=product['price'],
-        transaction_id=result.get("transaction_id")
     )
-    
-    await db.epoint_transactions.insert_one(transaction.model_dump())
-    
-    logger.info(f"Epoint checkout created: order_id={order_id}, user={user['email']}, amount=${product['price']}")
-    
+
+    await db.yigim_transactions.insert_one(transaction.model_dump())
+
+    logger.info(f"Yigim checkout created: ref={reference}, user={user['email']}, amount=${product['price']}")
+
     return {
         "success": True,
-        "redirect_url": result.get("redirect_url"),
-        "order_id": order_id,
+        "redirect_url": result.get("url"),
+        "order_id": reference,
         "amount": product['price'],
         "currency": "USD"
     }
 
-@api_router.post("/epoint/callback")
-async def epoint_callback(
-    request: Request,
-    data: str = Form(...),
-    signature: str = Form(...)
-):
+
+@api_router.get("/yigim/callback")
+async def yigim_callback(reference: str):
     """
-    Handle Epoint payment callback (result_url)
-    
-    This endpoint receives POST requests from Epoint after payment completion.
-    It validates the signature and updates the order status.
+    Handle Yigim payment callback / user redirect.
+
+    Yigim sends a GET request to this URL with ?reference=XXX after payment.
+    We verify the payment status server-side, grant entitlements (idempotent),
+    and redirect the user to the appropriate frontend page.
     """
-    logger.info(f"Epoint callback received: data={data[:50]}..., signature={signature[:20]}...")
-    
+    logger.info(f"Yigim callback received: reference={reference}")
+
+    transaction = await db.yigim_transactions.find_one(
+        {"reference": reference},
+        {"_id": 0}
+    )
+
+    if not transaction:
+        logger.error(f"Yigim callback: transaction not found for reference={reference}")
+        return RedirectResponse(url=f"/payment-failed?order_id={reference}", status_code=303)
+
     try:
-        # Get Epoint service for signature validation
-        epoint = get_epoint_service(request)
-        
-        # Parse and validate callback
-        callback_data = epoint.parse_callback(data, signature)
-        
-        if not callback_data.get("valid"):
-            logger.error("Epoint callback: Invalid signature")
-            raise HTTPException(status_code=400, detail="Invalid signature")
-        
-        order_id = callback_data.get("order_id")
-        payment_status = callback_data.get("status")
-        
-        logger.info(f"Epoint callback validated: order_id={order_id}, status={payment_status}")
-        
-        # Find the transaction
-        transaction = await db.epoint_transactions.find_one(
-            {"order_id": order_id},
-            {"_id": 0}
-        )
-        
-        if not transaction:
-            logger.error(f"Epoint callback: Transaction not found for order_id={order_id}")
-            raise HTTPException(status_code=404, detail="Transaction not found")
-        
-        # Check for duplicate processing
-        if transaction.get("status") == "success":
-            logger.info(f"Epoint callback: Order {order_id} already processed")
-            return {"status": "ok", "message": "Already processed"}
-        
-        # Update transaction
-        update_data = {
-            "status": payment_status,
-            "payment_status": "paid" if payment_status == "success" else "failed",
-            "transaction_id": callback_data.get("transaction"),
-            "bank_transaction": callback_data.get("bank_transaction"),
-            "rrn": callback_data.get("rrn"),
-            "epoint_code": callback_data.get("code"),
-            "epoint_message": callback_data.get("message"),
-            "raw_callback_data": callback_data.get("data"),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-        
-        await db.epoint_transactions.update_one(
-            {"order_id": order_id},
-            {"$set": update_data}
-        )
-        
-        # If payment successful, grant access
-        if payment_status == "success":
-            # Check if purchase already exists
-            existing_purchase = await db.purchases.find_one({
-                "user_id": transaction['user_id'],
-                "epoint_order_id": order_id
-            })
-            
-            if not existing_purchase:
-                # Create purchase record
-                purchase = Purchase(
-                    user_id=transaction['user_id'],
-                    product_type=transaction['product_type'],
-                    amount=transaction['amount'],
-                    status="completed"
-                )
-                purchase_dict = purchase.model_dump()
-                purchase_dict['epoint_order_id'] = order_id
-                purchase_dict['currency'] = 'USD'
-                purchase_dict['payment_method'] = 'epoint'
-                await db.purchases.insert_one(purchase_dict)
-                
-                # Grant user access based on product type
-                update_user_data = {}
-                product_type = transaction['product_type']
-                
-                if product_type == "course":
-                    update_user_data['course_access'] = True
-                elif product_type == "book":
-                    update_user_data['book_access'] = True
-                elif product_type == "signals":
-                    update_user_data['signals_subscription'] = True
-                    update_user_data['signals_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-                elif product_type == "arbitrage":
-                    update_user_data['arbitrage_subscription'] = True
-                    update_user_data['arbitrage_expiry'] = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
-                
-                if update_user_data:
-                    await db.users.update_one(
-                        {"id": transaction['user_id']},
-                        {"$set": update_user_data}
-                    )
-                
-                logger.info(f"Epoint payment successful: order_id={order_id}, user={transaction['user_id']}, product={product_type}")
-                
-                # Send confirmation email
-                try:
-                    user = await db.users.find_one({"id": transaction['user_id']}, {"_id": 0})
-                    if user and user.get('email'):
-                        product_info = PRODUCTS_USD.get(product_type, {})
-                        asyncio.create_task(send_payment_confirmation_email(
-                            user['email'],
-                            user.get('name', 'Customer'),
-                            order_id,
-                            product_info.get('name', product_type),
-                            transaction['amount'],
-                            'USD'
-                        ))
-                except Exception as email_error:
-                    logger.error(f"Failed to send confirmation email: {email_error}")
-        
-        return {"status": "ok"}
-        
-    except ValueError as e:
-        logger.error(f"Epoint callback validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        transaction = await _refresh_yigim_status(reference) or transaction
     except Exception as e:
-        logger.error(f"Epoint callback error: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Yigim callback verification error: {e}")
+
+    final_status = transaction.get("status", "pending")
+    if final_status == "success":
+        return RedirectResponse(url=f"/payment-success?order_id={reference}", status_code=303)
+    elif final_status == "failed":
+        return RedirectResponse(url=f"/payment-failed?order_id={reference}", status_code=303)
+    else:
+        # Still pending — send to success page; it will poll until resolved
+        return RedirectResponse(url=f"/payment-success?order_id={reference}", status_code=303)
 
 async def send_payment_confirmation_email(
     email: str, 
@@ -1446,24 +1466,22 @@ async def send_payment_confirmation_email(
     except Exception as e:
         logger.error(f"Failed to send payment confirmation email: {e}")
 
-@api_router.get("/epoint/status/{order_id}")
-async def get_epoint_payment_status(
-    request: Request, 
-    order_id: str, 
+@api_router.get("/yigim/status/{order_id}")
+async def get_yigim_payment_status(
+    order_id: str,
     user: dict = Depends(get_current_user)
 ):
-    """Get payment status for an Epoint order"""
-    
-    # Find transaction
-    transaction = await db.epoint_transactions.find_one(
-        {"order_id": order_id, "user_id": user['id']},
+    """Get/refresh payment status for a Yigim order. Grants entitlement on success."""
+
+    transaction = await db.yigim_transactions.find_one(
+        {"reference": order_id, "user_id": user['id']},
         {"_id": 0}
     )
-    
+
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    
-    # If already completed, return from database
+
+    # If terminal status, return cached
     if transaction['status'] in ['success', 'failed']:
         return {
             "order_id": order_id,
@@ -1472,37 +1490,25 @@ async def get_epoint_payment_status(
             "product_type": transaction['product_type'],
             "amount": transaction['amount'],
             "currency": "USD",
-            "transaction_id": transaction.get('transaction_id'),
-            "message": transaction.get('epoint_message')
+            "message": transaction.get('yigim_message')
         }
-    
-    # Check with Epoint API for pending transactions
+
+    # Otherwise, refresh from Yigim
     try:
-        epoint = get_epoint_service(request)
-        status_result = await epoint.get_payment_status(order_id)
-        
-        if status_result.get("status") == "success":
-            # Update our database
-            await db.epoint_transactions.update_one(
-                {"order_id": order_id},
-                {"$set": {
-                    "status": "success",
-                    "payment_status": "paid",
-                    "updated_at": datetime.now(timezone.utc).isoformat()
-                }}
-            )
-        
+        transaction = await _refresh_yigim_status(order_id) or transaction
+
         return {
             "order_id": order_id,
-            "status": status_result.get("status", "pending"),
-            "payment_status": status_result.get("payment_status", "pending"),
+            "status": transaction.get("status", "pending"),
+            "payment_status": transaction.get("payment_status", "pending"),
             "product_type": transaction['product_type'],
             "amount": transaction['amount'],
-            "currency": "USD"
+            "currency": "USD",
+            "message": transaction.get('yigim_message')
         }
-        
+
     except Exception as e:
-        logger.error(f"Error checking Epoint status: {e}")
+        logger.error(f"Error checking Yigim status: {e}")
         return {
             "order_id": order_id,
             "status": transaction['status'],
@@ -1512,39 +1518,50 @@ async def get_epoint_payment_status(
             "currency": "USD"
         }
 
-@api_router.get("/epoint/transaction/{order_id}")
-async def get_epoint_transaction_details(
-    order_id: str, 
+@api_router.get("/yigim/transaction/{order_id}")
+async def get_yigim_transaction_details(
+    order_id: str,
     user: dict = Depends(get_current_user)
 ):
-    """Get full transaction details for display on success/failure pages"""
-    
-    transaction = await db.epoint_transactions.find_one(
-        {"order_id": order_id, "user_id": user['id']},
+    """Get full transaction details for display on success/failure pages.
+
+    Re-verifies status with Yigim if still pending — this guarantees entitlements
+    are granted even if Yigim's redirect callback was missed.
+    """
+
+    transaction = await db.yigim_transactions.find_one(
+        {"reference": order_id, "user_id": user['id']},
         {"_id": 0}
     )
-    
+
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    
+
+    # Refresh if still pending
+    if transaction['status'] == 'pending':
+        try:
+            transaction = await _refresh_yigim_status(order_id) or transaction
+        except Exception as e:
+            logger.error(f"Yigim transaction details refresh error: {e}")
+
     return {
-        "order_id": transaction['order_id'],
+        "order_id": transaction['reference'],
         "product_type": transaction['product_type'],
         "product_name": transaction['product_name'],
         "amount": transaction['amount'],
         "currency": "USD",
         "status": transaction['status'],
         "payment_status": transaction['payment_status'],
-        "transaction_id": transaction.get('transaction_id'),
-        "bank_transaction": transaction.get('bank_transaction'),
-        "rrn": transaction.get('rrn'),
-        "message": transaction.get('epoint_message'),
+        "transaction_id": transaction.get('reference'),
+        "bank_transaction": None,
+        "rrn": None,
+        "message": transaction.get('yigim_message'),
         "created_at": transaction['created_at'],
         "updated_at": transaction.get('updated_at')
     }
 
-@api_router.get("/epoint/prices")
-async def get_epoint_prices():
+@api_router.get("/yigim/prices")
+async def get_yigim_prices():
     """Get product prices in USD"""
     return {
         "currency": "USD",

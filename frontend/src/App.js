@@ -653,7 +653,7 @@ const ProductsPage = () => {
     setLoading(productType);
     try {
       // Create Yigim checkout session
-      const response = await api.post('/epoint/checkout/create', {
+      const response = await api.post('/yigim/checkout/create', {
         product_type: productType,
         origin_url: window.location.origin
       }, token);
@@ -1743,7 +1743,7 @@ const ArbitragePage = () => {
   const handleSubscribe = async () => {
     if (!user) { navigate('/login'); return; }
     try {
-      const response = await api.post('/epoint/checkout/create', {
+      const response = await api.post('/yigim/checkout/create', {
         product_type: 'arbitrage',
         origin_url: window.location.origin
       }, token);
@@ -4288,8 +4288,8 @@ const PaymentCancelPage = () => {
   );
 };
 
-// Epoint Payment Success Page
-const EpointPaymentSuccessPage = () => {
+// Yigim Payment Success Page
+const YigimPaymentSuccessPage = () => {
   const { user, token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState('checking');
@@ -4326,7 +4326,7 @@ const EpointPaymentSuccessPage = () => {
 
   const fetchTransactionDetails = async (orderId) => {
     try {
-      const response = await api.get(`/epoint/transaction/${orderId}`, token);
+      const response = await api.get(`/yigim/transaction/${orderId}`, token);
       const data = response.data;
       
       setTransaction(data);
@@ -4463,8 +4463,8 @@ const EpointPaymentSuccessPage = () => {
   );
 };
 
-// Epoint Payment Failed Page
-const EpointPaymentFailedPage = () => {
+// Yigim Payment Failed Page
+const YigimPaymentFailedPage = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const [transaction, setTransaction] = useState(null);
@@ -4480,7 +4480,7 @@ const EpointPaymentFailedPage = () => {
 
   const fetchTransactionDetails = async (orderId) => {
     try {
-      const response = await api.get(`/epoint/transaction/${orderId}`, token);
+      const response = await api.get(`/yigim/transaction/${orderId}`, token);
       setTransaction(response.data);
     } catch (error) {
       console.error('Error fetching transaction:', error);
@@ -5551,8 +5551,8 @@ function App() {
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/payment/success" element={<PaymentSuccessPage />} />
               <Route path="/payment/cancel" element={<PaymentCancelPage />} />
-              <Route path="/payment-success" element={<EpointPaymentSuccessPage />} />
-              <Route path="/payment-failed" element={<EpointPaymentFailedPage />} />
+              <Route path="/payment-success" element={<YigimPaymentSuccessPage />} />
+              <Route path="/payment-failed" element={<YigimPaymentFailedPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/terms-and-conditions" element={<TermsPage />} />

@@ -1,0 +1,46 @@
+{
+  "summary": "End-to-end regression of Yigim payment migration + entitlement-grant bug fix. All 8 entitlement tests pass and all 23 Yigim API integration tests pass. Frontend smoke covers all listed routes including /products, /payment-success, /payment-failed without crashes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/yigim/checkout/create", "issue": "Yigim sandbox returns 'Invalid merchant name' because YIGIM_MERCHANT='Merchant' is a placeholder. Backend handles this gracefully with HTTP 500 + {detail: ...}, but no yigim_transactions row is persisted on failure (only on upstream success). Per agent note this is a deployment-time concern, not a code bug. Consider inserting the pending transaction BEFORE calling Yigim so failed attempts are auditable."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "/payment-success?order_id=...", "issue": "When the user is unauthenticated, the page short-circuits to the login screen (because the 2s polling endpoint /api/yigim/transaction requires auth). After Yigim redirects the user back, the SPA session may have expired, leading to a confusing UX. Consider relaxing /api/yigim/transaction/{order_id} to lookup-by-reference without auth or caching session until callback completes.", "affected_selectors": ["[data-testid='yigim-success-page']", "form[type='login']"]}
+    ],
+    "design_issues": [
+      {"screen": "Console (all pages)", "issues": ["React warning: 'React does not recognize the backgroundColor prop on a DOM element' fires twice on initial load. Some component is spreading a camelCase prop onto a native DOM element (likely a styled wrapper). Cosmetic but noisy in prod logs."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_yigim_entitlement.py",
+    "/app/backend/tests/test_yigim_api.py",
+    "/app/test_reports/pytest/pytest_yigim_entitlement.xml",
+    "/app/test_reports/pytest/pytest_yigim_api.xml"
+  ],
+  "action_items": [
+    "Update YIGIM_MERCHANT/YIGIM_BILLER in /app/backend/.env to a real sandbox merchant name to enable end-to-end Yigim checkout (deployment task).",
+    "Fix the React 'backgroundColor' DOM-prop warning (find component spreading style props onto a div).",
+    "Optional: persist yigim_transactions with status='pending' BEFORE calling Yigim, so failed upstream calls are auditable.",
+    "Optional: rework /payment-success polling so it does not silently redirect unauthenticated users to login after a real Yigim redirect."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 2895 lines — split per-feature routers (yigim, auth, courses, signals, arbitrage) into modules under /app/backend/routers/ to stay <700 lines per file.",
+    "server.py uses deprecated @app.on_event('startup'/'shutdown'); migrate to FastAPI lifespan handlers.",
+    "grant_yigim_entitlement uses {'$set': {flag: True, ...}} via update_one — verified idempotent, but consider returning the updated user document for callers to use instead of a bool, to avoid an extra find_one round trip elsewhere.",
+    "yigim/callback always redirects pending payments to /payment-success which then polls — fine, but rate-limit / cap polling on the frontend so it does not loop forever for abandoned carts."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_yigim_api.py (new — 23 HTTP-level integration tests)"
+  ],
+  "success_rate": {"backend": "100% (31/31 passed: 8 entitlement + 23 API)", "frontend": "100% smoke (12/12 routes render, products page shows 4 products with correct USD prices)"},
+  "test_credentials": {"admin_email": "admin@bullbear.com", "admin_password": "admin123"},
+  "seed_data_creation": "None persisted — entitlement tests insert+cleanup their own users/transactions; API tests only POST checkout which fails upstream so no rows are created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run `cd /app/backend && python -m pytest tests/test_yigim_entitlement.py tests/test_yigim_api.py -v` for full Yigim regression. The sandbox merchant placeholder will keep checkout/create returning 500 — that is expected and the test allows it. To exercise a real end-to-end checkout, swap YIGIM_MERCHANT/YIGIM_BILLER in /app/backend/.env with valid sandbox creds and re-run.",
+  "rca_of_the_issue": "Original recurring entitlement bug: prior payment-callback handler updated yigim_transactions but never wrote *_access flags onto the user. The fix introduces grant_yigim_entitlement(transaction) which (a) flips course_access / book_access / signals_subscription / arbitrage_subscription based on product_type, (b) sets a 30-day expiry on subscription products, (c) inserts a purchases record with payment_method='yigim' and yigim_reference, and (d) is idempotent via a guard that returns False if a purchase row with the same yigim_reference already exists. Verified by 8 mocked tests covering all 4 product types, idempotency, approved/declined/pending status transitions, and the negative path (declined never grants access)."
+}
