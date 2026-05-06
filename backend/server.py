@@ -2495,12 +2495,16 @@ CHUNK_UPLOADS_DIR = UPLOADS_DIR / "_chunks"
 CHUNK_UPLOADS_DIR.mkdir(exist_ok=True)
 chunk_uploads: Dict[str, Dict] = {}
 
+# In-memory registry of background ffmpeg conversions
+# Each entry: {status: 'processing'|'completed'|'failed', result?: dict, error?: str, started_at}
+video_jobs: Dict[str, Dict] = {}
 
-async def _process_uploaded_video(temp_path: Path, file_ext: str, base_name: str) -> Dict:
+
+def _process_uploaded_video_sync(temp_path: Path, file_ext: str, base_name: str) -> Dict:
     """
     Run ffmpeg validation + conversion on an already-saved video file.
-    Used by both the legacy single-shot upload endpoint and the chunked
-    upload endpoint so behaviour is identical.
+    Synchronous — call via `asyncio.to_thread()` from async code so the
+    event loop stays responsive during multi-minute conversions.
     """
     temp_filename = temp_path.name
     file_size = temp_path.stat().st_size
@@ -2743,11 +2747,16 @@ async def append_video_chunk(
 
 @api_router.post("/upload/video/chunk/complete")
 async def complete_chunked_video_upload(
+    background_tasks: BackgroundTasks,
     upload_id: str = Form(...),
     admin: dict = Depends(require_admin),
 ):
-    """Assemble all chunks, then run the same validation + conversion as the
-    legacy single-shot upload, and return the final URL."""
+    """Assemble all chunks and kick off background ffmpeg conversion.
+
+    Returns immediately with a `job_id` so we never hold the HTTP connection
+    open long enough for upstream proxies (Cloudflare = ~100s) to time out
+    with a 520. The client polls /upload/video/conversion/{job_id} until done.
+    """
     session = chunk_uploads.get(upload_id)
     if not session:
         raise HTTPException(status_code=404, detail="Upload session not found or expired")
@@ -2789,8 +2798,62 @@ async def complete_chunked_video_upload(
     final_size = final_temp_path.stat().st_size
     logger.info(f"Assembled {upload_id} -> {final_temp_path.name} ({final_size / (1024*1024):.1f} MB)")
 
-    # Run the same validation + conversion pipeline
-    return await _process_uploaded_video(final_temp_path, file_ext, base_name)
+    # Register a job and run the ffmpeg pipeline in the background
+    job_id = str(uuid.uuid4())
+    video_jobs[job_id] = {
+        "status": "processing",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "size_mb": round(final_size / (1024 * 1024), 1),
+    }
+
+    async def _run_job():
+        try:
+            # Run the (blocking) ffmpeg pipeline in a thread so we don't
+            # freeze the event loop while a 450 MB conversion runs for minutes.
+            result = await asyncio.to_thread(
+                _process_uploaded_video_sync, final_temp_path, file_ext, base_name
+            )
+            video_jobs[job_id] = {
+                "status": "completed",
+                "result": result,
+                "started_at": video_jobs[job_id].get("started_at"),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            logger.info(f"Conversion job {job_id} completed: {result.get('url')}")
+        except Exception as e:
+            logger.error(f"Conversion job {job_id} failed: {e}")
+            video_jobs[job_id] = {
+                "status": "failed",
+                "error": str(e),
+                "started_at": video_jobs[job_id].get("started_at"),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    background_tasks.add_task(_run_job)
+
+    return {
+        "status": "processing",
+        "job_id": job_id,
+        "size_mb": round(final_size / (1024 * 1024), 1),
+    }
+
+
+@api_router.get("/upload/video/conversion/{job_id}")
+async def get_video_conversion_status(
+    job_id: str,
+    admin: dict = Depends(require_admin),
+):
+    """Poll the status of a background video conversion job.
+
+    Response shapes:
+      - { status: 'processing' }
+      - { status: 'completed', result: { url, filename, converted, size_mb, ... } }
+      - { status: 'failed', error: '...' }
+    """
+    job = video_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired")
+    return job
 
 
 @api_router.post("/upload/video")

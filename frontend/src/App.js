@@ -2676,13 +2676,50 @@ const AdminPage = () => {
         setUploadProgress(100);
         if (needsConversion) setUploadStage('converting');
 
-        // 3. Complete — server assembles + runs ffmpeg
+        // 3. Complete — server assembles + kicks off background conversion
         const completeFd = new FormData();
         completeFd.append('upload_id', uploadId);
-        response = await axios.post(`${API}/upload/video/chunk/complete`, completeFd, {
+        const completeRes = await axios.post(`${API}/upload/video/chunk/complete`, completeFd, {
           headers: { 'Authorization': `Bearer ${token}` },
-          timeout: 1800000, // 30 min for ffmpeg conversion
+          timeout: 60000,
         });
+
+        // 4. If a job was started, poll until it finishes (or times out at 30 min)
+        if (completeRes.data?.status === 'processing' && completeRes.data.job_id) {
+          setUploadStage('converting');
+          const jobId = completeRes.data.job_id;
+          const pollStart = Date.now();
+          const POLL_TIMEOUT_MS = 30 * 60 * 1000; // 30 min cap
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            await new Promise(r => setTimeout(r, 3000));
+            if (Date.now() - pollStart > POLL_TIMEOUT_MS) {
+              throw new Error('Conversion is taking too long. Please refresh and try a smaller file.');
+            }
+            let pollRes;
+            try {
+              pollRes = await axios.get(`${API}/upload/video/conversion/${jobId}`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                timeout: 30000,
+              });
+            } catch (pollErr) {
+              // Transient network blip — keep polling
+              console.warn('Poll error, retrying...', pollErr?.message);
+              continue;
+            }
+            const s = pollRes.data?.status;
+            if (s === 'completed') {
+              response = { data: pollRes.data.result };
+              break;
+            }
+            if (s === 'failed') {
+              throw new Error(pollRes.data.error || 'Conversion failed');
+            }
+            // status === 'processing' — keep waiting
+          }
+        } else {
+          response = completeRes;
+        }
       } else {
         // Non-video uploads (images, pdf) stay single-shot
         const formData = new FormData();
