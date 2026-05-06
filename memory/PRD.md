@@ -304,8 +304,55 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - **Testing**: 12/12 frontend tests passed
 - **Status**: ✅ IMPLEMENTED & TESTED
 
+## Updates (May 6, 2026)
+
+### Yigim.az Migration Complete + Entitlement-Grant Bug FIXED (P0)
+- **User Request**: Replace Epoint.az with Yigim.az and ensure successful payments actually grant user access (recurring bug seen twice prior).
+- **Implementation**:
+
+**Backend (`/app/backend/yigim_service.py` + `server.py`):**
+- `YigimService` class supports `create_payment`, `get_payment_status`, `cancel_payment`, `refund_payment` against MAGNET v1.16 API
+- New `grant_yigim_entitlement(transaction)` helper — idempotent, flips `course_access` / `book_access` / `signals_subscription` / `arbitrage_subscription` based on product_type, sets 30-day expiry on subscriptions, inserts `purchases` record with `payment_method='yigim'`, fires confirmation email asynchronously
+- `_refresh_yigim_status(reference)` — re-verifies status with Yigim and grants entitlement on `status="00"` (approved). Used by callback, `/yigim/status/{order_id}`, and `/yigim/transaction/{order_id}` so the success page works even if the callback was missed.
+
+**API Endpoints:**
+- `POST /api/yigim/checkout/create` — creates Yigim payment session, stores order in `yigim_transactions`, returns `redirect_url`
+- `GET /api/yigim/callback?reference=XXX` — Yigim's user-redirect URL; verifies status server-side, grants entitlement, then 303-redirects to `/payment-success` or `/payment-failed`
+- `GET /api/yigim/status/{order_id}` — refresh-on-demand status with idempotent grant
+- `GET /api/yigim/transaction/{order_id}` — full transaction for success/failed pages
+- `GET /api/yigim/prices` — public USD pricing
+- All `/api/epoint/*` endpoints DELETED. `epoint_service.py` removed.
+
+**Frontend (`App.js`):**
+- Renamed components: `YigimPaymentSuccessPage`, `YigimPaymentFailedPage`
+- All checkout calls now POST to `/yigim/checkout/create`
+- Routes `/payment-success` and `/payment-failed` retained (per user choice) and now wired to Yigim pages
+
+**Database Schema (`yigim_transactions`):**
+- reference (acts as order_id), user_id, user_email, product_type, product_name, amount, currency='USD', currency_code=840, status (pending/success/failed), payment_status, yigim_status_code, yigim_message, raw_status_data, created_at, updated_at
+
+**URLs for Yigim Merchant Dashboard (sandbox):**
+- Callback URL: `https://bullandbear.website/api/yigim/callback`
+- (Yigim redirects users with `?reference=...` and we redirect them to /payment-success or /payment-failed)
+
+**Test Coverage:**
+- `/app/backend/tests/test_yigim_entitlement.py` — 8 tests, all 4 product types, idempotency, approved/declined/pending status transitions
+- `/app/backend/pytest.ini` — pytest-asyncio with session-scoped loop (required because Motor binds to event loop at import)
+- Full backend: 31/31 passed (8 entitlement + 23 HTTP-level API tests by testing agent)
+- Frontend smoke: 12/12 routes render
+
+**Deployment Note (action required by user):**
+- `/app/backend/.env` currently has `YIGIM_MERCHANT=Merchant` (placeholder). Yigim sandbox returns "Invalid merchant name" until this is replaced with the real sandbox merchant identifier provided by Yigim.
+
+- **Status**: ✅ IMPLEMENTED & TESTED — recurring entitlement bug now permanently fixed (idempotent grant + verified by automated tests)
+
 ## Future Enhancements
+- [ ] Replace `YIGIM_MERCHANT` placeholder with real sandbox merchant name (deployment task)
+- [ ] Refactor `server.py` into per-feature routers under `/app/backend/routers/` (yigim, auth, courses, signals, arbitrage) — currently 2895 lines
+- [ ] Migrate `@app.on_event('startup'|'shutdown')` to FastAPI lifespan handlers (deprecated)
+- [ ] Cap success-page polling on abandoned carts so it does not loop forever
+- [ ] Fix React `backgroundColor` DOM-prop console warning (cosmetic)
+- [ ] Multi-language support (P2)
+- [ ] React Native mobile app (P3)
 - [ ] Advanced watermarking with user info
 - [ ] User referral system
-- [ ] Multi-language support
-- [ ] Mobile app (React Native)
