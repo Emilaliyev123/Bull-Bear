@@ -2483,13 +2483,324 @@ async def download_book(user: dict = Depends(get_current_user)):
 
 # ============ FILE UPLOAD ROUTES ============
 
+ALLOWED_VIDEO_EXTENSIONS = [
+    '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v',
+    '.3gp', '.ts', '.mts', '.mpg', '.mpeg', '.vob', '.ogv', '.f4v',
+    '.rm', '.rmvb', '.asf', '.divx', '.mxf', '.m2ts', '.m2v', '.dat'
+]
+
+# In-memory registry of in-flight chunked uploads
+# (process-local — fine because supervisord runs a single backend instance)
+CHUNK_UPLOADS_DIR = UPLOADS_DIR / "_chunks"
+CHUNK_UPLOADS_DIR.mkdir(exist_ok=True)
+chunk_uploads: Dict[str, Dict] = {}
+
+
+async def _process_uploaded_video(temp_path: Path, file_ext: str, base_name: str) -> Dict:
+    """
+    Run ffmpeg validation + conversion on an already-saved video file.
+    Used by both the legacy single-shot upload endpoint and the chunked
+    upload endpoint so behaviour is identical.
+    """
+    temp_filename = temp_path.name
+    file_size = temp_path.stat().st_size
+    logger.info(f"Processing {temp_filename} ({file_size / (1024*1024):.1f} MB)")
+
+    ffmpeg_available = bool(shutil.which('ffmpeg'))
+
+    if ffmpeg_available:
+        try:
+            probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                 '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+                 str(temp_path)],
+                capture_output=True, text=True, timeout=30
+            )
+            if 'video' not in probe.stdout:
+                os.remove(temp_path)
+                raise HTTPException(status_code=400, detail="File does not contain a valid video stream")
+        except subprocess.TimeoutExpired:
+            pass
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    has_audio = True
+    if ffmpeg_available:
+        try:
+            audio_probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-select_streams', 'a:0',
+                 '-show_entries', 'stream=codec_type', '-of', 'csv=p=0',
+                 str(temp_path)],
+                capture_output=True, text=True, timeout=30
+            )
+            has_audio = 'audio' in audio_probe.stdout
+        except Exception:
+            has_audio = True
+
+    needs_conversion = file_ext != '.mp4'
+
+    if not ffmpeg_available and needs_conversion:
+        logger.warning(f"ffmpeg not available, keeping original {file_ext}")
+        return {
+            "url": f"/api/uploads/videos/{temp_filename}",
+            "filename": temp_filename,
+            "converted": False,
+            "error": "Video saved but not converted (ffmpeg unavailable). It may not play in all browsers."
+        }
+
+    if needs_conversion:
+        output_filename = f"{base_name}.mp4"
+        output_path = UPLOADS_DIR / "videos" / output_filename
+
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', str(temp_path),
+            '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+            '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+            '-max_muxing_queue_size', '9999',
+        ]
+        if has_audio:
+            ffmpeg_cmd.extend(['-c:a', 'aac', '-b:a', '128k'])
+        else:
+            ffmpeg_cmd.extend(['-an'])
+        ffmpeg_cmd.extend([
+            '-vf', 'scale=min(iw\\,1920):min(ih\\,1080):force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2',
+            '-y', str(output_path)
+        ])
+
+        try:
+            result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True, timeout=900)
+            if result.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                os.remove(temp_path)
+                output_size = output_path.stat().st_size / (1024 * 1024)
+                logger.info(f"Converted {temp_filename} -> {output_filename} ({output_size:.1f} MB)")
+                return {
+                    "url": f"/api/uploads/videos/{output_filename}",
+                    "filename": output_filename,
+                    "converted": True,
+                    "original_format": file_ext,
+                    "size_mb": round(output_size, 1)
+                }
+            # Fallback simpler encoding
+            logger.warning(f"FFmpeg attempt 1 failed, trying fallback: {result.stderr[:200]}")
+            fallback_cmd = [
+                'ffmpeg', '-i', str(temp_path),
+                '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+                '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
+                '-max_muxing_queue_size', '9999',
+            ]
+            if has_audio:
+                fallback_cmd.extend(['-c:a', 'aac'])
+            else:
+                fallback_cmd.extend(['-an'])
+            fallback_cmd.extend(['-y', str(output_path)])
+            result2 = subprocess.run(fallback_cmd, capture_output=True, text=True, timeout=900)
+            if result2.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+                os.remove(temp_path)
+                output_size = output_path.stat().st_size / (1024 * 1024)
+                logger.info(f"Fallback succeeded: {output_filename} ({output_size:.1f} MB)")
+                return {
+                    "url": f"/api/uploads/videos/{output_filename}",
+                    "filename": output_filename,
+                    "converted": True,
+                    "original_format": file_ext,
+                    "size_mb": round(output_size, 1)
+                }
+            logger.error(f"Both conversion attempts failed: {result2.stderr[:200]}")
+            if output_path.exists():
+                os.remove(output_path)
+            return {
+                "url": f"/api/uploads/videos/{temp_filename}",
+                "filename": temp_filename,
+                "converted": False,
+                "error": "Conversion failed, original file kept. It may not play in all browsers."
+            }
+        except subprocess.TimeoutExpired:
+            logger.error(f"Conversion timed out for {temp_filename}")
+            if output_path.exists():
+                os.remove(output_path)
+            return {
+                "url": f"/api/uploads/videos/{temp_filename}",
+                "filename": temp_filename,
+                "converted": False,
+                "error": "Conversion timed out (video too large). Original file kept."
+            }
+        except Exception as e:
+            logger.error(f"Conversion error: {str(e)}")
+            return {
+                "url": f"/api/uploads/videos/{temp_filename}",
+                "filename": temp_filename,
+                "converted": False,
+                "error": str(e)
+            }
+
+    # Already MP4 — keep as-is (re-mux step from legacy code preserved below)
+    if not ffmpeg_available:
+        return {"url": f"/api/uploads/videos/{temp_filename}", "filename": temp_filename, "converted": False}
+    try:
+        subprocess.run(
+            ['ffprobe', '-v', 'error', '-show_entries', 'format=format_name',
+             '-of', 'csv=p=0', str(temp_path)],
+            capture_output=True, text=True, timeout=30
+        )
+    except Exception:
+        pass
+    return {
+        "url": f"/api/uploads/videos/{temp_filename}",
+        "filename": temp_filename,
+        "converted": False,
+        "size_mb": round(file_size / (1024 * 1024), 1)
+    }
+
+
+# ---------- Chunked video upload (works around proxy body-size caps) ----------
+
+class ChunkedUploadInit(BaseModel):
+    filename: str
+    total_size: int
+    total_chunks: int
+
+
+@api_router.post("/upload/video/chunk/init")
+async def init_chunked_video_upload(
+    data: ChunkedUploadInit,
+    admin: dict = Depends(require_admin),
+):
+    """Begin a chunked video upload session. Returns an upload_id."""
+    file_ext = Path(data.filename).suffix.lower()
+    if not file_ext:
+        raise HTTPException(status_code=400, detail="File must have an extension")
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format '{file_ext}'. Supported: MP4, MOV, AVI, MKV, WebM, FLV, WMV, M4V, 3GP, TS, MPG, MPEG, and more."
+        )
+    if data.total_size <= 0:
+        raise HTTPException(status_code=400, detail="Invalid total_size")
+    # Hard cap on file size — avoid runaway uploads filling the disk
+    max_size = 5 * 1024 * 1024 * 1024  # 5 GB
+    if data.total_size > max_size:
+        raise HTTPException(status_code=400, detail="File too large (max 5 GB)")
+
+    upload_id = str(uuid.uuid4())
+    base_name = str(uuid.uuid4())
+    temp_dir = CHUNK_UPLOADS_DIR / upload_id
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    chunk_uploads[upload_id] = {
+        "base_name": base_name,
+        "file_ext": file_ext,
+        "total_size": data.total_size,
+        "total_chunks": data.total_chunks,
+        "received_chunks": 0,
+        "received_bytes": 0,
+        "temp_dir": str(temp_dir),
+        "admin_id": admin['id'],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    logger.info(f"Init chunked upload {upload_id}: {data.filename} ({data.total_size / (1024*1024):.1f} MB, {data.total_chunks} chunks)")
+    return {"upload_id": upload_id}
+
+
+@api_router.post("/upload/video/chunk/append")
+async def append_video_chunk(
+    upload_id: str = Form(...),
+    chunk_index: int = Form(...),
+    chunk: UploadFile = File(...),
+    admin: dict = Depends(require_admin),
+):
+    """Append one chunk to an in-flight chunked upload."""
+    session = chunk_uploads.get(upload_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+    if session['admin_id'] != admin['id']:
+        raise HTTPException(status_code=403, detail="Not your upload session")
+    if chunk_index < 0 or chunk_index >= session['total_chunks']:
+        raise HTTPException(status_code=400, detail="Invalid chunk_index")
+
+    chunk_path = Path(session['temp_dir']) / f"{chunk_index:06d}.part"
+    bytes_written = 0
+    try:
+        with open(chunk_path, "wb") as f:
+            while data := await chunk.read(1024 * 1024):
+                f.write(data)
+                bytes_written += len(data)
+    except Exception as e:
+        logger.error(f"Chunk append failed for {upload_id}#{chunk_index}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save chunk")
+
+    session['received_chunks'] += 1
+    session['received_bytes'] += bytes_written
+
+    return {
+        "ok": True,
+        "received_chunks": session['received_chunks'],
+        "total_chunks": session['total_chunks'],
+        "received_bytes": session['received_bytes'],
+    }
+
+
+@api_router.post("/upload/video/chunk/complete")
+async def complete_chunked_video_upload(
+    upload_id: str = Form(...),
+    admin: dict = Depends(require_admin),
+):
+    """Assemble all chunks, then run the same validation + conversion as the
+    legacy single-shot upload, and return the final URL."""
+    session = chunk_uploads.get(upload_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+    if session['admin_id'] != admin['id']:
+        raise HTTPException(status_code=403, detail="Not your upload session")
+
+    base_name = session['base_name']
+    file_ext = session['file_ext']
+    total_chunks = session['total_chunks']
+    temp_dir = Path(session['temp_dir'])
+    final_temp_path = UPLOADS_DIR / "videos" / f"{base_name}{file_ext}"
+
+    try:
+        with open(final_temp_path, "wb") as out:
+            for i in range(total_chunks):
+                part = temp_dir / f"{i:06d}.part"
+                if not part.exists():
+                    raise HTTPException(status_code=400, detail=f"Missing chunk {i}")
+                with open(part, "rb") as p:
+                    while data := p.read(1024 * 1024):
+                        out.write(data)
+    except HTTPException:
+        if final_temp_path.exists():
+            final_temp_path.unlink()
+        raise
+    except Exception as e:
+        logger.error(f"Failed to assemble {upload_id}: {e}")
+        if final_temp_path.exists():
+            final_temp_path.unlink()
+        raise HTTPException(status_code=500, detail="Failed to assemble chunks")
+
+    # Cleanup chunk parts
+    try:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+    except Exception:
+        pass
+    chunk_uploads.pop(upload_id, None)
+
+    final_size = final_temp_path.stat().st_size
+    logger.info(f"Assembled {upload_id} -> {final_temp_path.name} ({final_size / (1024*1024):.1f} MB)")
+
+    # Run the same validation + conversion pipeline
+    return await _process_uploaded_video(final_temp_path, file_ext, base_name)
+
+
 @api_router.post("/upload/video")
 async def upload_video(
     file: UploadFile = File(...), 
     admin: dict = Depends(require_admin),
     background_tasks: BackgroundTasks = None
 ):
-    """Upload any video file with automatic conversion to web-compatible MP4"""
+    """Single-shot video upload. Subject to upstream proxy body-size limits.
+    For large files, prefer the chunked endpoints under /upload/video/chunk/."""
     # Accept virtually all video formats
     allowed_extensions = [
         '.mp4', '.mov', '.avi', '.mkv', '.webm', '.flv', '.wmv', '.m4v',

@@ -2604,43 +2604,104 @@ const AdminPage = () => {
       toast.error('No file selected');
       return null;
     }
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
+
     setUploading(true);
     setUploadProgress(0);
-    
+
     const isVideo = type === 'video';
     const fileExt = file.name.split('.').pop().toLowerCase();
     const needsConversion = isVideo && fileExt !== 'mp4';
     const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-    
+
     if (isVideo) {
       setUploadStage('uploading');
       toast.info(`Uploading ${fileExt.toUpperCase()} video (${fileSizeMB} MB)...`);
     }
-    
+
     try {
       console.log(`Uploading ${type}:`, file.name, `${fileSizeMB} MB`);
-      const response = await axios.post(`${API}/upload/${type}`, formData, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        timeout: 900000, // 15 minute timeout
-        onUploadProgress: (progressEvent) => {
-          const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setUploadProgress(pct);
-          if (pct >= 100 && needsConversion) {
-            setUploadStage('converting');
+
+      let response;
+
+      if (isVideo) {
+        // Chunked upload — bypasses any proxy body-size cap
+        const CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        // 1. Init session
+        const initRes = await axios.post(
+          `${API}/upload/video/chunk/init`,
+          { filename: file.name, total_size: file.size, total_chunks: totalChunks },
+          { headers: { 'Authorization': `Bearer ${token}` }, timeout: 60000 }
+        );
+        const uploadId = initRes.data.upload_id;
+
+        // 2. Upload chunks sequentially with retry
+        let uploadedBytes = 0;
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const blob = file.slice(start, end);
+          const fd = new FormData();
+          fd.append('upload_id', uploadId);
+          fd.append('chunk_index', String(i));
+          fd.append('chunk', blob, `chunk-${i}`);
+
+          let attempt = 0;
+          // Retry each chunk up to 3 times before giving up
+          while (true) {
+            try {
+              await axios.post(`${API}/upload/video/chunk/append`, fd, {
+                headers: { 'Authorization': `Bearer ${token}` },
+                timeout: 120000,
+                onUploadProgress: (pe) => {
+                  // Per-chunk progress contributes proportionally to total
+                  const chunkProgress = pe.total ? (pe.loaded / pe.total) * (end - start) : 0;
+                  const totalProgress = uploadedBytes + chunkProgress;
+                  setUploadProgress(Math.min(99, Math.round((totalProgress / file.size) * 100)));
+                },
+              });
+              break;
+            } catch (err) {
+              attempt += 1;
+              if (attempt >= 3) throw err;
+              console.warn(`Chunk ${i} failed (attempt ${attempt}); retrying...`);
+              await new Promise(r => setTimeout(r, 1000 * attempt));
+            }
           }
+          uploadedBytes += (end - start);
+          setUploadProgress(Math.min(99, Math.round((uploadedBytes / file.size) * 100)));
         }
-      });
+
+        setUploadProgress(100);
+        if (needsConversion) setUploadStage('converting');
+
+        // 3. Complete — server assembles + runs ffmpeg
+        const completeFd = new FormData();
+        completeFd.append('upload_id', uploadId);
+        response = await axios.post(`${API}/upload/video/chunk/complete`, completeFd, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          timeout: 1800000, // 30 min for ffmpeg conversion
+        });
+      } else {
+        // Non-video uploads (images, pdf) stay single-shot
+        const formData = new FormData();
+        formData.append('file', file);
+        response = await axios.post(`${API}/upload/${type}`, formData, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          timeout: 600000,
+          onUploadProgress: (progressEvent) => {
+            const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            setUploadProgress(pct);
+          },
+        });
+      }
+
       console.log('Upload response:', response.data);
       setUploading(false);
       setUploadProgress(0);
       setUploadStage('');
-      
+
       if (isVideo) {
         if (response.data.converted) {
           toast.success(`Converted ${response.data.original_format.toUpperCase()} to MP4${response.data.size_mb ? ` (${response.data.size_mb} MB)` : ''}`);
@@ -2652,14 +2713,14 @@ const AdminPage = () => {
           toast.success('Video uploaded successfully!');
         }
       }
-      
+
       return response.data.url;
     } catch (e) {
       setUploading(false);
       setUploadProgress(0);
       setUploadStage('');
       console.error('Upload error:', e);
-      const errorMsg = e.response?.data?.detail || e.message;
+      const errorMsg = e?.response?.data?.detail || e.message;
       toast.error('Upload failed: ' + errorMsg);
       return null;
     }
