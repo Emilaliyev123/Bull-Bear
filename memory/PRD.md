@@ -347,6 +347,60 @@ Create a premium mobile application named "Bull & Bear" focused on professional 
 - **Status**: ✅ IMPLEMENTED & TESTED — recurring entitlement bug now permanently fixed (idempotent grant + verified by automated tests)
 
 ## Future Enhancements
+
+## Updates (May 11, 2026) — Phase 1: Subscription Restructure + Bunny.net
+
+### What changed
+- Replaced 4 one-time products with **2 monthly subscription packages** ($49.90/mo each):
+  1. **Crypto Arbitrage Bot** — web dashboard only, no Discord required
+  2. **Bull & Bear Premium 3-in-1** — video course + Game of Candles PDF + VIP Discord channel (Discord required)
+- **User model migration** (idempotent, runs on startup): every legacy user with `course_access` / `book_access` / `signals_subscription` was granted Premium 3-in-1 for 30 days
+- **New backend fields**: `premium_subscription`, `premium_subscription_expires_at`, `arbitrage_subscription_expires_at`, `discord_user_id`, `discord_username`, `discord_role_granted`, `migration_v1_at`
+- **New helpers**: `has_premium_access(user)`, `has_arbitrage_access(user)` — handle expiry + admin override + legacy fallback
+
+### New backend endpoints
+- `GET /api/subscriptions/packages` (public) — 2 packages
+- `GET /api/subscriptions/me` (auth) — premium + arbitrage state with `days_left`
+- `GET /api/lessons` / `GET /api/lessons/{id}` — premium-gated; returns `embed_url` only when user has access
+- `POST/PUT/DELETE /api/admin/lessons[/{id}]` — admin CRUD
+- `GET /api/admin/bunny/videos` — proxy to Bunny Stream Library 657782 (live)
+- `GET /api/intro-video` (public) — free intro for homepage modal
+- `GET /api/premium/book/download` — premium-gated, streams PDF from Bunny Storage (returns 503 until Storage password set)
+- `POST /api/admin/premium/book/set-path` — admin sets PDF path
+- `GET /api/admin/users` — paginated (?search=&page=&page_size=) with `subscriptions` field
+- `POST /api/admin/users/{id}/grant/{package}` and `/revoke/{package}` — admin grants/revokes with `days` param
+
+### New frontend pages / components
+- `/pricing` — 2 subscription cards with Subscribe buttons (toast until payment processor decided)
+- `/account/subscription` — current subscription, Discord-connect CTA
+- `/dashboard/arbitrage` — gated scanner
+- `/premium/course` — gated Bunny iframe player + lesson list
+- `/premium/book` — gated PDF download button
+- `/premium/connect-discord` — placeholder for Phase 2
+- `IntroVideoModal` on home page (data-testid `hero-watch-intro-btn`)
+- Admin tabs: **Lessons (Bunny)** (live Bunny dropdown of 16+ videos) and **Subscriptions** (search + grant/revoke)
+- Navigation: Home / Pricing / Arbitrage / Course / Signals / News / AI Advisor
+
+### Bunny.net integration (LIVE)
+- `BUNNY_STREAM_LIBRARY_ID=657782`, CDN `vz-25a720f0-fea.b-cdn.net`, API key configured
+- Storage zone `bullandbearvideos` configured; password pending from user
+- `BunnyStreamService` (list/get videos, build embed URL with optional token signing)
+- `BunnyStorageService` (list/stream/upload/delete via Edge API)
+
+### Test coverage
+- `/app/backend/tests/test_phase1_subscriptions.py` — 24 tests, all passing
+- iteration_9.json: 100% backend, 100% frontend
+
+### Deferred (Phase 2 / 3)
+- **Phase 2 — Discord**: OAuth2 connect flow, `discord.py` bot, role auto-management (waiting on user to provide DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_BOT_TOKEN, DISCORD_GUILD_ID, DISCORD_PREMIUM_ROLE_ID)
+- **Phase 3 — Payment processor**: user is choosing between Stripe Subscriptions, Yigim (no recurring support), or other. Subscribe button currently shows a toast.
+
+### Pending Bunny tasks (when user provides Storage password)
+- Upload `game-of-candles.pdf` to Storage zone path `books/game-of-candles.pdf`
+- Set `BUNNY_STORAGE_PASSWORD` in `.env` and restart
+- Optionally enable Stream token authentication and set `BUNNY_STREAM_TOKEN_AUTH_KEY` for signed embed URLs
+
+## Earlier Future Enhancements
 - [ ] Replace `YIGIM_MERCHANT` placeholder with real sandbox merchant name (deployment task)
 - [ ] Refactor `server.py` into per-feature routers under `/app/backend/routers/` (yigim, auth, courses, signals, arbitrage) — currently 2895 lines
 - [ ] Migrate `@app.on_event('startup'|'shutdown')` to FastAPI lifespan handlers (deprecated)
