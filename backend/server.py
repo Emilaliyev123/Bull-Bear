@@ -20,8 +20,9 @@ import jwt
 import bcrypt
 from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionResponse, CheckoutStatusResponse, CheckoutSessionRequest
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from yigim_service import YigimService
+from bunny_service import BunnyStreamService, BunnyStorageService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -71,6 +72,52 @@ PRODUCTS = {
 
 # CoinMarketCap API
 COINMARKETCAP_API_KEY = os.environ.get('COINMARKETCAP_API_KEY', '')
+
+# Bunny.net configuration
+BUNNY_STREAM_LIBRARY_ID = int(os.environ.get('BUNNY_STREAM_LIBRARY_ID') or 0)
+BUNNY_STREAM_CDN_HOSTNAME = os.environ.get('BUNNY_STREAM_CDN_HOSTNAME', '')
+BUNNY_STREAM_API_KEY = os.environ.get('BUNNY_STREAM_API_KEY', '')
+BUNNY_STREAM_TOKEN_AUTH_KEY = os.environ.get('BUNNY_STREAM_TOKEN_AUTH_KEY', '')
+BUNNY_STORAGE_ZONE = os.environ.get('BUNNY_STORAGE_ZONE', '')
+BUNNY_STORAGE_PASSWORD = os.environ.get('BUNNY_STORAGE_PASSWORD', '')
+BUNNY_STORAGE_REGION = os.environ.get('BUNNY_STORAGE_REGION', '')
+
+# Subscription packages (monthly, USD) — Phase 1 restructure
+SUBSCRIPTION_PACKAGES = {
+    "arbitrage_bot": {
+        "id": "arbitrage_bot",
+        "name": "Crypto Arbitrage Bot",
+        "price": float(os.environ.get('SUB_ARBITRAGE_PRICE') or 49.90),
+        "currency": "USD",
+        "billing": "monthly",
+        "description": "Live crypto arbitrage opportunities across 7 exchanges. Top-1000 coins, auto-refreshed every 10 seconds.",
+        "features": [
+            "Real-time arbitrage scanner across top exchanges",
+            "Net spread calculation (after fees)",
+            "1% minimum net spread filter",
+            "Web dashboard only — no Discord required",
+        ],
+        "access_flag": "arbitrage_subscription",
+        "expires_field": "arbitrage_subscription_expires_at",
+    },
+    "premium_3in1": {
+        "id": "premium_3in1",
+        "name": "Bull & Bear Premium 3-in-1",
+        "price": float(os.environ.get('SUB_PREMIUM_PRICE') or 49.90),
+        "currency": "USD",
+        "billing": "monthly",
+        "description": "Video course + VIP signals + Game of Candles book. Requires Discord account to access the VIP channel.",
+        "features": [
+            "Full video course (hosted on Bunny Stream)",
+            "Game of Candles e-book (PDF)",
+            "VIP Discord signal channel",
+            "Premium Member role auto-managed by our bot",
+        ],
+        "access_flag": "premium_subscription",
+        "expires_field": "premium_subscription_expires_at",
+        "requires_discord": True,
+    },
+}
 
 app = FastAPI(title="Bull & Bear Trading Academy API")
 api_router = APIRouter(prefix="/api")
@@ -243,10 +290,20 @@ class User(BaseModel):
     email: str
     name: str
     is_admin: bool = False
+    # Legacy one-time product flags (kept for backward compat / admin grants)
     course_access: bool = False
     book_access: bool = False
     signals_subscription: bool = False
     signals_expiry: Optional[str] = None
+    # New subscription model (Phase 1 restructure)
+    premium_subscription: bool = False
+    premium_subscription_expires_at: Optional[str] = None
+    arbitrage_subscription: bool = False
+    arbitrage_subscription_expires_at: Optional[str] = None
+    # Discord linkage (Phase 2)
+    discord_user_id: Optional[str] = None
+    discord_username: Optional[str] = None
+    discord_role_granted: bool = False
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 class Course(BaseModel):
@@ -412,6 +469,111 @@ async def require_admin(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
 
+
+# ============ SUBSCRIPTION HELPERS ============
+
+def _is_subscription_active(user: dict, flag: str, expires_field: str) -> bool:
+    """Return True if the boolean flag is True AND (no expiry OR expiry in future)."""
+    if not user.get(flag):
+        return False
+    exp = user.get(expires_field)
+    if not exp:
+        return True
+    try:
+        return datetime.fromisoformat(exp.replace('Z', '+00:00')) > datetime.now(timezone.utc)
+    except Exception:
+        return True
+
+
+def has_premium_access(user: Optional[dict]) -> bool:
+    """User has premium 3-in-1 access (course + book + signals + Discord VIP)."""
+    if not user:
+        return False
+    if user.get('is_admin'):
+        return True
+    if _is_subscription_active(user, 'premium_subscription', 'premium_subscription_expires_at'):
+        return True
+    # Legacy fallback — grandfather users who paid for the old standalone products
+    return bool(
+        user.get('course_access')
+        or user.get('book_access')
+        or user.get('signals_subscription')
+    )
+
+
+def has_arbitrage_access(user: Optional[dict]) -> bool:
+    """User can access the arbitrage dashboard."""
+    if not user:
+        return False
+    if user.get('is_admin'):
+        return True
+    return _is_subscription_active(
+        user, 'arbitrage_subscription', 'arbitrage_subscription_expires_at'
+    )
+
+
+def _subscription_state(user: dict) -> dict:
+    """Serialise the user's subscription state for /me responses."""
+    now = datetime.now(timezone.utc)
+    out = {
+        "premium": {
+            "active": has_premium_access(user),
+            "expires_at": user.get('premium_subscription_expires_at'),
+            "days_left": None,
+            "discord_connected": bool(user.get('discord_user_id')),
+            "discord_role_granted": bool(user.get('discord_role_granted')),
+        },
+        "arbitrage": {
+            "active": has_arbitrage_access(user),
+            "expires_at": user.get('arbitrage_subscription_expires_at'),
+            "days_left": None,
+        },
+    }
+    for key, field in (("premium", 'premium_subscription_expires_at'),
+                       ("arbitrage", 'arbitrage_subscription_expires_at')):
+        exp = user.get(field)
+        if exp:
+            try:
+                delta = datetime.fromisoformat(exp.replace('Z', '+00:00')) - now
+                out[key]["days_left"] = max(0, delta.days)
+            except Exception:
+                pass
+    return out
+
+
+# ============ BUNNY.NET SINGLETONS ============
+
+_bunny_stream: Optional[BunnyStreamService] = None
+_bunny_storage: Optional[BunnyStorageService] = None
+
+
+def get_bunny_stream() -> BunnyStreamService:
+    global _bunny_stream
+    if _bunny_stream is None:
+        if not (BUNNY_STREAM_LIBRARY_ID and BUNNY_STREAM_API_KEY and BUNNY_STREAM_CDN_HOSTNAME):
+            raise HTTPException(status_code=500, detail="Bunny Stream not configured")
+        _bunny_stream = BunnyStreamService(
+            library_id=BUNNY_STREAM_LIBRARY_ID,
+            api_key=BUNNY_STREAM_API_KEY,
+            cdn_hostname=BUNNY_STREAM_CDN_HOSTNAME,
+            token_auth_key=BUNNY_STREAM_TOKEN_AUTH_KEY,
+        )
+    return _bunny_stream
+
+
+def get_bunny_storage() -> BunnyStorageService:
+    global _bunny_storage
+    if _bunny_storage is None:
+        if not (BUNNY_STORAGE_ZONE and BUNNY_STORAGE_PASSWORD):
+            raise HTTPException(status_code=500, detail="Bunny Storage not configured")
+        _bunny_storage = BunnyStorageService(
+            zone_name=BUNNY_STORAGE_ZONE,
+            password=BUNNY_STORAGE_PASSWORD,
+            region=BUNNY_STORAGE_REGION,
+        )
+    return _bunny_storage
+
+
 # ============ AUTH ROUTES ============
 
 @api_router.post("/auth/register")
@@ -483,6 +645,9 @@ async def login(data: UserLogin):
 @api_router.get("/auth/me")
 async def get_me(user: dict = Depends(get_current_user)):
     user_data = {k: v for k, v in user.items() if k != 'password_hash'}
+    user_data['subscriptions'] = _subscription_state(user)
+    user_data['premium_active'] = has_premium_access(user)
+    user_data['arbitrage_active'] = has_arbitrage_access(user)
     return user_data
 
 # ============ COURSES ROUTES ============
@@ -499,9 +664,7 @@ async def get_course(course_id: str, user: dict = Depends(get_optional_user)):
         raise HTTPException(status_code=404, detail="Course not found")
     
     # Check access
-    has_access = course.get('is_free', False)
-    if user and (user.get('course_access') or user.get('is_admin')):
-        has_access = True
+    has_access = course.get('is_free', False) or has_premium_access(user)
     
     if not has_access:
         course['video_url'] = ''  # Hide video URL if no access
@@ -1141,6 +1304,308 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.error(f"Webhook error: {str(e)}")
         return {"status": "error", "message": str(e)}
+
+# ============ SUBSCRIPTION + LESSONS + BUNNY ROUTES (Phase 1) ============
+
+class Lesson(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    title: str
+    description: str = ""
+    order: int = 0
+    bunny_video_id: str = ""  # GUID from Bunny Stream
+    duration: str = ""
+    is_free: bool = False  # Free intro lessons
+    is_published: bool = True
+    thumbnail: str = ""
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: Optional[str] = None
+
+
+class LessonUpsert(BaseModel):
+    title: str
+    description: str = ""
+    order: int = 0
+    bunny_video_id: str = ""
+    duration: str = ""
+    is_free: bool = False
+    is_published: bool = True
+    thumbnail: str = ""
+
+
+def _lesson_view(lesson: dict, user: Optional[dict]) -> dict:
+    """Public view of a lesson. Strips bunny_video_id unless user has access."""
+    is_free = lesson.get('is_free', False)
+    has_access = is_free or has_premium_access(user)
+    out = {
+        "id": lesson['id'],
+        "title": lesson['title'],
+        "description": lesson.get('description', ''),
+        "order": lesson.get('order', 0),
+        "duration": lesson.get('duration', ''),
+        "is_free": is_free,
+        "is_published": lesson.get('is_published', True),
+        "thumbnail": lesson.get('thumbnail', ''),
+        "has_access": has_access,
+    }
+    if has_access and lesson.get('bunny_video_id'):
+        try:
+            bunny = get_bunny_stream()
+            out['embed_url'] = bunny.build_embed_url(
+                lesson['bunny_video_id'],
+                expiration_minutes=120,
+            )
+        except HTTPException:
+            out['embed_url'] = None
+    return out
+
+
+# ---- Subscription packages ----
+
+@api_router.get("/subscriptions/packages")
+async def list_subscription_packages():
+    """Public — returns the two monthly packages."""
+    return {"packages": list(SUBSCRIPTION_PACKAGES.values())}
+
+
+@api_router.get("/subscriptions/me")
+async def get_my_subscription(user: dict = Depends(get_current_user)):
+    return _subscription_state(user)
+
+
+# ---- Lessons (Phase 1 — premium course content) ----
+
+@api_router.get("/lessons")
+async def list_lessons(user: dict = Depends(get_optional_user)):
+    lessons = await db.lessons.find({}, {"_id": 0}).sort("order", 1).to_list(length=200)
+    visible = [
+        _lesson_view(L, user)
+        for L in lessons
+        if L.get('is_published', True) or (user and user.get('is_admin'))
+    ]
+    return {
+        "lessons": visible,
+        "premium_active": has_premium_access(user),
+    }
+
+
+@api_router.get("/lessons/{lesson_id}")
+async def get_lesson(lesson_id: str, user: dict = Depends(get_optional_user)):
+    lesson = await db.lessons.find_one({"id": lesson_id}, {"_id": 0})
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    if not lesson.get('is_published', True) and not (user and user.get('is_admin')):
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    return _lesson_view(lesson, user)
+
+
+@api_router.post("/admin/lessons")
+async def admin_create_lesson(data: LessonUpsert, _admin: dict = Depends(require_admin)):
+    lesson = Lesson(**data.model_dump())
+    await db.lessons.insert_one(lesson.model_dump())
+    return lesson.model_dump()
+
+
+@api_router.put("/admin/lessons/{lesson_id}")
+async def admin_update_lesson(
+    lesson_id: str, data: LessonUpsert, _admin: dict = Depends(require_admin)
+):
+    update = data.model_dump()
+    update['updated_at'] = datetime.now(timezone.utc).isoformat()
+    res = await db.lessons.update_one({"id": lesson_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    lesson = await db.lessons.find_one({"id": lesson_id}, {"_id": 0})
+    return lesson
+
+
+@api_router.delete("/admin/lessons/{lesson_id}")
+async def admin_delete_lesson(lesson_id: str, _admin: dict = Depends(require_admin)):
+    res = await db.lessons.delete_one({"id": lesson_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    return {"ok": True}
+
+
+# ---- Bunny Stream proxy (admin only) ----
+
+@api_router.get("/admin/bunny/videos")
+async def admin_list_bunny_videos(
+    page: int = 1, _admin: dict = Depends(require_admin)
+):
+    bunny = get_bunny_stream()
+    try:
+        data = await bunny.list_videos(page=page, items_per_page=100)
+        # Slim the payload down — only what the admin UI needs.
+        items = [
+            {
+                "guid": v.get('guid'),
+                "title": v.get('title'),
+                "length": v.get('length'),
+                "status": v.get('status'),
+                "thumbnail": bunny.build_thumbnail_url(
+                    v['guid'], v.get('thumbnailFileName', 'thumbnail.jpg')
+                ) if v.get('guid') else None,
+                "size_mb": round((v.get('storageSize') or 0) / (1024 * 1024), 1),
+                "date_uploaded": v.get('dateUploaded'),
+            }
+            for v in data.get('items', [])
+        ]
+        return {
+            "items": items,
+            "totalItems": data.get('totalItems', len(items)),
+            "page": data.get('currentPage', page),
+        }
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Bunny list error: {e.response.status_code} {e.response.text[:200]}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Bunny Stream API error ({e.response.status_code}). Check BUNNY_STREAM_API_KEY.",
+        )
+
+
+# ---- Intro video (public, shown on homepage) ----
+
+@api_router.get("/intro-video")
+async def get_intro_video():
+    """Return the marked-free intro lesson (or the first free legacy course)."""
+    lesson = await db.lessons.find_one(
+        {"is_free": True, "is_published": True}, {"_id": 0}, sort=[("order", 1)]
+    )
+    if lesson and lesson.get('bunny_video_id'):
+        try:
+            bunny = get_bunny_stream()
+            return {
+                "id": lesson['id'],
+                "title": lesson['title'],
+                "description": lesson.get('description', ''),
+                "embed_url": bunny.build_embed_url(
+                    lesson['bunny_video_id'], expiration_minutes=120
+                ),
+                "source": "bunny",
+            }
+        except HTTPException:
+            pass
+    # Legacy fallback — first free Course with a video_url
+    course = await db.courses.find_one(
+        {"is_free": True, "video_url": {"$ne": ""}}, {"_id": 0}, sort=[("order", 1)]
+    )
+    if course:
+        return {
+            "id": course['id'],
+            "title": course['title'],
+            "description": course.get('description', ''),
+            "video_url": course.get('video_url'),
+            "source": "legacy",
+        }
+    raise HTTPException(status_code=404, detail="No intro video configured")
+
+
+# ---- Premium Book download (Bunny Storage — proxied) ----
+
+@api_router.get("/premium/book/download")
+async def download_premium_book(user: dict = Depends(get_current_user)):
+    if not has_premium_access(user):
+        raise HTTPException(status_code=403, detail="Premium subscription required")
+    config = await db.config.find_one({"key": "premium_book"}, {"_id": 0})
+    storage_path = (config or {}).get(
+        'storage_path', 'books/game-of-candles.pdf'
+    )
+    try:
+        storage = get_bunny_storage()
+    except HTTPException as e:
+        # Storage not configured yet — return a friendly message
+        raise HTTPException(
+            status_code=503,
+            detail="Premium book is being prepared. Please check back soon.",
+        ) from e
+    filename = storage_path.split('/')[-1]
+    return StreamingResponse(
+        storage.stream_file(storage_path),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@api_router.post("/admin/premium/book/set-path")
+async def admin_set_book_path(
+    data: dict, _admin: dict = Depends(require_admin)
+):
+    path = (data.get('storage_path') or '').strip()
+    if not path:
+        raise HTTPException(status_code=400, detail="storage_path required")
+    await db.config.update_one(
+        {"key": "premium_book"},
+        {"$set": {"key": "premium_book", "storage_path": path}},
+        upsert=True,
+    )
+    return {"ok": True, "storage_path": path}
+
+
+# ---- Admin user management (manual subscription grants) ----
+
+class GrantBody(BaseModel):
+    days: int = 30
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(
+    search: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    _admin: dict = Depends(require_admin),
+):
+    query: dict = {}
+    if search:
+        query["$or"] = [
+            {"email": {"$regex": search, "$options": "i"}},
+            {"name": {"$regex": search, "$options": "i"}},
+        ]
+    total = await db.users.count_documents(query)
+    cursor = (
+        db.users.find(query, {"_id": 0, "password_hash": 0})
+        .sort("created_at", -1)
+        .skip((page - 1) * page_size)
+        .limit(page_size)
+    )
+    users = await cursor.to_list(length=page_size)
+    for u in users:
+        u['subscriptions'] = _subscription_state(u)
+    return {"users": users, "total": total, "page": page, "page_size": page_size}
+
+
+@api_router.post("/admin/users/{user_id}/grant/{package_id}")
+async def admin_grant_subscription(
+    user_id: str, package_id: str,
+    body: GrantBody = GrantBody(),
+    _admin: dict = Depends(require_admin),
+):
+    if package_id not in SUBSCRIPTION_PACKAGES:
+        raise HTTPException(status_code=400, detail="Unknown package")
+    pkg = SUBSCRIPTION_PACKAGES[package_id]
+    expires = (datetime.now(timezone.utc) + timedelta(days=body.days)).isoformat()
+    update = {pkg['access_flag']: True, pkg['expires_field']: expires}
+    res = await db.users.update_one({"id": user_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True, "expires_at": expires}
+
+
+@api_router.post("/admin/users/{user_id}/revoke/{package_id}")
+async def admin_revoke_subscription(
+    user_id: str, package_id: str, _admin: dict = Depends(require_admin)
+):
+    if package_id not in SUBSCRIPTION_PACKAGES:
+        raise HTTPException(status_code=400, detail="Unknown package")
+    pkg = SUBSCRIPTION_PACKAGES[package_id]
+    update = {pkg['access_flag']: False, pkg['expires_field']: None}
+    res = await db.users.update_one({"id": user_id}, {"$set": update})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True}
+
 
 # ============ YIGIM PAYMENT ROUTES (Azerbaijan) ============
 
@@ -2183,9 +2648,7 @@ async def scan_arbitrage_simple():
 @api_router.get("/arbitrage/scan")
 async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
     """Simple crypto arbitrage scan - major USDT pairs only"""
-    has_access = False
-    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
-        has_access = True
+    has_access = has_arbitrage_access(user)
 
     if not has_access:
         return {
@@ -2205,19 +2668,11 @@ async def get_arbitrage_scan(user: dict = Depends(get_optional_user)):
 @api_router.get("/arbitrage/status")
 async def get_arbitrage_status(user: dict = Depends(get_optional_user)):
     """Get user's arbitrage subscription status"""
-    has_access = False
-    if user and (user.get('arbitrage_subscription') or user.get('is_admin')):
-        has_access = True
-
     return {
-        "has_access": has_access,
-        "price": PRODUCTS["arbitrage"]["price"],
-        "features": [
-            "Top 1000 CoinMarketCap coins across 7 exchanges",
-            "Net spread after all fees & commissions",
-            "Auto-refresh every 10 seconds",
-            "Sorted by highest profit opportunity"
-        ]
+        "has_access": has_arbitrage_access(user),
+        "price": SUBSCRIPTION_PACKAGES["arbitrage_bot"]["price"],
+        "expires_at": (user or {}).get('arbitrage_subscription_expires_at'),
+        "features": SUBSCRIPTION_PACKAGES["arbitrage_bot"]["features"],
     }
 
 # ============ MARKET DATA (Alpha Vantage) ============
@@ -2358,7 +2813,7 @@ async def root():
 
 # ============ VIDEO STREAMING ROUTE ============
 
-from fastapi.responses import StreamingResponse, Response
+from fastapi.responses import Response
 import mimetypes
 
 @api_router.get("/stream/video/{filename}")
@@ -3289,6 +3744,50 @@ async def startup():
         for signal in sample_signals:
             await db.signals.insert_one(signal.model_dump())
         logger.info("Sample signals created")
+
+    # ============ Phase 1 — Subscription restructure migration ============
+    # Idempotent. Once a user has migration_v1_at set, we never touch them again.
+    migrate_cursor = db.users.find(
+        {"migration_v1_at": {"$exists": False}}, {"_id": 0}
+    )
+    migrated = 0
+    async for u in migrate_cursor:
+        updates: dict = {}
+        # Anyone who owned ANY legacy product gets Premium 3-in-1 for 30 days.
+        if (u.get('course_access') or u.get('book_access')
+                or u.get('signals_subscription')) and not u.get('premium_subscription'):
+            updates['premium_subscription'] = True
+            updates['premium_subscription_expires_at'] = (
+                datetime.now(timezone.utc) + timedelta(days=30)
+            ).isoformat()
+        # Existing arbitrage flag — keep it, just add an expiry if missing.
+        if u.get('arbitrage_subscription') and not u.get('arbitrage_subscription_expires_at'):
+            updates['arbitrage_subscription_expires_at'] = (
+                datetime.now(timezone.utc) + timedelta(days=30)
+            ).isoformat()
+        updates['migration_v1_at'] = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one({"id": u['id']}, {"$set": updates})
+        migrated += 1
+    if migrated:
+        logger.info(f"Phase 1 migration: touched {migrated} users")
+
+    # Seed one free intro Lesson if no lessons exist yet
+    lessons_count = await db.lessons.count_documents({})
+    if lessons_count == 0:
+        intro = Lesson(
+            title="Welcome to Bull & Bear — Free Intro",
+            description=(
+                "A quick introduction to what you'll learn in the Premium course. "
+                "Watch this free preview, then join Premium to access the full curriculum."
+            ),
+            order=1,
+            bunny_video_id="",  # admin pastes the Bunny video GUID once uploaded
+            duration="",
+            is_free=True,
+            is_published=True,
+        )
+        await db.lessons.insert_one(intro.model_dump())
+        logger.info("Seeded free intro Lesson")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

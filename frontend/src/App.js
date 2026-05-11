@@ -329,11 +329,11 @@ const Navbar = () => {
 
   const navLinks = [
     { path: "/", label: "Home", icon: BarChart3 },
-    { path: "/products", label: "Products", icon: Package },
-    { path: "/courses", label: "Courses", icon: BookOpen },
+    { path: "/pricing", label: "Pricing", icon: Package },
+    { path: "/dashboard/arbitrage", label: "Arbitrage", icon: TrendingUp },
+    { path: "/premium/course", label: "Course", icon: BookOpen },
     { path: "/signals", label: "Signals", icon: Signal },
-    { path: "/arbitrage", label: "Arbitrage", icon: TrendingUp },
-    { path: "/book", label: "Book", icon: BookOpen },
+    { path: "/news", label: "News", icon: Newspaper },
     { path: "/ai-advisor", label: "AI Advisor", icon: Brain },
   ];
 
@@ -928,12 +928,290 @@ const ProductsPage = () => {
 
 // =============== PAGES ===============
 
+// ----- Admin panels (Phase 1) -----
+
+const AdminLessonsPanel = ({ token }) => {
+  const [lessons, setLessons] = useState([]);
+  const [bunnyVids, setBunnyVids] = useState([]);
+  const [form, setForm] = useState({
+    title: '', description: '', order: 1, bunny_video_id: '',
+    duration: '', is_free: false, is_published: true, thumbnail: '',
+  });
+  const [editing, setEditing] = useState(null);
+
+  const refresh = async () => {
+    const [l, b] = await Promise.all([
+      api.get('/lessons', token),
+      api.get('/admin/bunny/videos', token).catch(() => ({ data: { items: [] } })),
+    ]);
+    setLessons(l.data.lessons || []);
+    setBunnyVids(b.data.items || []);
+  };
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, []);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editing) {
+        await api.put(`/admin/lessons/${editing}`, form, token);
+        toast.success('Lesson updated');
+      } else {
+        await api.post('/admin/lessons', form, token);
+        toast.success('Lesson created');
+      }
+      setForm({ title: '', description: '', order: 1, bunny_video_id: '', duration: '', is_free: false, is_published: true, thumbnail: '' });
+      setEditing(null);
+      refresh();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Save failed');
+    }
+  };
+
+  const startEdit = (lesson) => {
+    setEditing(lesson.id);
+    setForm({
+      title: lesson.title, description: lesson.description || '', order: lesson.order || 1,
+      bunny_video_id: lesson.bunny_video_id || '', duration: lesson.duration || '',
+      is_free: !!lesson.is_free, is_published: lesson.is_published !== false,
+      thumbnail: lesson.thumbnail || '',
+    });
+  };
+
+  const del = async (id) => {
+    if (!window.confirm('Delete this lesson?')) return;
+    await api.delete(`/admin/lessons/${id}`, token);
+    toast.success('Deleted');
+    refresh();
+  };
+
+  return (
+    <div className="space-y-8">
+      <Card3D>
+        <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+          <Play className="text-amber-500" /> {editing ? 'Edit Lesson' : 'Add Lesson'}
+        </h3>
+        <form onSubmit={submit} className="space-y-4">
+          <input data-testid="lesson-title" className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+            placeholder="Title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} required />
+          <textarea className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+            placeholder="Description" rows={3} value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })} />
+          <div className="grid sm:grid-cols-3 gap-3">
+            <input type="number" className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+              placeholder="Order" value={form.order} onChange={e => setForm({ ...form, order: Number(e.target.value) })} />
+            <input className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+              placeholder="Duration (e.g. 12:34)" value={form.duration}
+              onChange={e => setForm({ ...form, duration: e.target.value })} />
+            <input className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+              placeholder="Thumbnail URL (optional)" value={form.thumbnail}
+              onChange={e => setForm({ ...form, thumbnail: e.target.value })} />
+          </div>
+          <div>
+            <label className="block text-sm text-zinc-400 mb-1">Bunny Stream video</label>
+            <select
+              data-testid="lesson-bunny-select"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+              value={form.bunny_video_id}
+              onChange={e => setForm({ ...form, bunny_video_id: e.target.value })}
+            >
+              <option value="">— Select a video from Bunny Stream —</option>
+              {bunnyVids.map(v => (
+                <option key={v.guid} value={v.guid}>
+                  {v.title} ({v.size_mb || 0} MB, status {v.status})
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-zinc-500 mt-1">Paste an ID manually if it isn't in the list yet.</p>
+            <input
+              className="mt-2 w-full bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white text-sm"
+              placeholder="Bunny video GUID"
+              value={form.bunny_video_id}
+              onChange={e => setForm({ ...form, bunny_video_id: e.target.value })}
+            />
+          </div>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-zinc-300">
+              <input type="checkbox" checked={form.is_free} onChange={e => setForm({ ...form, is_free: e.target.checked })} />
+              Free intro
+            </label>
+            <label className="flex items-center gap-2 text-zinc-300">
+              <input type="checkbox" checked={form.is_published} onChange={e => setForm({ ...form, is_published: e.target.checked })} />
+              Published
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <GoldButton type="submit" data-testid="lesson-save-btn">{editing ? 'Save changes' : 'Create lesson'}</GoldButton>
+            {editing && <GoldButton variant="secondary" onClick={() => { setEditing(null); setForm({ title: '', description: '', order: 1, bunny_video_id: '', duration: '', is_free: false, is_published: true, thumbnail: '' }); }}>Cancel</GoldButton>}
+          </div>
+        </form>
+      </Card3D>
+      <Card3D>
+        <h3 className="text-xl font-semibold text-white mb-4">Lessons ({lessons.length})</h3>
+        <div className="space-y-2">
+          {lessons.map(l => (
+            <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 p-3 bg-zinc-900 rounded-lg" data-testid={`admin-lesson-row-${l.id}`}>
+              <div className="flex-1 min-w-0">
+                <div className="text-white font-medium truncate">
+                  #{l.order} · {l.title}
+                  {l.is_free && <span className="ml-2 text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-400">FREE</span>}
+                </div>
+                <div className="text-xs text-zinc-500 truncate">
+                  {l.bunny_video_id || <em>No Bunny video</em>}{l.duration ? ` · ${l.duration}` : ''}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <GoldButton variant="secondary" onClick={() => startEdit(l)}>Edit</GoldButton>
+                <GoldButton variant="danger" onClick={() => del(l.id)}>Delete</GoldButton>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card3D>
+    </div>
+  );
+};
+
+const AdminSubscriptionsPanel = ({ token }) => {
+  const [search, setSearch] = useState('');
+  const [data, setData] = useState({ users: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+
+  const load = async (q = '') => {
+    setLoading(true);
+    try {
+      const r = await api.get(`/admin/users${q ? `?search=${encodeURIComponent(q)}` : ''}`, token);
+      setData(r.data);
+    } catch (e) { toast.error('Failed to load users'); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const grant = async (uid, pkg) => {
+    const days = parseInt(window.prompt('Grant for how many days?', '30') || '0', 10);
+    if (!days) return;
+    await api.post(`/admin/users/${uid}/grant/${pkg}`, { days }, token);
+    toast.success('Granted');
+    load(search);
+  };
+  const revoke = async (uid, pkg) => {
+    if (!window.confirm('Revoke this subscription?')) return;
+    await api.post(`/admin/users/${uid}/revoke/${pkg}`, {}, token);
+    toast.success('Revoked');
+    load(search);
+  };
+
+  return (
+    <Card3D>
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <h3 className="text-xl font-semibold text-white">Subscriptions ({data.total})</h3>
+        <div className="flex gap-2">
+          <input
+            className="bg-zinc-900 border border-zinc-800 rounded px-3 py-2 text-white"
+            placeholder="Search email / name"
+            value={search} onChange={e => setSearch(e.target.value)}
+          />
+          <GoldButton onClick={() => load(search)}>Search</GoldButton>
+        </div>
+      </div>
+      {loading ? <div className="text-zinc-400">Loading…</div> : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-zinc-500 border-b border-zinc-800">
+              <tr>
+                <th className="py-2">User</th>
+                <th>Premium</th>
+                <th>Arbitrage</th>
+                <th>Discord</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.users.map(u => (
+                <tr key={u.id} className="border-b border-zinc-900" data-testid={`admin-sub-row-${u.id}`}>
+                  <td className="py-2 pr-3">
+                    <div className="text-white">{u.name}</div>
+                    <div className="text-xs text-zinc-500">{u.email}</div>
+                  </td>
+                  <td>
+                    <span className={`text-xs px-2 py-0.5 rounded ${u.subscriptions?.premium?.active ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
+                      {u.subscriptions?.premium?.active ? `Active · ${u.subscriptions.premium.days_left ?? '?'}d` : 'Inactive'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`text-xs px-2 py-0.5 rounded ${u.subscriptions?.arbitrage?.active ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
+                      {u.subscriptions?.arbitrage?.active ? `Active · ${u.subscriptions.arbitrage.days_left ?? '?'}d` : 'Inactive'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className="text-xs text-zinc-400">{u.discord_user_id ? '✓' : '—'}</span>
+                  </td>
+                  <td className="text-right">
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <button data-testid={`grant-premium-${u.id}`} onClick={() => grant(u.id, 'premium_3in1')} className="text-xs px-2 py-1 bg-amber-500 text-black rounded">+ Premium</button>
+                      <button onClick={() => revoke(u.id, 'premium_3in1')} className="text-xs px-2 py-1 bg-zinc-800 text-zinc-300 rounded">−</button>
+                      <button data-testid={`grant-arb-${u.id}`} onClick={() => grant(u.id, 'arbitrage_bot')} className="text-xs px-2 py-1 bg-amber-500 text-black rounded">+ Arb</button>
+                      <button onClick={() => revoke(u.id, 'arbitrage_bot')} className="text-xs px-2 py-1 bg-zinc-800 text-zinc-300 rounded">−</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card3D>
+  );
+};
+
+const IntroVideoModal = ({ open, onClose }) => {
+  const [intro, setIntro] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open || intro) return;
+    setLoading(true);
+    api.get('/intro-video')
+      .then(r => setIntro(r.data))
+      .catch(() => setIntro({ error: true }))
+      .finally(() => setLoading(false));
+  }, [open, intro]);
+
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={onClose} data-testid="intro-modal">
+      <div className="bg-zinc-950 border border-zinc-800 rounded-xl w-full max-w-4xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+          <h3 className="text-white font-semibold">{intro?.title || 'Free intro'}</h3>
+          <button onClick={onClose} className="text-zinc-400 hover:text-white" data-testid="intro-modal-close">✕</button>
+        </div>
+        <div className="aspect-video bg-black">
+          {loading && <div className="w-full h-full flex items-center justify-center text-zinc-400">Loading…</div>}
+          {intro?.embed_url && (
+            <iframe src={intro.embed_url} title={intro.title} allow="autoplay; fullscreen; encrypted-media; picture-in-picture" allowFullScreen className="w-full h-full border-0" />
+          )}
+          {intro?.video_url && !intro?.embed_url && (
+            <video src={intro.video_url} controls autoPlay className="w-full h-full" />
+          )}
+          {intro?.error && (
+            <div className="w-full h-full flex items-center justify-center text-zinc-400 text-center px-6">
+              The intro video isn't published yet. Please check back soon — or sign up for a Premium subscription to get the full course.
+            </div>
+          )}
+        </div>
+        {intro?.description && <div className="p-5 text-zinc-400 text-sm">{intro.description}</div>}
+      </div>
+    </div>
+  );
+};
+
 const HomePage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [market, setMarket] = useState(null);
   const [signals, setSignals] = useState([]);
   const [news, setNews] = useState([]);
+  const [introOpen, setIntroOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -988,17 +1266,18 @@ const HomePage = () => {
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <GoldButton onClick={() => navigate('/products')} className="text-lg px-8 py-4">
+                <GoldButton onClick={() => navigate('/pricing')} className="text-lg px-8 py-4" data-testid="hero-start-learning-btn">
                   <Play size={20} /> Start Learning
                 </GoldButton>
-                <GoldButton variant="secondary" onClick={() => navigate('/signals')} className="text-lg px-8 py-4">
-                  <Signal size={20} /> View Signals
+                <GoldButton variant="secondary" onClick={() => setIntroOpen(true)} className="text-lg px-8 py-4" data-testid="hero-watch-intro-btn">
+                  <Play size={20} /> Watch Free Intro
                 </GoldButton>
               </div>
             </motion.div>
           </div>
         </ShaderBackground>
       </section>
+      <IntroVideoModal open={introOpen} onClose={() => setIntroOpen(false)} />
 
       {/* Latest Signals Preview */}
       <section className="max-w-7xl mx-auto px-4 py-16">
@@ -3021,7 +3300,9 @@ const AdminPage = () => {
 
   const tabs = [
     { id: 'stats', label: 'Dashboard', icon: BarChart3 },
-    { id: 'courses', label: 'Courses', icon: Video },
+    { id: 'lessons', label: 'Lessons (Bunny)', icon: Play },
+    { id: 'subscriptions', label: 'Subscriptions', icon: Crown },
+    { id: 'courses', label: 'Courses (legacy)', icon: Video },
     { id: 'book', label: 'Book/PDF', icon: FileText },
     { id: 'signals', label: 'Signals', icon: Signal },
     { id: 'news', label: 'News', icon: Newspaper },
@@ -3059,6 +3340,9 @@ const AdminPage = () => {
             <StatCard icon={DollarSign} label="Purchases" value={stats.purchases} />
           </div>
         )}
+
+        {activeTab === 'lessons' && <AdminLessonsPanel token={token} />}
+        {activeTab === 'subscriptions' && <AdminSubscriptionsPanel token={token} />}
 
         {/* Courses Tab - Enhanced */}
         {activeTab === 'courses' && (
@@ -5573,6 +5857,326 @@ const CancellationPolicyPage = () => {
 };
 
 
+// ============================================================
+// PHASE 1 — Subscription pages, premium dashboards, account
+// ============================================================
+
+const PricingPage = () => {
+  const { user, token } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [packages, setPackages] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/subscriptions/packages').then(r => {
+      setPackages(r.data.packages || []);
+    }).catch(() => toast.error('Failed to load packages'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSubscribe = async (pkgId) => {
+    if (!user) { navigate('/login'); return; }
+    toast.info('Payment integration is being finalised. We\'ll email you when checkout is live.', { duration: 6000 });
+  };
+
+  return (
+    <PageWrapper>
+      <div className="max-w-6xl mx-auto px-4 py-12">
+        <div className="text-center mb-12">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-4">
+            Choose your <span className="text-amber-500">edge</span>
+          </h1>
+          <p className="text-zinc-400 max-w-2xl mx-auto">
+            Two focused monthly subscriptions. Cancel anytime, access ends at period end.
+          </p>
+        </div>
+        {loading ? (
+          <div className="text-center text-zinc-400">Loading…</div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-6">
+            {packages.map((pkg) => (
+              <Card3D key={pkg.id} className="p-8 flex flex-col" data-testid={`pricing-card-${pkg.id}`}>
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold text-white mb-2">{pkg.name}</h3>
+                  <div className="flex items-baseline gap-2 mb-4">
+                    <span className="text-4xl font-bold text-amber-500">${pkg.price.toFixed(2)}</span>
+                    <span className="text-zinc-400">/ month</span>
+                  </div>
+                  <p className="text-zinc-400 mb-6">{pkg.description}</p>
+                  <ul className="space-y-2 mb-6">
+                    {pkg.features.map((f, i) => (
+                      <li key={i} className="flex items-start gap-2 text-zinc-300">
+                        <span className="text-amber-500 mt-1">✓</span><span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {pkg.requires_discord && (
+                    <div className="text-xs text-amber-400 bg-amber-500/10 rounded p-2 mb-4" data-testid={`pricing-discord-required-${pkg.id}`}>
+                      Discord account required to access VIP channel after payment.
+                    </div>
+                  )}
+                </div>
+                <GoldButton
+                  data-testid={`subscribe-btn-${pkg.id}`}
+                  onClick={() => handleSubscribe(pkg.id)}
+                  className="w-full"
+                >
+                  Subscribe — ${pkg.price.toFixed(2)}/mo
+                </GoldButton>
+              </Card3D>
+            ))}
+          </div>
+        )}
+        <p className="text-center text-zinc-500 text-sm mt-8">
+          By subscribing, you agree to our{' '}
+          <Link to="/terms-and-conditions" className="text-amber-500">Terms</Link> and{' '}
+          <Link to="/cancellation-policy" className="text-amber-500">Cancellation Policy</Link>.
+        </p>
+      </div>
+    </PageWrapper>
+  );
+};
+
+const SubscriptionAccountPage = () => {
+  const { user, token, refreshUser } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [sub, setSub] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) { navigate('/login'); return; }
+    api.get('/subscriptions/me', token).then(r => setSub(r.data))
+      .catch(() => toast.error('Could not load subscription'))
+      .finally(() => setLoading(false));
+  }, [user, token, navigate]);
+
+  if (!user) return null;
+  if (loading) return <PageWrapper><div className="p-12 text-center text-zinc-400">Loading…</div></PageWrapper>;
+
+  const Block = ({ name, info, ctaTo, ctaLabel }) => (
+    <Card3D className="p-6" data-testid={`sub-block-${name}`}>
+      <div className="flex items-start justify-between mb-2">
+        <h3 className="text-xl font-bold text-white">{name}</h3>
+        <span className={`text-xs px-2 py-1 rounded ${info.active ? 'bg-green-500/20 text-green-400' : 'bg-zinc-700 text-zinc-400'}`}>
+          {info.active ? 'Active' : 'Inactive'}
+        </span>
+      </div>
+      {info.active && info.expires_at && (
+        <p className="text-sm text-zinc-400 mb-3">
+          Renews / expires in <strong className="text-white">{info.days_left} days</strong>{' '}
+          (<span className="text-zinc-500">{new Date(info.expires_at).toLocaleDateString()}</span>)
+        </p>
+      )}
+      <Link to={ctaTo}>
+        <GoldButton className="w-full" data-testid={`sub-cta-${name}`}>
+          {ctaLabel}
+        </GoldButton>
+      </Link>
+    </Card3D>
+  );
+
+  return (
+    <PageWrapper>
+      <div className="max-w-5xl mx-auto px-4 py-12">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-6">My subscription</h1>
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <Block name="Premium 3-in-1" info={sub.premium} ctaTo={sub.premium.active ? '/premium/course' : '/pricing'} ctaLabel={sub.premium.active ? 'Open Premium' : 'Subscribe'} />
+          <Block name="Arbitrage Bot" info={sub.arbitrage} ctaTo={sub.arbitrage.active ? '/dashboard/arbitrage' : '/pricing'} ctaLabel={sub.arbitrage.active ? 'Open Dashboard' : 'Subscribe'} />
+        </div>
+        {sub.premium.active && !sub.premium.discord_connected && (
+          <Card3D className="p-6 mb-6 border-amber-500/30" data-testid="discord-cta">
+            <h3 className="text-lg font-bold text-white mb-2">Connect your Discord account</h3>
+            <p className="text-zinc-400 mb-3">Required to access the VIP Discord channel. The bot grants the Premium Member role automatically after you connect.</p>
+            <Link to="/premium/connect-discord">
+              <GoldButton className="bg-[#5865F2] hover:bg-[#4752c4] text-white">Connect Discord</GoldButton>
+            </Link>
+          </Card3D>
+        )}
+        <p className="text-zinc-500 text-sm">
+          Need help with billing? <a href={`mailto:${SUPPORT_EMAIL}`} className="text-amber-500">{SUPPORT_EMAIL}</a>
+        </p>
+      </div>
+    </PageWrapper>
+  );
+};
+
+const PremiumGate = ({ children, requireArbitrage = false, requirePremium = false }) => {
+  const { user, token } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [check, setCheck] = useState({ loading: true, allowed: false });
+
+  useEffect(() => {
+    if (!user) { navigate('/login'); return; }
+    api.get('/subscriptions/me', token).then(r => {
+      const ok = (requireArbitrage && r.data.arbitrage?.active)
+              || (requirePremium && r.data.premium?.active)
+              || user.is_admin;
+      setCheck({ loading: false, allowed: !!ok });
+    }).catch(() => setCheck({ loading: false, allowed: !!user.is_admin }));
+  }, [user, token, navigate, requireArbitrage, requirePremium]);
+
+  if (check.loading) return <PageWrapper><div className="p-12 text-center text-zinc-400">Checking access…</div></PageWrapper>;
+  if (!check.allowed) {
+    return (
+      <PageWrapper>
+        <div className="max-w-xl mx-auto p-12 text-center">
+          <h1 className="text-3xl font-bold text-white mb-3">Subscription required</h1>
+          <p className="text-zinc-400 mb-6">This area is available to active subscribers only.</p>
+          <Link to="/pricing">
+            <GoldButton data-testid="gate-subscribe-btn">View plans</GoldButton>
+          </Link>
+        </div>
+      </PageWrapper>
+    );
+  }
+  return children;
+};
+
+const PremiumCoursePage = () => (
+  <PremiumGate requirePremium>
+    <PageWrapper>
+      <div className="max-w-5xl mx-auto px-4 py-12">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-6">Premium Course</h1>
+        <LessonsList />
+      </div>
+    </PageWrapper>
+  </PremiumGate>
+);
+
+const LessonsList = () => {
+  const { token } = useContext(AuthContext);
+  const [lessons, setLessons] = useState([]);
+  const [active, setActive] = useState(null);
+
+  useEffect(() => {
+    api.get('/lessons', token).then(r => {
+      setLessons(r.data.lessons || []);
+      const firstPlayable = (r.data.lessons || []).find(l => l.has_access && l.embed_url);
+      if (firstPlayable) setActive(firstPlayable);
+    });
+  }, [token]);
+
+  return (
+    <div className="grid md:grid-cols-3 gap-6">
+      <div className="md:col-span-2">
+        {active && active.embed_url ? (
+          <div className="aspect-video rounded-xl overflow-hidden bg-black" data-testid="course-player">
+            <iframe
+              src={active.embed_url}
+              title={active.title}
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="w-full h-full border-0"
+            />
+          </div>
+        ) : (
+          <div className="aspect-video rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-500" data-testid="course-player-empty">
+            Select a lesson to start watching
+          </div>
+        )}
+        {active && (
+          <div className="mt-4">
+            <h2 className="text-2xl font-bold text-white">{active.title}</h2>
+            <p className="text-zinc-400 mt-2">{active.description}</p>
+          </div>
+        )}
+      </div>
+      <div className="space-y-2">
+        {lessons.map((l) => (
+          <button
+            key={l.id}
+            onClick={() => l.has_access && setActive(l)}
+            data-testid={`lesson-item-${l.id}`}
+            className={`w-full text-left p-3 rounded-lg border ${active?.id === l.id ? 'border-amber-500 bg-amber-500/5' : 'border-zinc-800 hover:border-zinc-700'}`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-white text-sm font-medium">{l.title}</span>
+              {l.is_free && <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded">FREE</span>}
+            </div>
+            {!l.has_access && <span className="text-xs text-zinc-500">Premium required</span>}
+            {l.duration && <span className="text-xs text-zinc-500 block">{l.duration}</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const PremiumBookPage = () => {
+  const { token } = useContext(AuthContext);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await axios.get(`${API}/premium/book/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'game-of-candles.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <PremiumGate requirePremium>
+      <PageWrapper>
+        <div className="max-w-3xl mx-auto px-4 py-12 text-center">
+          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Game of Candles</h1>
+          <p className="text-zinc-400 mb-8">Your premium e-book. Download as PDF — link expires shortly after use for security.</p>
+          <GoldButton
+            data-testid="download-book-btn"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="px-8 py-6 text-lg"
+          >
+            {downloading ? 'Preparing…' : 'Download PDF'}
+          </GoldButton>
+        </div>
+      </PageWrapper>
+    </PremiumGate>
+  );
+};
+
+const ArbitrageDashboardPage = () => (
+  <PremiumGate requireArbitrage>
+    <ArbitragePage />
+  </PremiumGate>
+);
+
+const ConnectDiscordPage = () => {
+  const { user } = useContext(AuthContext);
+  return (
+    <PageWrapper>
+      <div className="max-w-xl mx-auto px-4 py-12 text-center">
+        <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">Connect Discord</h1>
+        <p className="text-zinc-400 mb-6">
+          We're rolling out Discord OAuth shortly. Once connected, our bot will give you the
+          <strong className="text-white"> Premium Member </strong> role automatically.
+        </p>
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-left mb-6" data-testid="discord-status">
+          <p className="text-sm text-zinc-400">Discord status: <strong className={user?.discord_user_id ? 'text-green-400' : 'text-amber-400'}>
+            {user?.discord_user_id ? `Connected (${user.discord_username})` : 'Not connected'}
+          </strong></p>
+        </div>
+        <GoldButton disabled className="bg-[#5865F2] text-white opacity-60 cursor-not-allowed" data-testid="discord-connect-btn">
+          Connect Discord (coming soon)
+        </GoldButton>
+      </div>
+    </PageWrapper>
+  );
+};
+
 // Content Protection Hook
 const useContentProtection = () => {
   useEffect(() => {
@@ -5658,6 +6262,13 @@ function App() {
               <Route path="/terms-and-conditions" element={<TermsPage />} />
               <Route path="/refund-policy" element={<RefundPolicyPage />} />
               <Route path="/cancellation-policy" element={<CancellationPolicyPage />} />
+              {/* Phase 1 — new subscription structure */}
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/account/subscription" element={<SubscriptionAccountPage />} />
+              <Route path="/dashboard/arbitrage" element={<ArbitrageDashboardPage />} />
+              <Route path="/premium/course" element={<PremiumCoursePage />} />
+              <Route path="/premium/book" element={<PremiumBookPage />} />
+              <Route path="/premium/connect-discord" element={<ConnectDiscordPage />} />
             </Routes>
           </div>
           <Footer />
