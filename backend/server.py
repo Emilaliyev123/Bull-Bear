@@ -2165,13 +2165,6 @@ async def get_all_videos(admin: dict = Depends(require_admin)):
     
     return {"videos": videos}
 
-@api_router.get("/admin/users")
-async def get_users(admin: dict = Depends(require_admin), skip: int = 0, limit: int = 100):
-    # Paginated user list (max 100 per request)
-    limit = min(limit, 100)
-    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).skip(skip).limit(limit).to_list(limit)
-    return users
-
 @api_router.put("/admin/users/{user_id}")
 async def update_user(user_id: str, data: dict, admin: dict = Depends(require_admin)):
     # Remove sensitive fields

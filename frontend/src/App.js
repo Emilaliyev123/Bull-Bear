@@ -247,13 +247,14 @@ const GoldButton = ({ children, onClick, className = "", variant = "primary", di
   );
 };
 
-const Card3D = ({ children, className = "", onClick }) => (
+const Card3D = ({ children, className = "", onClick, ...rest }) => (
   <motion.div
     whileHover={{ rotateX: 2, rotateY: 2, scale: 1.02 }}
     transition={{ type: "spring", stiffness: 300 }}
     onClick={onClick}
     className={`bg-gradient-to-br from-zinc-900 to-zinc-950 border border-zinc-800 rounded-xl p-6 ${onClick ? 'cursor-pointer' : ''} ${className}`}
     style={{ transformStyle: "preserve-3d" }}
+    {...rest}
   >
     {children}
   </motion.div>
@@ -5938,19 +5939,20 @@ const PricingPage = () => {
 };
 
 const SubscriptionAccountPage = () => {
-  const { user, token, refreshUser } = useContext(AuthContext);
+  const { user, token, loading: authLoading, refreshUser } = useContext(AuthContext);
   const navigate = useNavigate();
   const [sub, setSub] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     api.get('/subscriptions/me', token).then(r => setSub(r.data))
       .catch(() => toast.error('Could not load subscription'))
       .finally(() => setLoading(false));
-  }, [user, token, navigate]);
+  }, [user, token, navigate, authLoading]);
 
-  if (!user) return null;
+  if (authLoading || !user) return <PageWrapper><div className="p-12 text-center text-zinc-400">Checking access…</div></PageWrapper>;
   if (loading) return <PageWrapper><div className="p-12 text-center text-zinc-400">Loading…</div></PageWrapper>;
 
   const Block = ({ name, info, ctaTo, ctaLabel }) => (
@@ -6001,21 +6003,22 @@ const SubscriptionAccountPage = () => {
 };
 
 const PremiumGate = ({ children, requireArbitrage = false, requirePremium = false }) => {
-  const { user, token } = useContext(AuthContext);
+  const { user, token, loading: authLoading } = useContext(AuthContext);
   const navigate = useNavigate();
   const [check, setCheck] = useState({ loading: true, allowed: false });
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user) { navigate('/login'); return; }
     api.get('/subscriptions/me', token).then(r => {
-      const ok = (requireArbitrage && r.data.arbitrage?.active)
-              || (requirePremium && r.data.premium?.active)
-              || user.is_admin;
-      setCheck({ loading: false, allowed: !!ok });
+      const allowed = user.is_admin
+        || (requireArbitrage && r.data.arbitrage?.active)
+        || (requirePremium && r.data.premium?.active);
+      setCheck({ loading: false, allowed: !!allowed });
     }).catch(() => setCheck({ loading: false, allowed: !!user.is_admin }));
-  }, [user, token, navigate, requireArbitrage, requirePremium]);
+  }, [user, token, navigate, authLoading, requireArbitrage, requirePremium]);
 
-  if (check.loading) return <PageWrapper><div className="p-12 text-center text-zinc-400">Checking access…</div></PageWrapper>;
+  if (authLoading || check.loading) return <PageWrapper><div className="p-12 text-center text-zinc-400">Checking access…</div></PageWrapper>;
   if (!check.allowed) {
     return (
       <PageWrapper>
