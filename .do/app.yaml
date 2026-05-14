@@ -1,0 +1,33 @@
+name: bull-bear-staging
+region: fra
+services:
+  - name: web
+    environment_slug: node-js
+    github:
+      repo: Emilaliyev123/Bull-Bear
+      branch: main
+      deploy_on_push: true
+    build_command: npm ci
+    run_command: npm start
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    routes:
+      - path: /
+    envs:
+      - key: APP_URL
+        value: https://staging.bullandbear.az
+      - key: PORT
+        value: "3000"
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: BullBearAdmin#2026!Q7
+      - key: ADMIN_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: change-this-long-random-secret-before-deploy
+      - key: DISCORD_FREE_INVITE
+        value: https://discord.gg/zcXkSV34H

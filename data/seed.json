@@ -1,0 +1,46 @@
+{
+  "courses": [
+    {
+      "id": "course-market-structure",
+      "title": "Market Structure Foundations",
+      "description": "Learn trend phases, break of structure, liquidity zones, and the core language of price action.",
+      "category": "beginner",
+      "duration": "42 min",
+      "isFree": true,
+      "videoUrl": "",
+      "thumbnailUrl": "",
+      "createdAt": "2026-03-16T00:00:00.000Z"
+    },
+    {
+      "id": "course-risk-system",
+      "title": "Risk Management System",
+      "description": "Build a rules-based position sizing plan, define invalidation, and protect capital across volatile sessions.",
+      "category": "risk-management",
+      "duration": "58 min",
+      "isFree": false,
+      "videoUrl": "",
+      "thumbnailUrl": "",
+      "createdAt": "2026-03-16T00:00:00.000Z"
+    },
+    {
+      "id": "course-psychology",
+      "title": "Trading Psychology",
+      "description": "A practical framework for patience, discipline, journaling, and avoiding emotional overtrading.",
+      "category": "psychology",
+      "duration": "36 min",
+      "isFree": false,
+      "videoUrl": "",
+      "thumbnailUrl": "",
+      "createdAt": "2026-03-16T00:00:00.000Z"
+    }
+  ],
+  "book": {
+    "title": "Game of Candles",
+    "description": "A complete trading guide covering market structure, risk frameworks, trade planning, psychology, and real chart examples.",
+    "price": 49.9,
+    "coverUrl": "/assets/game-of-candles-cover.png",
+    "pdfUrl": "",
+    "updatedAt": "2026-03-16T00:00:00.000Z"
+  },
+  "users": []
+}
