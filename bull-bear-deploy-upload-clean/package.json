@@ -1,0 +1,18 @@
+{
+  "name": "bull-bear-arbitrage-scanner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bull & Bear Arbitrage Scanner SaaS with academy content, subscriptions, admin uploads, and live exchange scanning.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node -r ./payment-preload.js server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "multer": "^2.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
