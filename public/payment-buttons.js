@@ -6,8 +6,15 @@
     arbitrage: "arbitrage-only"
   };
 
+  let observer = null;
+  let syncQueued = false;
+
   function userToken() {
-    return localStorage.getItem("bb_token") || "";
+    try {
+      return localStorage.getItem("bb_token") || "";
+    } catch (error) {
+      return "";
+    }
   }
 
   function isLoggedIn() {
@@ -15,55 +22,74 @@
   }
 
   function buttonLabel(planId) {
-    if (!isLoggedIn()) return planId.includes("premium") || planId.includes("arbitrage") ? "Log In to Subscribe" : "Log In to Buy";
-    if (planId === "education-bundle") return "Buy Now";
-    return "Subscribe Now";
+    if (!isLoggedIn()) {
+      return planId === "education-bundle" ? "Log In to Buy" : "Log In to Subscribe";
+    }
+    return planId === "education-bundle" ? "Buy Now" : "Subscribe Now";
+  }
+
+  function setText(element, text) {
+    if (element && element.textContent !== text) {
+      element.textContent = text;
+    }
   }
 
   function makeBuyButton(planId) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn primary bb-buy-button";
-    button.dataset.bbCheckoutPlan = planId;
+    button.setAttribute("data-bb-checkout-plan", planId);
     button.textContent = buttonLabel(planId);
     return button;
   }
 
-  function addBeforeSecondary(container, planId) {
-    if (!container || container.querySelector(`[data-bb-checkout-plan="${planId}"]`)) return;
+  function addButton(container, planId) {
+    if (!container) return;
+    const selector = `[data-bb-checkout-plan="${planId}"], [data-checkout-plan="${planId}"]`;
+    if (container.querySelector(selector)) return;
+
     const button = makeBuyButton(planId);
     const secondary = container.querySelector(".btn.secondary, a[data-link]");
-    if (secondary) container.insertBefore(button, secondary);
-    else container.appendChild(button);
+    if (secondary && secondary.parentElement === container) {
+      container.insertBefore(button, secondary);
+    } else {
+      container.appendChild(button);
+    }
   }
 
-  function syncButtons() {
-    document.querySelectorAll(".product-card").forEach((card) => {
-      const productId = card.getAttribute("data-product");
-      const planId = productPlans[productId];
-      if (!planId) return;
-      const body = card.querySelector(".body") || card;
-      addBeforeSecondary(body, planId);
-    });
+  function syncButtonsNow() {
+    syncQueued = false;
+    if (observer) observer.disconnect();
 
-    const bundle = document.querySelector(".bundle-callout");
-    if (bundle) addBeforeSecondary(bundle.lastElementChild || bundle, "education-bundle");
-
-    const bookActions = document.querySelector(".book-layout .hero-actions");
-    if (bookActions) addBeforeSecondary(bookActions, "education-bundle");
-
-    const signalsActions = document.querySelector(".discord-hero .hero-actions");
-    if (signalsActions) {
-      signalsActions.querySelectorAll('a[href="/login"]').forEach((link) => {
-        if (isLoggedIn() && /purchase/i.test(link.textContent || "")) link.remove();
+    try {
+      document.querySelectorAll(".product-card").forEach((card) => {
+        const planId = productPlans[card.getAttribute("data-product")];
+        if (planId) addButton(card.querySelector(".body") || card, planId);
       });
-      addBeforeSecondary(signalsActions, "premium-discord-signals");
-    }
 
-    document.querySelectorAll("[data-checkout-plan]").forEach((button) => {
-      const planId = button.getAttribute("data-checkout-plan");
-      if (planId) button.textContent = buttonLabel(planId);
-    });
+      const bundle = document.querySelector(".bundle-callout");
+      if (bundle) addButton(bundle.lastElementChild || bundle, "education-bundle");
+
+      const bookActions = document.querySelector(".book-layout .hero-actions");
+      if (bookActions) addButton(bookActions, "education-bundle");
+
+      const signalsActions = document.querySelector(".discord-hero .hero-actions");
+      if (signalsActions) addButton(signalsActions, "premium-discord-signals");
+
+      document.querySelectorAll("[data-bb-checkout-plan], [data-checkout-plan]").forEach((button) => {
+        const planId = button.getAttribute("data-bb-checkout-plan") || button.getAttribute("data-checkout-plan");
+        if (planId && !button.disabled) setText(button, buttonLabel(planId));
+      });
+    } finally {
+      const target = document.getElementById("app") || document.body;
+      if (observer && target) observer.observe(target, { childList: true, subtree: true });
+    }
+  }
+
+  function queueSync() {
+    if (syncQueued) return;
+    syncQueued = true;
+    window.requestAnimationFrame(syncButtonsNow);
   }
 
   async function startCheckout(planId) {
@@ -71,6 +97,7 @@
       window.location.href = "/login";
       return;
     }
+
     const response = await fetch("/api/payments/checkout", {
       method: "POST",
       headers: {
@@ -79,34 +106,41 @@
       },
       body: JSON.stringify({ planId, provider })
     });
+
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Checkout could not be created.");
-    const checkoutUrl = payload.payment?.checkoutUrl || "/payment/success";
-    window.location.href = checkoutUrl;
+    window.location.href = payload.payment?.checkoutUrl || "/payment/success";
   }
 
   document.addEventListener("click", async (event) => {
+    if (!(event.target instanceof Element)) return;
+
     const checkout = event.target.closest("[data-bb-checkout-plan], [data-checkout-plan]");
     if (!checkout) return;
+
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
+
     const planId = checkout.getAttribute("data-bb-checkout-plan") || checkout.getAttribute("data-checkout-plan");
-    checkout.setAttribute("disabled", "disabled");
+    if (!planId) return;
+
+    checkout.disabled = true;
     checkout.textContent = "Creating checkout...";
+
     try {
       await startCheckout(planId);
     } catch (error) {
-      alert(error.message);
-      checkout.removeAttribute("disabled");
+      alert(error.message || "Checkout could not be created.");
+      checkout.disabled = false;
       checkout.textContent = buttonLabel(planId);
     }
   }, true);
 
-  const observer = new MutationObserver(syncButtons);
   window.addEventListener("DOMContentLoaded", () => {
-    syncButtons();
-    const app = document.getElementById("app") || document.body;
-    observer.observe(app, { childList: true, subtree: true });
+    observer = new MutationObserver(queueSync);
+    queueSync();
   });
+
+  window.addEventListener("popstate", queueSync);
 })();
