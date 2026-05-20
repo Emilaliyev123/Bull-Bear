@@ -61,6 +61,7 @@ let scannerPollTimer = null;
 let scannerFilterTimer = null;
 let adminPlatformLoadedAt = 0;
 let userDashboardLoadedAt = 0;
+let checkoutRouteStarted = "";
 
 const categories = [
   ["all", "All Courses"],
@@ -247,6 +248,10 @@ function setMessage(message, type = "") {
   if (holder) holder.innerHTML = state.message;
 }
 
+function checkoutCta(planId, label, className = "btn primary") {
+  return `<a href="/checkout/${encodeURIComponent(planId)}" class="${className}" data-checkout-plan="${esc(planId)}">${esc(label)}</a>`;
+}
+
 async function startPlanCheckout(planId, button = null) {
   if (!state.user) {
     navigate("/login");
@@ -254,7 +259,8 @@ async function startPlanCheckout(planId, button = null) {
   }
   const originalText = button?.textContent || "";
   if (button) {
-    button.disabled = true;
+    if (button.tagName === "BUTTON") button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
     button.textContent = "Creating checkout...";
   }
   setMessage("Creating checkout...");
@@ -274,7 +280,8 @@ async function startPlanCheckout(planId, button = null) {
   } catch (error) {
     setMessage(error.message, "err");
     if (button) {
-      button.disabled = false;
+      if (button.tagName === "BUTTON") button.disabled = false;
+      button.removeAttribute("aria-disabled");
       button.textContent = originalText || (planId === "education-bundle" ? "Buy Now" : "Subscribe Now");
     }
   }
@@ -283,7 +290,7 @@ async function startPlanCheckout(planId, button = null) {
 function bindCheckoutButtons() {
   document.querySelectorAll("[data-checkout-plan]").forEach((button) => {
     if (button.dataset.checkoutBound === "true") return;
-    button.type = "button";
+    if (button.tagName === "BUTTON") button.type = "button";
     button.dataset.checkoutBound = "true";
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -365,6 +372,7 @@ async function loadUserDashboard(force = false) {
 
 function mountRouteEffects() {
   const path = state.route.replace(/\/$/, "") || "/";
+  const checkoutMatch = path.match(/^\/checkout\/([^/]+)$/);
   if (path === "/arbitrage") {
     loadScannerData();
     if (!scannerPollTimer) {
@@ -377,6 +385,15 @@ function mountRouteEffects() {
   if (path === "/ai") loadScannerData();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
+  if (checkoutMatch) {
+    if (checkoutRouteStarted !== path) {
+      checkoutRouteStarted = path;
+      const planId = decodeURIComponent(checkoutMatch[1] || "");
+      setTimeout(() => startPlanCheckout(planId), 0);
+    }
+  } else {
+    checkoutRouteStarted = "";
+  }
 }
 
 function header() {
@@ -500,7 +517,7 @@ function productCard(product) {
         <ul class="feature-list">
           ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
         </ul>
-        ${planId ? `<button class="btn primary" data-checkout-plan="${esc(planId)}">${state.user ? "Buy Now" : "Log In to Buy"}</button>` : ""}
+        ${planId ? checkoutCta(planId, state.user ? "Buy Now" : "Log In to Buy") : ""}
         <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Discord Access" : "View Product"}</a>
       </div>
     </article>
@@ -532,7 +549,7 @@ function scannerPricingCards() {
           <h3 class="h3">${esc(plan.name)}</h3>
           <div class="price">$${money(plan.price)} <span>/ monthly</span></div>
           <ul class="feature-list">${plan.features.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-          <button class="btn ${plan.id === "bull-bear-premium" ? "primary" : "secondary"}" data-checkout-plan="${esc(plan.id)}">${state.user ? "Start Subscription" : "Log In to Subscribe"}</button>
+          ${checkoutCta(plan.id, state.user ? "Start Subscription" : "Log In to Subscribe", `btn ${plan.id === "bull-bear-premium" ? "primary" : "secondary"}`)}
         </article>
       `).join("")}
     </div>
@@ -720,7 +737,7 @@ function coursesPage() {
         </div>
         <div>
           <div class="price">$49.90 <span>/ one-time</span></div>
-          <button class="btn primary" data-checkout-plan="education-bundle">${state.user ? "Buy Bundle" : "Log In to Buy"}</button>
+          ${checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy")}
         </div>
       </div>
       <div class="pill-row">
@@ -787,7 +804,7 @@ function bookPage() {
             </ul>
             <div class="price">$49.90 <span>/ courses + book</span></div>
             <div class="hero-actions">
-              <button class="btn primary" data-checkout-plan="education-bundle">${state.user ? "Buy Bundle" : "Log In to Buy"}</button>
+              ${checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy")}
               <a href="/courses" data-link class="btn secondary">View Bundle</a>
               ${pdfActions}
             </div>
@@ -809,7 +826,7 @@ function signalsPage() {
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
             ${state.user
-              ? `<button class="btn primary" data-checkout-plan="premium-discord-signals">Purchase Premium Access</button>`
+              ? checkoutCta("premium-discord-signals", "Purchase Premium Access")
               : `<a href="/login" data-link class="btn primary">Log In to Purchase</a>`}
           </div>
         </div>
@@ -1260,6 +1277,35 @@ function paymentStatusPage(status) {
           </p>
           <div class="hero-actions">
             <a href="/profile" data-link class="btn primary">Open Dashboard</a>
+            <a href="/support" data-link class="btn secondary">Contact Support</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function checkoutPage(planId) {
+  const product = Object.values(productPlanIds).includes(planId)
+    ? Object.entries(productPlanIds).find(([, value]) => value === planId)?.[0]
+    : "";
+  const productName = product
+    ? state.content.products.find((item) => item.id === product)?.title
+    : planId === "bull-bear-premium" ? "Bull & Bear Premium" : "Selected product";
+  return `
+    <section class="section">
+      <div class="login-wrap">
+        <div class="card pad">
+          <div class="eyebrow">Secure Checkout</div>
+          <h1 class="h3" style="margin-top:12px;">${state.user ? "Creating your Yigim payment link" : "Log in to continue"}</h1>
+          <p class="muted" style="line-height:1.65;">
+            ${state.user
+              ? `Preparing secure card payment for ${esc(productName || "your product")}.`
+              : "Please log in first, then choose your product again to start payment."}
+          </p>
+          <div data-status>${state.user ? `<div class="status">Creating checkout...</div>` : ""}</div>
+          <div class="hero-actions">
+            ${state.user ? `<a href="/products" data-link class="btn secondary">Back to Products</a>` : `<a href="/login" data-link class="btn primary">Log In</a>`}
             <a href="/support" data-link class="btn secondary">Contact Support</a>
           </div>
         </div>
@@ -1765,6 +1811,7 @@ function page() {
   if (path === "/support") return supportPage();
   if (path === "/login") return authPage("login");
   if (path === "/register") return authPage("register");
+  if (path.startsWith("/checkout/")) return checkoutPage(decodeURIComponent(path.split("/").pop() || ""));
   if (path === "/payment/success") return paymentStatusPage("success");
   if (path === "/payment/failed") return paymentStatusPage("failed");
   if (path === "/profile") return profilePage();
@@ -2096,6 +2143,7 @@ document.addEventListener("click", async (event) => {
 
   const checkout = event.target.closest("[data-checkout-plan]");
   if (checkout) {
+    event.preventDefault();
     const planId = checkout.getAttribute("data-checkout-plan");
     await startPlanCheckout(planId, checkout);
     return;
