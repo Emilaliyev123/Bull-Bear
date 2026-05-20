@@ -327,7 +327,7 @@ function mountRouteEffects() {
     clearInterval(scannerPollTimer);
     scannerPollTimer = null;
   }
-  if (path === "/ai" && state.token) loadScannerData();
+  if (path === "/ai") loadScannerData();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
 }
@@ -1057,37 +1057,13 @@ function renderAiResult() {
 }
 
 function aiPage() {
-  if (!state.user) {
-    return `
-      <section class="section">
-        <div class="ai-hero">
-          <div>
-            <div class="eyebrow">Investor & Trader AI</div>
-            <h1 class="h2" style="margin-top:12px;">AI Market Coach for Models, Signals, and Lessons</h1>
-            <p class="lead">Log in to use Bull & Bear AI for market structure, watchlists, signal-style scenarios, risk rules, and personalized lesson paths.</p>
-            <div class="hero-actions">
-              <a href="/login" data-link class="btn primary">Log In</a>
-              <a href="/register" data-link class="btn secondary">Sign Up</a>
-            </div>
-          </div>
-          <div class="card pad ai-preview-card">
-            <span>AI Modules</span>
-            <strong>Investor</strong>
-            <strong>Trader</strong>
-            <strong>Lessons</strong>
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
   return `
     <section class="section">
       <div class="ai-hero">
         <div>
           <div class="eyebrow">Investor & Trader AI</div>
           <h1 class="h2" style="margin-top:12px;">Analyze Markets With Discipline</h1>
-          <p class="lead">Ask for market models, signal-style scenarios, investing frameworks, risk plans, and the next lessons to study. Built for education, not guaranteed financial outcomes.</p>
+          <p class="lead">Free market models, signal-style scenarios, investing frameworks, risk plans, and lesson paths. Built for education, not guaranteed financial outcomes.</p>
         </div>
         <div class="ai-preview-card">
           <span>Live Context</span>
