@@ -57,6 +57,7 @@ const YIGIM_CURRENCY_LABEL = process.env.YIGIM_CURRENCY_LABEL || "USD";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+const AI_USE_OPENAI = String(process.env.AI_USE_OPENAI || "false").toLowerCase() === "true";
 const AI_MAX_REQUESTS_PER_WINDOW = Number(process.env.AI_MAX_REQUESTS_PER_WINDOW || 10);
 const AI_RATE_WINDOW_MS = Number(process.env.AI_RATE_WINDOW_MS || 10 * 60 * 1000);
 
@@ -386,6 +387,13 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Login required" });
   }
   req.auth = payload;
+  return next();
+}
+
+function optionalAuth(req, _res, next) {
+  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+  const payload = token ? verifyToken(token) : null;
+  req.auth = payload || { role: "guest", guest: true };
   return next();
 }
 
@@ -792,7 +800,7 @@ const aiUsage = new Map();
 const aiModes = new Set(["investor", "trader", "lesson", "signal", "portfolio", "risk"]);
 
 function isOpenAiConfigured() {
-  return Boolean(OPENAI_API_KEY);
+  return AI_USE_OPENAI && Boolean(OPENAI_API_KEY);
 }
 
 function trimText(value, max = 1200) {
@@ -892,9 +900,9 @@ function aiContextFromDb(db, userId) {
   };
 }
 
-async function generateAiAdvisorResponse(input, context, auth) {
+function normalizeAiAdvisorRequest(input = {}) {
   const mode = aiModes.has(input.mode) ? input.mode : "trader";
-  const request = {
+  return {
     mode,
     market: trimText(input.market || "Crypto and public markets", 180),
     asset: trimText(input.asset, 80),
@@ -904,6 +912,118 @@ async function generateAiAdvisorResponse(input, context, auth) {
     capitalRange: trimText(input.capitalRange || "not specified", 80),
     question: trimText(input.question, 1400)
   };
+}
+
+function aiAssetsFromRequest(request, context = {}) {
+  const typedAssets = request.asset
+    .split(/[,\s]+/)
+    .map((item) => item.trim().toUpperCase())
+    .filter(Boolean);
+  const scannerAssets = (context.recentScannerOpportunities || [])
+    .map((item) => String(item.pair || item.coin || "").split("/")[0].toUpperCase())
+    .filter(Boolean);
+  return Array.from(new Set([...typedAssets, ...scannerAssets, "BTC", "ETH", "SOL"])).slice(0, 6);
+}
+
+function aiTopScannerIdeas(context = {}) {
+  return (context.recentScannerOpportunities || [])
+    .slice()
+    .sort((a, b) => Number(b.netSpreadPct || 0) - Number(a.netSpreadPct || 0))
+    .slice(0, 4);
+}
+
+function aiRiskSentence(riskProfile) {
+  if (riskProfile === "conservative") return "Use smaller sizing, wait for extra confirmation, and skip unclear setups.";
+  if (riskProfile === "aggressive") return "Aggressive ideas still need fixed risk, hard invalidation, and no averaging down.";
+  return "Use balanced sizing, define invalidation before entry, and avoid chasing candles after expansion.";
+}
+
+function generateFreeAdvisorResponse(input, context = {}) {
+  const request = normalizeAiAdvisorRequest(input);
+  const assets = aiAssetsFromRequest(request, context);
+  const scannerIdeas = aiTopScannerIdeas(context);
+  const bestIdea = scannerIdeas[0];
+  const timeframeText = request.timeframe || "swing";
+  const riskText = aiRiskSentence(request.riskProfile);
+  const scannerText = bestIdea
+    ? `Current scanner context is led by ${bestIdea.pair} with about ${Number(bestIdea.netSpreadPct || 0).toFixed(2)}% net spread between ${bestIdea.buyExchange} and ${bestIdea.sellExchange}. Treat this as context, not a guaranteed trade.`
+    : "Scanner context is limited right now, so the plan focuses on structure, confirmation, and risk process.";
+
+  const watchlist = assets.slice(0, 5).map((asset, index) => ({
+    asset,
+    setup: index === 0 ? "Primary focus. Wait for a clean break and retest before planning risk." : "Secondary watch. Let price prove strength before entry.",
+    trigger: timeframeText === "intraday" ? "Momentum candle closes above the last local high with volume." : "Daily or 4H structure holds higher low, then breaks the reaction high.",
+    invalidation: "The setup is invalid if price closes back below the prior support or breaks the planned higher low.",
+    risk: "Risk only a small fixed percentage per idea and avoid adding to losing positions."
+  }));
+
+  const signalScenarios = (scannerIdeas.length ? scannerIdeas : watchlist).slice(0, 4).map((item, index) => {
+    const pair = item.pair || `${item.asset}/USDT`;
+    const spread = item.netSpreadPct ? `${Number(item.netSpreadPct).toFixed(2)}%` : "not available";
+    return {
+      pair,
+      scenario: index % 2 === 0 ? "Continuation after confirmation" : "Pullback into support",
+      trigger: index % 2 === 0 ? "Break above resistance, retest holds, then continuation candle forms." : "Price returns to support, rejection appears, and the next candle confirms demand.",
+      invalidation: "Close below support or failed retest cancels the idea.",
+      notes: item.buyExchange ? `Scanner spread context: ${spread} from ${item.buyExchange} to ${item.sellExchange}. Confirm fees, liquidity, and transfer time first.` : "Use this as an education scenario only."
+    };
+  });
+
+  return normalizeAiResult({
+    title: "Bull & Bear Free Investor & Trader AI",
+    summary: `${scannerText} For ${request.market} on a ${timeframeText} plan, the best model is patience first: define trend, wait for confirmation, then manage downside. ${riskText}`,
+    marketModel: [
+      {
+        model: "Structure First",
+        read: "Map trend with higher highs/higher lows for bullish structure or lower highs/lower lows for bearish structure.",
+        confirmation: "Do not act on one candle only. Wait for retest, volume, and clear invalidation.",
+        warning: "No model guarantees profit. If market data is stale or thin, reduce size or stand aside."
+      },
+      {
+        model: "Liquidity And Fees",
+        read: "For crypto and arbitrage ideas, spread alone is not enough. Volume, fees, network, and transfer time decide whether the idea is usable.",
+        confirmation: bestIdea ? `${bestIdea.pair} currently needs fee and execution checks before any decision.` : "Use the scanner page to confirm live spreads before acting.",
+        warning: "Avoid low-volume pairs where a good-looking spread can disappear during execution."
+      }
+    ],
+    watchlist,
+    signalScenarios,
+    lessonPlan: [
+      {
+        lesson: "Market Structure",
+        focus: "Trend, support and resistance, retest behavior, and candle confirmation.",
+        practice: "Mark three clean levels before looking for an entry."
+      },
+      {
+        lesson: "Risk Management",
+        focus: "Position sizing, invalidation, stop placement, and maximum daily loss.",
+        practice: "Write risk before reward on every paper-trade idea."
+      },
+      {
+        lesson: "Trading Psychology",
+        focus: "Patience, avoiding revenge trades, and respecting the planned invalidation.",
+        practice: "Review screenshots after each setup and score discipline, not profit."
+      }
+    ],
+    riskRules: [
+      "Education only. This is not financial advice and not a guaranteed signal.",
+      "Risk a small fixed percentage per idea and define invalidation before entry.",
+      "Skip trades when spread, volume, fees, or transfer time are unclear.",
+      "Do not chase after a large candle. Wait for a retest or a new setup.",
+      "Use demo or paper trading when testing a new model."
+    ],
+    nextSteps: [
+      "Open the scanner and compare spread with volume and risk level.",
+      "Choose one primary asset and one backup asset instead of watching everything.",
+      "Write trigger, invalidation, and position size before entering any trade.",
+      "Study the course lessons on structure and risk before using signal scenarios live."
+    ],
+    disclaimer: "Free educational analysis only. This is not financial advice, investment advice, or a promise of profit."
+  });
+}
+
+async function generateAiAdvisorResponse(input, context, auth) {
+  const request = normalizeAiAdvisorRequest(input);
 
   const systemPrompt = [
     "You are Bull & Bear Investor & Trader AI for a premium trading education website.",
@@ -1068,13 +1188,7 @@ app.get("/api/scanner/stream", (req, res) => {
   req.on("close", () => clearInterval(timer));
 });
 
-app.post("/api/ai/advisor", requireAuth, async (req, res) => {
-  if (!isOpenAiConfigured()) {
-    return res.status(503).json({
-      error: "Investor & Trader AI is not configured yet. Add OPENAI_API_KEY in Render environment variables."
-    });
-  }
-
+app.post("/api/ai/advisor", optionalAuth, async (req, res) => {
   const userKey = req.auth.userId || req.auth.username || req.ip;
   if (!consumeAiQuota(userKey)) {
     return res.status(429).json({
@@ -1085,14 +1199,25 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
   try {
     const db = readDb();
     const context = aiContextFromDb(db, req.auth.userId || "");
-    const result = await generateAiAdvisorResponse(req.body || {}, context, req.auth);
+    let model = "Bull & Bear Free AI";
+    let result = generateFreeAdvisorResponse(req.body || {}, context);
+
+    if (isOpenAiConfigured()) {
+      try {
+        result = await generateAiAdvisorResponse(req.body || {}, context, req.auth);
+        model = OPENAI_MODEL;
+      } catch (error) {
+        console.warn("OpenAI advisor unavailable, using free advisor:", error.message);
+      }
+    }
+
     db.auditLogs.unshift({
       id: `audit-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
       action: "ai.advisor.generated",
-      actor: req.auth.email || req.auth.username || "user",
+      actor: req.auth.email || req.auth.username || "guest",
       meta: {
         mode: req.body?.mode || "trader",
-        model: OPENAI_MODEL
+        model
       },
       createdAt: nowIso()
     });
@@ -1101,7 +1226,7 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     res.json({
       result,
       meta: {
-        model: OPENAI_MODEL,
+        model,
         generatedAt: nowIso(),
         scannerUpdatedAt: scannerState.lastUpdated
       }
