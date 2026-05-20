@@ -1,5 +1,11 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
 const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
+const CHECKOUT_PROVIDER = "yigim";
+const productPlanIds = {
+  course: "education-bundle",
+  signals: "premium-discord-signals",
+  arbitrage: "arbitrage-only"
+};
 
 const state = {
   content: null,
@@ -28,6 +34,22 @@ const state = {
       network: "all",
       transferSpeed: "all",
       sort: "highest-spread"
+    }
+  },
+  ai: {
+    loading: false,
+    result: null,
+    meta: null,
+    error: "",
+    form: {
+      mode: "trader",
+      market: "Crypto",
+      asset: "BTC, ETH, SOL",
+      timeframe: "swing",
+      riskProfile: "balanced",
+      experienceLevel: "intermediate",
+      capitalRange: "$500 - $2,000",
+      question: "Analyze current crypto market structure and give a disciplined watchlist with risk rules."
     }
   },
   adminPlatform: null,
@@ -305,6 +327,7 @@ function mountRouteEffects() {
     clearInterval(scannerPollTimer);
     scannerPollTimer = null;
   }
+  if (path === "/ai" && state.token) loadScannerData();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
 }
@@ -316,6 +339,7 @@ function header() {
     ["/book", "Book"],
     ["/signals", "Discord"],
     ["/arbitrage", "Scanner"],
+    ["/ai", "AI"],
     ["/support", "Support"]
   ];
   const actions = state.user
@@ -355,7 +379,8 @@ function footer() {
     ["/courses", "Courses + Book"],
     ["/book", "Book"],
     ["/signals", "Discord Signals"],
-    ["/arbitrage", "Scanner"]
+    ["/arbitrage", "Scanner"],
+    ["/ai", "Investor AI"]
   ];
   const policyLinks = [
     ["/privacy-policy", "Privacy Policy"],
@@ -411,6 +436,7 @@ function productCard(product) {
   const mark = product.id === "course" ? "2" : product.id === "signals" ? "D" : "A";
   const badge = product.id === "signals" ? `<div class="badge">MOST POPULAR</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : "";
   const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : "/arbitrage";
+  const planId = product.planId || productPlanIds[product.id];
 
   return `
     <article class="card product-card" data-product="${esc(product.id)}">
@@ -427,6 +453,7 @@ function productCard(product) {
         <ul class="feature-list">
           ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
         </ul>
+        ${planId ? `<button class="btn primary" data-checkout-plan="${esc(planId)}">${state.user ? "Buy Now" : "Log In to Buy"}</button>` : ""}
         <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Discord Access" : "View Product"}</a>
       </div>
     </article>
@@ -523,6 +550,16 @@ function homePage() {
         <div><strong>${courses.length}</strong><span>Video lessons ready</span></div>
         <div><strong>Discord</strong><span>Signals and live streams</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
+      </div>
+    </section>
+    <section class="section compact">
+      <div class="ai-home-band">
+        <div>
+          <div class="eyebrow">New AI Desk</div>
+          <h2 class="h2" style="margin-top:12px;">Investor & Trader AI</h2>
+          <p class="lead">Generate market models, risk rules, lesson paths, and signal-style scenarios using academy context and scanner opportunities.</p>
+        </div>
+        <a href="/ai" data-link class="btn primary">Open AI Desk</a>
       </div>
     </section>
     <section class="section">
@@ -634,7 +671,10 @@ function coursesPage() {
           <h2 class="h3">Complete Education Bundle</h2>
           <p class="muted">A focused trading education package with practical lessons, structured market concepts, risk frameworks, and the included Game of Candles PDF.</p>
         </div>
-        <div class="price">$49.90 <span>/ one-time</span></div>
+        <div>
+          <div class="price">$49.90 <span>/ one-time</span></div>
+          <button class="btn primary" data-checkout-plan="education-bundle">${state.user ? "Buy Bundle" : "Log In to Buy"}</button>
+        </div>
       </div>
       <div class="pill-row">
         ${categories.map(([id, label]) => `<button class="pill ${state.selectedCategory === id ? "active" : ""}" data-category="${id}">${label}</button>`).join("")}
@@ -700,7 +740,8 @@ function bookPage() {
             </ul>
             <div class="price">$49.90 <span>/ courses + book</span></div>
             <div class="hero-actions">
-              <a href="/courses" data-link class="btn primary">View Bundle</a>
+              <button class="btn primary" data-checkout-plan="education-bundle">${state.user ? "Buy Bundle" : "Log In to Buy"}</button>
+              <a href="/courses" data-link class="btn secondary">View Bundle</a>
               ${pdfActions}
             </div>
           </div>
@@ -720,7 +761,9 @@ function signalsPage() {
           <p class="lead">We do not publish private signals on the website. After purchasing the Signals product, members receive premium Discord access for private signal rooms, live streams, market discussions, and more.</p>
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
-            <a href="/login" data-link class="btn primary">${state.user ? "Purchase Premium Access" : "Log In to Purchase"}</a>
+            ${state.user
+              ? `<button class="btn primary" data-checkout-plan="premium-discord-signals">Purchase Premium Access</button>`
+              : `<a href="/login" data-link class="btn primary">Log In to Purchase</a>`}
           </div>
         </div>
         <div class="card pad">
@@ -905,6 +948,228 @@ function arbitragePage() {
   `;
 }
 
+function aiTemplates() {
+  return [
+    {
+      label: "Market Model",
+      mode: "trader",
+      question: "Build a market model for BTC, ETH, and SOL. Include trend, key confirmation signals, invalidation, and lessons I should study."
+    },
+    {
+      label: "Investor Plan",
+      mode: "investor",
+      question: "Create an educational long-term investor framework for crypto and US stocks with risk controls and weekly review rules."
+    },
+    {
+      label: "Signal Scenario",
+      mode: "signal",
+      question: "Create signal-style scenarios for high-probability crypto setups. Use trigger, confirmation, invalidation, and position risk notes."
+    },
+    {
+      label: "Lesson Path",
+      mode: "lesson",
+      question: "Recommend the best lessons and practice plan for improving technical analysis, psychology, and risk management."
+    }
+  ];
+}
+
+function aiFieldValue(name) {
+  return esc(state.ai.form[name] || "");
+}
+
+function aiValueText(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => typeof item === "object" ? Object.values(item).join(" - ") : item).join(", ");
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value).map(([key, item]) => `${key}: ${item}`).join(" | ");
+  }
+  return value;
+}
+
+function renderAiObject(item) {
+  if (!item || typeof item !== "object") return `<p>${esc(item)}</p>`;
+  return `
+    <div class="ai-kv">
+      ${Object.entries(item).map(([key, value]) => `
+        <div>
+          <span>${esc(String(key).replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()))}</span>
+          <strong>${esc(aiValueText(value))}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAiSection(title, items, emptyText) {
+  return `
+    <div class="card pad ai-result-card">
+      <h3 class="h3">${esc(title)}</h3>
+      <div class="ai-list">
+        ${items?.length ? items.map((item) => `<article>${renderAiObject(item)}</article>`).join("") : `<div class="empty compact-empty">${esc(emptyText)}</div>`}
+      </div>
+    </div>
+  `;
+}
+
+function renderAiResult() {
+  const result = state.ai.result;
+  if (!result) {
+    return `
+      <div class="card pad ai-empty-panel">
+        <h2 class="h3">Ready for analysis</h2>
+        <p class="muted">Ask for a market model, signal-style scenarios, portfolio education, or the best lesson path. The AI will use academy content and recent scanner context when available.</p>
+      </div>
+    `;
+  }
+  return `
+    <div class="ai-output">
+      <div class="card pad ai-summary-card">
+        <div class="eyebrow">AI Analysis</div>
+        <h2 class="h3" style="margin-top:12px;">${esc(result.title)}</h2>
+        <p class="muted">${esc(result.summary)}</p>
+        <div class="ai-meta">
+          <span>Model: ${esc(state.ai.meta?.model || "OpenAI")}</span>
+          <span>${state.ai.meta?.generatedAt ? new Date(state.ai.meta.generatedAt).toLocaleString() : "Generated now"}</span>
+        </div>
+      </div>
+      <div class="grid two">
+        ${renderAiSection("Market Models", result.marketModel, "No market model returned yet.")}
+        ${renderAiSection("Watchlist", result.watchlist, "No watchlist returned yet.")}
+      </div>
+      <div class="grid two">
+        ${renderAiSection("Signal-Style Scenarios", result.signalScenarios, "No signal scenarios returned yet.")}
+        ${renderAiSection("Lesson Plan", result.lessonPlan, "No lesson plan returned yet.")}
+      </div>
+      <div class="grid two">
+        <div class="card pad ai-result-card">
+          <h3 class="h3">Risk Rules</h3>
+          <ul class="feature-list">${(result.riskRules || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
+        <div class="card pad ai-result-card">
+          <h3 class="h3">Next Steps</h3>
+          <ul class="feature-list">${(result.nextSteps || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
+      </div>
+      <p class="ai-disclaimer">${esc(result.disclaimer)}</p>
+    </div>
+  `;
+}
+
+function aiPage() {
+  if (!state.user) {
+    return `
+      <section class="section">
+        <div class="ai-hero">
+          <div>
+            <div class="eyebrow">Investor & Trader AI</div>
+            <h1 class="h2" style="margin-top:12px;">AI Market Coach for Models, Signals, and Lessons</h1>
+            <p class="lead">Log in to use Bull & Bear AI for market structure, watchlists, signal-style scenarios, risk rules, and personalized lesson paths.</p>
+            <div class="hero-actions">
+              <a href="/login" data-link class="btn primary">Log In</a>
+              <a href="/register" data-link class="btn secondary">Sign Up</a>
+            </div>
+          </div>
+          <div class="card pad ai-preview-card">
+            <span>AI Modules</span>
+            <strong>Investor</strong>
+            <strong>Trader</strong>
+            <strong>Lessons</strong>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="section">
+      <div class="ai-hero">
+        <div>
+          <div class="eyebrow">Investor & Trader AI</div>
+          <h1 class="h2" style="margin-top:12px;">Analyze Markets With Discipline</h1>
+          <p class="lead">Ask for market models, signal-style scenarios, investing frameworks, risk plans, and the next lessons to study. Built for education, not guaranteed financial outcomes.</p>
+        </div>
+        <div class="ai-preview-card">
+          <span>Live Context</span>
+          <strong>${state.scanner.opportunities.length || "Scanner"} ideas</strong>
+          <small>${state.scanner.lastUpdated ? `Updated ${new Date(state.scanner.lastUpdated).toLocaleTimeString()}` : "Scanner context loads on demand"}</small>
+        </div>
+      </div>
+
+      <div class="ai-layout">
+        <div class="card pad">
+          <h2 class="h3">Ask Bull & Bear AI</h2>
+          <div class="ai-template-row">
+            ${aiTemplates().map((template) => `
+              <button class="pill" type="button" data-ai-template="${esc(template.mode)}" data-ai-question="${esc(template.question)}">${esc(template.label)}</button>
+            `).join("")}
+          </div>
+          <form class="form-grid" onsubmit="return submitAiAdvisor(event)">
+            <div class="form-grid two">
+              <div class="field">
+                <label>Mode</label>
+                <select name="mode">
+                  ${[
+                    ["trader", "Trader"],
+                    ["investor", "Investor"],
+                    ["signal", "Signal Scenarios"],
+                    ["lesson", "Lesson Coach"],
+                    ["portfolio", "Portfolio Education"],
+                    ["risk", "Risk Manager"]
+                  ].map(([value, label]) => `<option value="${value}" ${state.ai.form.mode === value ? "selected" : ""}>${label}</option>`).join("")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Market</label>
+                <input name="market" value="${aiFieldValue("market")}" placeholder="Crypto, stocks, forex">
+              </div>
+            </div>
+            <div class="form-grid two">
+              <div class="field">
+                <label>Assets</label>
+                <input name="asset" value="${aiFieldValue("asset")}" placeholder="BTC, ETH, SOL">
+              </div>
+              <div class="field">
+                <label>Timeframe</label>
+                <select name="timeframe">
+                  ${["intraday", "swing", "weekly", "long-term"].map((value) => `<option value="${value}" ${state.ai.form.timeframe === value ? "selected" : ""}>${value}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+            <div class="form-grid two">
+              <div class="field">
+                <label>Risk Profile</label>
+                <select name="riskProfile">
+                  ${["conservative", "balanced", "aggressive"].map((value) => `<option value="${value}" ${state.ai.form.riskProfile === value ? "selected" : ""}>${value}</option>`).join("")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Experience</label>
+                <select name="experienceLevel">
+                  ${["beginner", "intermediate", "advanced"].map((value) => `<option value="${value}" ${state.ai.form.experienceLevel === value ? "selected" : ""}>${value}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+            <div class="field">
+              <label>Capital Range</label>
+              <input name="capitalRange" value="${aiFieldValue("capitalRange")}" placeholder="$500 - $2,000">
+            </div>
+            <div class="field">
+              <label>Question</label>
+              <textarea name="question" rows="6" required>${aiFieldValue("question")}</textarea>
+            </div>
+            <button class="btn primary" type="submit">${state.ai.loading ? "Analyzing..." : "Generate AI Analysis"}</button>
+            <div data-ai-status>${state.ai.error ? `<div class="status err">${esc(state.ai.error)}</div>` : state.ai.loading ? `<div class="status">Analyzing market context...</div>` : ""}</div>
+          </form>
+        </div>
+        <div>
+          ${renderAiResult()}
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function supportPage() {
   return `
     <section class="section">
@@ -967,7 +1232,7 @@ function paymentStatusPage(status) {
           <h1 class="h3" style="margin-top:12px;">${success ? "Payment request received" : "Payment was not completed"}</h1>
           <p class="muted" style="line-height:1.65;">
             ${success
-              ? "Your checkout record has been created. Live provider credentials and webhooks activate subscriptions automatically after confirmed payment."
+              ? "Your payment result is being checked. Access activates automatically after Yigim confirms the payment."
               : "Please try checkout again or contact support if your bank charged the payment."}
           </p>
           <div class="hero-actions">
@@ -1473,6 +1738,7 @@ function page() {
   if (path === "/book") return bookPage();
   if (path === "/signals") return signalsPage();
   if (path === "/arbitrage") return arbitragePage();
+  if (path === "/ai") return aiPage();
   if (path === "/support") return supportPage();
   if (path === "/login") return authPage("login");
   if (path === "/register") return authPage("register");
@@ -1695,6 +1961,42 @@ window.submitAnnouncement = async function submitAnnouncement(event) {
   return false;
 };
 
+window.submitAiAdvisor = async function submitAiAdvisor(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const payload = {
+    mode: data.get("mode"),
+    market: data.get("market"),
+    asset: data.get("asset"),
+    timeframe: data.get("timeframe"),
+    riskProfile: data.get("riskProfile"),
+    experienceLevel: data.get("experienceLevel"),
+    capitalRange: data.get("capitalRange"),
+    question: data.get("question")
+  };
+  state.ai.form = { ...state.ai.form, ...payload };
+  state.ai.loading = true;
+  state.ai.error = "";
+  render();
+  try {
+    const response = await api("/api/ai/advisor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    state.ai.result = response.result;
+    state.ai.meta = response.meta;
+    state.ai.error = "";
+  } catch (error) {
+    state.ai.error = error.message;
+  } finally {
+    state.ai.loading = false;
+    render();
+  }
+  return false;
+};
+
 function logout(shouldRender = true) {
   state.token = "";
   state.user = null;
@@ -1760,6 +2062,14 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
+  const aiTemplate = event.target.closest("[data-ai-template]");
+  if (aiTemplate) {
+    state.ai.form.mode = aiTemplate.getAttribute("data-ai-template") || state.ai.form.mode;
+    state.ai.form.question = aiTemplate.getAttribute("data-ai-question") || state.ai.form.question;
+    render();
+    return;
+  }
+
   const checkout = event.target.closest("[data-checkout-plan]");
   if (checkout) {
     if (!state.user) {
@@ -1772,10 +2082,15 @@ document.addEventListener("click", async (event) => {
       const result = await api("/api/payments/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, provider: "manual" })
+        body: JSON.stringify({ planId, provider: CHECKOUT_PROVIDER })
       });
       state.message = `<div class="status ok">${esc(result.message || "Checkout created.")}</div>`;
-      navigate(result.payment?.checkoutUrl || "/payment/success");
+      const checkoutUrl = result.payment?.checkoutUrl || "/payment/success";
+      if (/^https?:\/\//i.test(checkoutUrl)) {
+        window.location.href = checkoutUrl;
+        return;
+      }
+      navigate(checkoutUrl);
     } catch (error) {
       setMessage(error.message, "err");
     }

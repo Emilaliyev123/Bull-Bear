@@ -1332,6 +1332,143 @@ canvas {
   margin: 0 auto;
 }
 
+.ai-home-band,
+.ai-hero,
+.ai-layout {
+  display: grid;
+  gap: 24px;
+}
+
+.ai-home-band {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  border-radius: 8px;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.16), transparent 38%),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.1), transparent 70%),
+    #0b0b0b;
+  box-shadow: var(--shadow);
+}
+
+.ai-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.36fr);
+  align-items: stretch;
+  margin-bottom: 28px;
+}
+
+.ai-preview-card {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  border-radius: 8px;
+  padding: 24px;
+  background:
+    linear-gradient(145deg, rgba(245, 158, 11, 0.18), transparent 45%),
+    #101010;
+  box-shadow: var(--shadow);
+}
+
+.ai-preview-card span,
+.ai-preview-card small,
+.ai-meta,
+.ai-disclaimer {
+  color: var(--muted);
+}
+
+.ai-preview-card strong {
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.ai-layout {
+  grid-template-columns: minmax(320px, 0.38fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.ai-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 18px;
+}
+
+.ai-output {
+  display: grid;
+  gap: 18px;
+}
+
+.ai-summary-card {
+  border-color: rgba(245, 158, 11, 0.32);
+}
+
+.ai-summary-card p {
+  line-height: 1.7;
+}
+
+.ai-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.ai-result-card {
+  min-height: 240px;
+}
+
+.ai-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.ai-list article {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.ai-kv {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-kv div {
+  display: grid;
+  gap: 3px;
+}
+
+.ai-kv span {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ai-kv strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ai-empty-panel {
+  min-height: 340px;
+  display: grid;
+  align-content: center;
+}
+
+.ai-disclaimer {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .modal-backdrop {
   position: fixed;
   z-index: 50;
@@ -1457,7 +1594,10 @@ canvas {
   .discord-hero,
   .bundle-callout,
   .support-hero,
-  .legal-layout {
+  .legal-layout,
+  .ai-home-band,
+  .ai-hero,
+  .ai-layout {
     grid-template-columns: 1fr;
   }
 
@@ -1552,6 +1692,8 @@ canvas {
   .discord-panel,
   .discord-hero,
   .bundle-callout,
+  .ai-home-band,
+  .ai-preview-card,
   .legal-doc {
     padding: 22px;
   }
