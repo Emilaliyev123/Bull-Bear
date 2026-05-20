@@ -21,6 +21,44 @@ const SCANNER_REFRESH_MS = Number(process.env.SCANNER_REFRESH_MS || 12000);
 const DEFAULT_NOTIONAL_USD = Number(process.env.SCANNER_NOTIONAL_USD || 1000);
 const MAX_REASONABLE_SPREAD_PCT = Number(process.env.SCANNER_MAX_SPREAD_PCT || 25);
 const MIN_SCANNER_PRICE = Number(process.env.SCANNER_MIN_PRICE || 0.00000001);
+const PAYMENT_PLANS = {
+  "education-bundle": {
+    name: "Courses + Trading Book",
+    amount: 49.9,
+    cadence: "one-time",
+    accessDays: 3650
+  },
+  "premium-discord-signals": {
+    name: "Premium Discord Signals",
+    amount: 19.9,
+    cadence: "monthly",
+    accessDays: 30
+  },
+  "arbitrage-only": {
+    name: "Arbitrage Scanner Only",
+    amount: 39.9,
+    cadence: "monthly",
+    accessDays: 30
+  },
+  "bull-bear-premium": {
+    name: "Bull & Bear Premium",
+    amount: 79.9,
+    cadence: "monthly",
+    accessDays: 30
+  }
+};
+const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "yigim";
+const YIGIM_BASE_URL = (process.env.YIGIM_BASE_URL || "https://sandbox.api.pay.yigim.az").replace(/\/+$/, "");
+const YIGIM_TEMPLATE_ID = process.env.YIGIM_TEMPLATE_ID || "TPL0002";
+const YIGIM_LANGUAGE = process.env.YIGIM_LANGUAGE || "az";
+const YIGIM_PAYMENT_TYPE = process.env.YIGIM_PAYMENT_TYPE || "SMS";
+const YIGIM_CURRENCY = process.env.YIGIM_CURRENCY || "944";
+const YIGIM_CURRENCY_LABEL = process.env.YIGIM_CURRENCY_LABEL || "USD";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
+const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
+const AI_MAX_REQUESTS_PER_WINDOW = Number(process.env.AI_MAX_REQUESTS_PER_WINDOW || 10);
+const AI_RATE_WINDOW_MS = Number(process.env.AI_RATE_WINDOW_MS || 10 * 60 * 1000);
 
 app.set("trust proxy", true);
 
@@ -137,13 +175,14 @@ function addAuditLog(action, actor, meta = {}) {
 }
 
 function activateSubscription(db, userId, planId, paymentId) {
-  const days = 30;
+  const plan = PAYMENT_PLANS[planId] || PAYMENT_PLANS["arbitrage-only"];
+  const days = plan.accessDays || 30;
   const now = Date.now();
   const existing = db.subscriptions.find((item) => item.userId === userId && item.planId === planId && item.status === "active");
   const expiresAt = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
   if (existing) {
     existing.expiresAt = expiresAt;
-    existing.autoRenew = true;
+    existing.autoRenew = plan.cadence === "monthly";
     existing.paymentId = paymentId || existing.paymentId;
     existing.updatedAt = nowIso();
     return existing;
@@ -153,7 +192,7 @@ function activateSubscription(db, userId, planId, paymentId) {
     userId,
     planId,
     status: "active",
-    autoRenew: true,
+    autoRenew: plan.cadence === "monthly",
     currentPeriodStart: nowIso(),
     expiresAt,
     paymentId,
@@ -161,6 +200,150 @@ function activateSubscription(db, userId, planId, paymentId) {
   };
   db.subscriptions.unshift(subscription);
   return subscription;
+}
+
+function isPremiumDiscordPlan(planId) {
+  return ["bull-bear-premium", "premium-discord-signals"].includes(planId);
+}
+
+function notifySubscriptionActivated(db, payment) {
+  const alreadyExists = db.notifications.some((item) => item.paymentId === payment.id && item.type === "subscription");
+  if (alreadyExists) return;
+  const plan = PAYMENT_PLANS[payment.planId] || { name: payment.planId };
+  db.notifications.unshift({
+    id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+    userId: payment.userId,
+    paymentId: payment.id,
+    type: "subscription",
+    title: "Access activated",
+    body: `Your ${plan.name} access is active.`,
+    createdAt: nowIso()
+  });
+}
+
+function finalizePaidPayment(db, payment, providerPayload = {}) {
+  const wasPaid = payment.status === "paid";
+  payment.status = "paid";
+  payment.providerPayload = providerPayload;
+  payment.paidAt = payment.paidAt || nowIso();
+  payment.updatedAt = nowIso();
+  const subscription = activateSubscription(db, payment.userId, payment.planId, payment.id);
+  if (!wasPaid) {
+    notifySubscriptionActivated(db, payment);
+    const user = db.users.find((item) => item.id === payment.userId);
+    if (isPremiumDiscordPlan(payment.planId)) {
+      syncDiscordRole(user, true).catch((error) => console.warn("Discord role sync failed:", error.message));
+    }
+  }
+  return subscription;
+}
+
+function yigimConfig() {
+  return {
+    baseUrl: YIGIM_BASE_URL,
+    merchantId: process.env.YIGIM_MERCHANT_ID,
+    secretKey: process.env.YIGIM_SECRET_KEY,
+    billerId: process.env.YIGIM_BILLER_ID,
+    templateId: YIGIM_TEMPLATE_ID,
+    language: YIGIM_LANGUAGE,
+    paymentType: YIGIM_PAYMENT_TYPE,
+    currency: YIGIM_CURRENCY
+  };
+}
+
+function isYigimConfigured() {
+  const config = yigimConfig();
+  return Boolean(config.merchantId && config.secretKey && config.billerId);
+}
+
+function findCheckoutUrl(value) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const match = value.match(/https?:\/\/[^\s"'<>]+/i);
+    return match ? match[0] : "";
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findCheckoutUrl(item);
+      if (found) return found;
+    }
+    return "";
+  }
+  if (typeof value === "object") {
+    const preferredKeys = [
+      "url",
+      "redirectUrl",
+      "redirect_url",
+      "paymentUrl",
+      "payment_url",
+      "checkoutUrl",
+      "checkout_url",
+      "link",
+      "href"
+    ];
+    for (const key of preferredKeys) {
+      const found = findCheckoutUrl(value[key]);
+      if (found) return found;
+    }
+    for (const item of Object.values(value)) {
+      const found = findCheckoutUrl(item);
+      if (found) return found;
+    }
+  }
+  return "";
+}
+
+async function callYigim(pathname, params = {}) {
+  const config = yigimConfig();
+  if (!isYigimConfigured()) {
+    throw new Error("Yigim is not configured. Add merchant, secret key, and biller ID.");
+  }
+  const url = new URL(`${config.baseUrl}${pathname}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== "") {
+      url.searchParams.set(key, String(value));
+    }
+  }
+  const response = await fetch(url, {
+    headers: {
+      "accept": "application/json",
+      "X-Merchant": config.merchantId,
+      "X-API-Key": config.secretKey,
+      "X-Type": "JSON"
+    },
+    signal: AbortSignal.timeout(15000)
+  });
+  const text = await response.text();
+  let payload;
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    payload = { raw: text };
+  }
+  if (!response.ok) {
+    const message = payload?.message || payload?.error || payload?.raw || `Yigim returned ${response.status}`;
+    throw new Error(message);
+  }
+  return payload;
+}
+
+function isYigimPaid(payload = {}) {
+  return String(payload.code ?? "") === "00" && String(payload.status ?? "") === "0";
+}
+
+function applyYigimStatusToPayment(db, payment, payload = {}) {
+  if (isYigimPaid(payload)) {
+    return finalizePaidPayment(db, payment, payload);
+  }
+  const code = payload.code !== undefined ? String(payload.code) : "";
+  payment.status = code && code !== "00" ? "failed" : "pending";
+  payment.providerPayload = payload;
+  payment.updatedAt = nowIso();
+  return null;
+}
+
+async function getYigimPaymentStatus(reference) {
+  return callYigim("/payment/status", { reference });
 }
 
 function signToken(payload) {
@@ -605,6 +788,175 @@ function filteredOpportunities(query = {}) {
   return rows.slice(0, Number(query.limit || 100));
 }
 
+const aiUsage = new Map();
+const aiModes = new Set(["investor", "trader", "lesson", "signal", "portfolio", "risk"]);
+
+function isOpenAiConfigured() {
+  return Boolean(OPENAI_API_KEY);
+}
+
+function trimText(value, max = 1200) {
+  return String(value || "").trim().slice(0, max);
+}
+
+function consumeAiQuota(userKey) {
+  const now = Date.now();
+  const usage = (aiUsage.get(userKey) || []).filter((time) => now - time < AI_RATE_WINDOW_MS);
+  if (usage.length >= AI_MAX_REQUESTS_PER_WINDOW) {
+    aiUsage.set(userKey, usage);
+    return false;
+  }
+  usage.push(now);
+  aiUsage.set(userKey, usage);
+  return true;
+}
+
+function extractResponseText(payload = {}) {
+  if (typeof payload.output_text === "string" && payload.output_text.trim()) return payload.output_text.trim();
+  const parts = [];
+  for (const item of payload.output || []) {
+    for (const content of item.content || []) {
+      if (typeof content.text === "string") parts.push(content.text);
+      if (typeof content.output_text === "string") parts.push(content.output_text);
+    }
+  }
+  return parts.join("\n").trim();
+}
+
+function parseAiJson(text) {
+  const cleaned = String(text || "")
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return {
+      title: "Bull & Bear AI Analysis",
+      summary: cleaned || "The AI returned an empty response.",
+      marketModel: [],
+      watchlist: [],
+      signalScenarios: [],
+      lessonPlan: [],
+      riskRules: ["Risk no more than a small fixed percentage of capital per idea.", "Wait for confirmation instead of chasing moves."],
+      nextSteps: ["Refine the question with asset, timeframe, and risk profile."],
+      disclaimer: "Educational analysis only. This is not financial advice."
+    };
+  }
+}
+
+function normalizeAiResult(result = {}) {
+  const list = (value) => Array.isArray(value) ? value.slice(0, 8) : [];
+  return {
+    title: trimText(result.title || "Bull & Bear Investor & Trader AI", 120),
+    summary: trimText(result.summary, 1600),
+    marketModel: list(result.marketModel),
+    watchlist: list(result.watchlist),
+    signalScenarios: list(result.signalScenarios),
+    lessonPlan: list(result.lessonPlan),
+    riskRules: list(result.riskRules).map((item) => trimText(item, 240)),
+    nextSteps: list(result.nextSteps).map((item) => trimText(item, 240)),
+    disclaimer: trimText(result.disclaimer || "Educational analysis only. This is not financial advice, investment advice, or a guarantee of results.", 280)
+  };
+}
+
+function aiContextFromDb(db, userId) {
+  const subscriptions = db.subscriptions
+    .filter((item) => item.userId === userId && item.status === "active")
+    .map((item) => ({ planId: item.planId, expiresAt: item.expiresAt }));
+  return {
+    subscriptions,
+    courses: db.courses.slice(0, 12).map((course) => ({
+      title: course.title,
+      category: course.category,
+      description: course.description,
+      duration: course.duration,
+      isFree: Boolean(course.isFree)
+    })),
+    book: db.book ? {
+      title: db.book.title,
+      description: db.book.description,
+      price: db.book.price
+    } : null,
+    recentScannerOpportunities: scannerState.opportunities.slice(0, 12).map((item) => ({
+      pair: item.pair,
+      buyExchange: item.buyExchange,
+      sellExchange: item.sellExchange,
+      netSpreadPct: item.netSpreadPct,
+      estimatedProfit: item.estimatedProfit,
+      volume24h: item.volume24h,
+      risk: item.risk,
+      transferMinutes: item.transferMinutes,
+      timestamp: item.timestamp
+    }))
+  };
+}
+
+async function generateAiAdvisorResponse(input, context, auth) {
+  const mode = aiModes.has(input.mode) ? input.mode : "trader";
+  const request = {
+    mode,
+    market: trimText(input.market || "Crypto and public markets", 180),
+    asset: trimText(input.asset, 80),
+    timeframe: trimText(input.timeframe || "swing", 80),
+    riskProfile: trimText(input.riskProfile || "balanced", 80),
+    experienceLevel: trimText(input.experienceLevel || "intermediate", 80),
+    capitalRange: trimText(input.capitalRange || "not specified", 80),
+    question: trimText(input.question, 1400)
+  };
+
+  const systemPrompt = [
+    "You are Bull & Bear Investor & Trader AI for a premium trading education website.",
+    "Give professional but cautious educational analysis for investing, trading, market models, risk management, and lesson recommendations.",
+    "You may create watchlists and signal-style scenarios, but never promise profit, never claim certainty, and never tell the user that they must buy or sell immediately.",
+    "Use conditional language: trigger, confirmation, invalidation, risk notes, and education next steps.",
+    "If market data is insufficient or stale, say so and explain what data is needed.",
+    "Do not provide legal, tax, or personalized financial advice. Keep answers suitable for education.",
+    "Return only valid JSON with these keys: title, summary, marketModel, watchlist, signalScenarios, lessonPlan, riskRules, nextSteps, disclaimer.",
+    "marketModel, watchlist, signalScenarios, and lessonPlan must be arrays of objects. riskRules and nextSteps must be arrays of short strings."
+  ].join(" ");
+
+  const response = await fetch(`${OPENAI_BASE_URL}/responses`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      input: [
+        {
+          role: "developer",
+          content: [{ type: "input_text", text: systemPrompt }]
+        },
+        {
+          role: "user",
+          content: [{
+            type: "input_text",
+            text: JSON.stringify({
+              user: {
+                id: auth.userId || "admin",
+                role: auth.role || (auth.admin ? "admin" : "user")
+              },
+              request,
+              platformContext: context
+            })
+          }]
+        }
+      ],
+      max_output_tokens: 1800
+    }),
+    signal: AbortSignal.timeout(30000)
+  });
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = payload?.error?.message || payload?.message || `OpenAI returned ${response.status}`;
+    throw new Error(message);
+  }
+  return normalizeAiResult(parseAiJson(extractResponseText(payload)));
+}
+
 function serializeContent(db) {
   const { users, signals, ...publicDb } = db;
   return {
@@ -612,6 +964,7 @@ function serializeContent(db) {
     products: [
       {
         id: "course",
+        planId: "education-bundle",
         title: "Courses + Trading Book",
         subtitle: "Complete Education Bundle",
         description: "One bundle with the full video course library and Bull & Bear Trading Mastery book.",
@@ -620,6 +973,7 @@ function serializeContent(db) {
       },
       {
         id: "signals",
+        planId: "premium-discord-signals",
         title: "Premium Discord Signals",
         subtitle: "Private Discord Membership",
         description: "Premium Discord access with signals, live streams, trade discussions, and member-only rooms.",
@@ -628,6 +982,7 @@ function serializeContent(db) {
       },
       {
         id: "arbitrage",
+        planId: "arbitrage-only",
         title: "Arbitrage Scanner",
         subtitle: "Find Price Differences",
         description: "Scan crypto opportunities across leading exchanges with clean net-spread views.",
@@ -713,23 +1068,115 @@ app.get("/api/scanner/stream", (req, res) => {
   req.on("close", () => clearInterval(timer));
 });
 
-app.post("/api/payments/checkout", requireAuth, (req, res) => {
-  const { planId, provider = "manual" } = req.body || {};
+app.post("/api/ai/advisor", requireAuth, async (req, res) => {
+  if (!isOpenAiConfigured()) {
+    return res.status(503).json({
+      error: "Investor & Trader AI is not configured yet. Add OPENAI_API_KEY in Render environment variables."
+    });
+  }
+
+  const userKey = req.auth.userId || req.auth.username || req.ip;
+  if (!consumeAiQuota(userKey)) {
+    return res.status(429).json({
+      error: "AI request limit reached. Please wait a few minutes and try again."
+    });
+  }
+
+  try {
+    const db = readDb();
+    const context = aiContextFromDb(db, req.auth.userId || "");
+    const result = await generateAiAdvisorResponse(req.body || {}, context, req.auth);
+    db.auditLogs.unshift({
+      id: `audit-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
+      action: "ai.advisor.generated",
+      actor: req.auth.email || req.auth.username || "user",
+      meta: {
+        mode: req.body?.mode || "trader",
+        model: OPENAI_MODEL
+      },
+      createdAt: nowIso()
+    });
+    db.auditLogs = db.auditLogs.slice(0, 500);
+    writeDb(db);
+    res.json({
+      result,
+      meta: {
+        model: OPENAI_MODEL,
+        generatedAt: nowIso(),
+        scannerUpdatedAt: scannerState.lastUpdated
+      }
+    });
+  } catch (error) {
+    console.warn("AI advisor failed:", error.message);
+    res.status(502).json({ error: error.message || "AI analysis failed" });
+  }
+});
+
+app.post("/api/payments/checkout", requireAuth, async (req, res) => {
+  const { planId, provider = PAYMENT_DEFAULT_PROVIDER } = req.body || {};
   const supported = ["payriff", "epoint", "yigim", "crypto", "card", "manual"];
   if (!supported.includes(provider)) return res.status(400).json({ error: "Unsupported payment provider" });
+  const plan = PAYMENT_PLANS[planId];
+  if (!plan) return res.status(400).json({ error: "Unknown payment plan" });
+  const db = readDb();
   const payment = {
     id: `pay-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
     userId: req.auth.userId || "admin",
     planId,
     provider,
-    status: provider === "manual" ? "pending_review" : "configuration_required",
-    amount: planId === "bull-bear-premium" ? 79.9 : 39.9,
-    currency: "USD",
+    status: provider === "manual" ? "pending_review" : "checkout_creating",
+    amount: plan.amount,
+    currency: provider === "yigim" ? YIGIM_CURRENCY_LABEL : "USD",
     checkoutUrl: provider === "manual" ? "/payment/success" : null,
     createdAt: nowIso()
   };
-  const db = readDb();
+
+  if (provider === "yigim") {
+    db.payments.unshift(payment);
+    try {
+      const baseUrl = requestBaseUrl(req);
+      const statusCallback = `${baseUrl}/api/payments/webhook/yigim`;
+      const successUrl = `${baseUrl}/payment/success?paymentId=${encodeURIComponent(payment.id)}`;
+      const failUrl = `${baseUrl}/payment/failed?paymentId=${encodeURIComponent(payment.id)}`;
+      const payload = await callYigim("/payment/create", {
+        reference: payment.id,
+        type: YIGIM_PAYMENT_TYPE,
+        amount: Math.round(Number(plan.amount) * 100),
+        currency: YIGIM_CURRENCY,
+        biller: process.env.YIGIM_BILLER_ID,
+        description: `Bull & Bear - ${plan.name}`,
+        template: YIGIM_TEMPLATE_ID,
+        language: YIGIM_LANGUAGE,
+        callback: statusCallback,
+        extra: `paymentId=${payment.id};planId=${planId};back-url=${successUrl};fail-url=${failUrl}`
+      });
+      const checkoutUrl = findCheckoutUrl(payload);
+      if (!checkoutUrl) throw new Error("Yigim did not return a checkout URL");
+      payment.status = "checkout_created";
+      payment.checkoutUrl = checkoutUrl;
+      payment.providerReference = payment.id;
+      payment.providerPayload = payload;
+      payment.updatedAt = nowIso();
+      writeDb(db);
+      addAuditLog("payment.checkout.created", req.auth.email || req.auth.username, { planId, provider, paymentId: payment.id });
+      return res.status(201).json({
+        payment,
+        message: "Yigim checkout is ready. You will be redirected to the secure payment page."
+      });
+    } catch (error) {
+      payment.status = isYigimConfigured() ? "checkout_failed" : "configuration_required";
+      payment.error = error.message;
+      payment.updatedAt = nowIso();
+      writeDb(db);
+      return res.status(isYigimConfigured() ? 502 : 503).json({
+        error: error.message,
+        payment
+      });
+    }
+  }
+
   db.payments.unshift(payment);
+  payment.status = provider === "manual" ? "pending_review" : "configuration_required";
   writeDb(db);
   addAuditLog("payment.checkout.created", req.auth.email || req.auth.username, { planId, provider, paymentId: payment.id });
   res.status(201).json({
@@ -740,7 +1187,56 @@ app.post("/api/payments/checkout", requireAuth, (req, res) => {
   });
 });
 
-app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), (req, res) => {
+app.get("/api/payments/webhook/yigim", async (req, res) => {
+  const reference = String(req.query.reference || req.query.paymentId || req.query.orderId || "").trim();
+  const db = readDb();
+  const payment = reference
+    ? db.payments.find((item) => item.id === reference || item.providerReference === reference)
+    : null;
+
+  if (!reference) {
+    db.paymentLogs.unshift({
+      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+      provider: "yigim",
+      status: "missing_reference",
+      paymentId: "",
+      createdAt: nowIso()
+    });
+    writeDb(db);
+    return res.status(400).json({ ok: false, error: "Missing payment reference" });
+  }
+
+  try {
+    const statusPayload = await getYigimPaymentStatus(reference);
+    const subscription = payment ? applyYigimStatusToPayment(db, payment, statusPayload) : null;
+    db.paymentLogs.unshift({
+      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+      provider: "yigim",
+      status: payment ? `matched:${payment.status}` : "unknown_reference",
+      paymentId: payment?.id || reference,
+      createdAt: nowIso()
+    });
+    writeDb(db);
+    return res.json({ ok: true, payment: payment || null, subscription });
+  } catch (error) {
+    if (payment) {
+      payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
+      payment.error = error.message;
+      payment.updatedAt = nowIso();
+    }
+    db.paymentLogs.unshift({
+      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+      provider: "yigim",
+      status: "status_check_failed",
+      paymentId: payment?.id || reference,
+      createdAt: nowIso()
+    });
+    writeDb(db);
+    return res.status(502).json({ ok: false, error: error.message });
+  }
+});
+
+app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async (req, res) => {
   const db = readDb();
   let payload = req.body || {};
   if (Buffer.isBuffer(payload)) {
@@ -750,28 +1246,21 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), (req, 
       payload = {};
     }
   }
-  const paymentId = payload.paymentId || payload.payment_id || payload.orderId || payload.order_id;
+  const paymentId = payload.paymentId || payload.payment_id || payload.orderId || payload.order_id || payload.reference;
   const status = String(payload.status || payload.payment_status || "").toLowerCase();
   const payment = paymentId ? db.payments.find((item) => item.id === paymentId) : null;
   let subscription = null;
   if (payment) {
-    payment.status = ["paid", "success", "succeeded", "completed", "approved"].includes(status) ? "paid" : status || payment.status;
-    payment.providerPayload = payload;
-    payment.updatedAt = nowIso();
-    if (payment.status === "paid") {
-      subscription = activateSubscription(db, payment.userId, payment.planId, payment.id);
-      const user = db.users.find((item) => item.id === payment.userId);
-      if (payment.planId === "bull-bear-premium") {
-        syncDiscordRole(user, true).catch((error) => console.warn("Discord role sync failed:", error.message));
+    if (req.params.provider === "yigim") {
+      const statusPayload = await getYigimPaymentStatus(payment.id).catch(() => payload);
+      subscription = applyYigimStatusToPayment(db, payment, statusPayload);
+    } else {
+      payment.status = ["paid", "success", "succeeded", "completed", "approved"].includes(status) ? "paid" : status || payment.status;
+      payment.providerPayload = payload;
+      payment.updatedAt = nowIso();
+      if (payment.status === "paid") {
+        subscription = finalizePaidPayment(db, payment, payload);
       }
-      db.notifications.unshift({
-        id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
-        userId: payment.userId,
-        type: "subscription",
-        title: "Subscription activated",
-        body: `Your ${payment.planId} subscription is active.`,
-        createdAt: nowIso()
-      });
     }
   }
   db.paymentLogs.unshift({
@@ -838,7 +1327,7 @@ app.get("/api/auth/oauth/:provider/callback", async (req, res) => {
       : { id: profileData.id, email: profileData.email, name: profileData.global_name || profileData.username, username: profileData.username };
     const db = readDb();
     const user = upsertOauthUser(db, config.provider, profile);
-    const hasPremium = db.subscriptions.some((item) => item.userId === user.id && item.status === "active" && item.planId === "bull-bear-premium");
+    const hasPremium = db.subscriptions.some((item) => item.userId === user.id && item.status === "active" && isPremiumDiscordPlan(item.planId));
     writeDb(db);
     if (config.provider === "discord" && hasPremium) {
       syncDiscordRole(user, true).catch((error) => console.warn("Discord role sync failed:", error.message));
@@ -953,7 +1442,7 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
     notifications: db.notifications.filter((item) => item.userId === userId).slice(0, 20),
     discord: {
       connected: false,
-      premiumRole: db.subscriptions.some((item) => item.userId === userId && item.status === "active" && item.planId === "bull-bear-premium")
+      premiumRole: db.subscriptions.some((item) => item.userId === userId && item.status === "active" && isPremiumDiscordPlan(item.planId))
     },
     recentOpportunities: scannerState.opportunities.slice(0, 8)
   });
@@ -968,7 +1457,7 @@ app.post("/api/subscriptions/cancel", requireAuth, (req, res) => {
   subscription.cancelledAt = nowIso();
   subscription.updatedAt = nowIso();
   const user = db.users.find((item) => item.id === req.auth.userId);
-  if (subscription.planId === "bull-bear-premium") {
+  if (isPremiumDiscordPlan(subscription.planId)) {
     syncDiscordRole(user, false).catch((error) => console.warn("Discord role removal failed:", error.message));
   }
   writeDb(db);
@@ -1022,10 +1511,15 @@ app.get("/api/admin/platform", requireAdmin, (req, res) => {
       oauthConfigured: Boolean(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET),
       botConfigured: Boolean(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_PREMIUM_ROLE_ID && process.env.DISCORD_GUILD_ID)
     },
+    ai: {
+      configured: isOpenAiConfigured(),
+      model: OPENAI_MODEL,
+      rateLimit: AI_MAX_REQUESTS_PER_WINDOW
+    },
     providers: {
       payriff: Boolean(process.env.PAYRIFF_SECRET_KEY),
       epoint: Boolean(process.env.EPOINT_PRIVATE_KEY),
-      yigim: Boolean(process.env.YIGIM_MERCHANT_ID),
+      yigim: isYigimConfigured(),
       crypto: Boolean(process.env.CRYPTO_PAYMENT_WALLET),
       card: Boolean(process.env.CARD_PROVIDER_SECRET)
     }
@@ -1159,5 +1653,5 @@ scheduleScanner();
 
 app.listen(PORT, () => {
   console.log(`Bull & Bear Academy is running on http://localhost:${PORT}`);
-  console.log(`Admin login: ${ADMIN_USERNAME} / ${ADMIN_PASSWORD}`);
+  console.log(`Admin login username: ${ADMIN_USERNAME}`);
 });
