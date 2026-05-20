@@ -247,6 +247,53 @@ function setMessage(message, type = "") {
   if (holder) holder.innerHTML = state.message;
 }
 
+async function startPlanCheckout(planId, button = null) {
+  if (!state.user) {
+    navigate("/login");
+    return;
+  }
+  const originalText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Creating checkout...";
+  }
+  setMessage("Creating checkout...");
+  try {
+    const result = await api("/api/payments/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planId, provider: CHECKOUT_PROVIDER })
+    });
+    state.message = `<div class="status ok">${esc(result.message || "Checkout created.")}</div>`;
+    const checkoutUrl = result.payment?.checkoutUrl || "/payment/success";
+    if (/^https?:\/\//i.test(checkoutUrl)) {
+      window.location.href = checkoutUrl;
+      return;
+    }
+    navigate(checkoutUrl);
+  } catch (error) {
+    setMessage(error.message, "err");
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText || (planId === "education-bundle" ? "Buy Now" : "Subscribe Now");
+    }
+  }
+}
+
+function bindCheckoutButtons() {
+  document.querySelectorAll("[data-checkout-plan]").forEach((button) => {
+    if (button.dataset.checkoutBound === "true") return;
+    button.type = "button";
+    button.dataset.checkoutBound = "true";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const planId = button.getAttribute("data-checkout-plan");
+      if (planId) startPlanCheckout(planId, button);
+    });
+  });
+}
+
 function compactMoney(value) {
   const number = Number(value || 0);
   if (number >= 1_000_000_000) return `$${(number / 1_000_000_000).toFixed(2)}B`;
@@ -1733,6 +1780,7 @@ function render() {
     return;
   }
   app.innerHTML = `<div class="app">${header()}<main class="main">${page()}</main>${footer()}</div>`;
+  bindCheckoutButtons();
   initMarketCanvas();
   mountRouteEffects();
 }
@@ -2048,28 +2096,8 @@ document.addEventListener("click", async (event) => {
 
   const checkout = event.target.closest("[data-checkout-plan]");
   if (checkout) {
-    if (!state.user) {
-      navigate("/login");
-      return;
-    }
     const planId = checkout.getAttribute("data-checkout-plan");
-    setMessage("Creating checkout...");
-    try {
-      const result = await api("/api/payments/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, provider: CHECKOUT_PROVIDER })
-      });
-      state.message = `<div class="status ok">${esc(result.message || "Checkout created.")}</div>`;
-      const checkoutUrl = result.payment?.checkoutUrl || "/payment/success";
-      if (/^https?:\/\//i.test(checkoutUrl)) {
-        window.location.href = checkoutUrl;
-        return;
-      }
-      navigate(checkoutUrl);
-    } catch (error) {
-      setMessage(error.message, "err");
-    }
+    await startPlanCheckout(planId, checkout);
     return;
   }
 
