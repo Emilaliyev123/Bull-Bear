@@ -257,6 +257,43 @@ function isYigimConfigured() {
   return Boolean(config.merchantId && config.secretKey && config.billerId);
 }
 
+function yigimResponse(payload = {}) {
+  return payload && typeof payload.response === "object" && payload.response
+    ? payload.response
+    : payload;
+}
+
+function yigimResponseCode(payload = {}) {
+  const response = yigimResponse(payload);
+  return response?.code !== undefined ? String(response.code) : "";
+}
+
+function yigimResponseMessage(payload = {}) {
+  const response = yigimResponse(payload);
+  return response?.message || response?.error || payload?.message || payload?.error || "Yigim request failed";
+}
+
+function parseYigimXml(text) {
+  const result = {};
+  const body = String(text || "");
+  for (const key of ["url", "reference", "datetime", "method", "type", "token", "pan", "expiry", "amount", "fee", "offset", "currency", "biller", "system", "issuer", "rrn", "approval", "3ds", "refund", "status", "code", "message", "extra"]) {
+    const match = body.match(new RegExp(`<${key}>([\\s\\S]*?)<\\/${key}>`, "i"));
+    if (match) result[key] = match[1].trim();
+  }
+  return Object.keys(result).length ? { response: result } : { raw: text };
+}
+
+function yigimAmount(amount) {
+  return Math.round(Number(amount || 0) * 100);
+}
+
+function buildYigimExtra(values = {}) {
+  return Object.entries(values)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join(";");
+}
+
 function findCheckoutUrl(value) {
   if (!value) return "";
   if (typeof value === "string") {
@@ -319,25 +356,38 @@ async function callYigim(pathname, params = {}) {
   try {
     payload = text ? JSON.parse(text) : {};
   } catch {
-    payload = { raw: text };
+    payload = parseYigimXml(text);
   }
   if (!response.ok) {
     const message = payload?.message || payload?.error || payload?.raw || `Yigim returned ${response.status}`;
     throw new Error(message);
   }
+  const code = yigimResponseCode(payload);
+  if (code && code !== "0") {
+    throw new Error(yigimResponseMessage(payload));
+  }
   return payload;
 }
 
+function yigimPaymentStatus(payload = {}) {
+  const response = yigimResponse(payload);
+  return String(response?.status || "").toUpperCase();
+}
+
 function isYigimPaid(payload = {}) {
-  return String(payload.code ?? "") === "00" && String(payload.status ?? "") === "0";
+  return yigimResponseCode(payload) === "0" && yigimPaymentStatus(payload) === "00";
 }
 
 function applyYigimStatusToPayment(db, payment, payload = {}) {
   if (isYigimPaid(payload)) {
     return finalizePaidPayment(db, payment, payload);
   }
-  const code = payload.code !== undefined ? String(payload.code) : "";
-  payment.status = code && code !== "00" ? "failed" : "pending";
+  const code = yigimResponseCode(payload);
+  const status = yigimPaymentStatus(payload);
+  const pendingStatuses = new Set(["", "S0", "S1", "S2"]);
+  payment.status = code && code !== "0"
+    ? "failed"
+    : pendingStatuses.has(status) ? "pending" : "failed";
   payment.providerPayload = payload;
   payment.updatedAt = nowIso();
   return null;
@@ -1266,17 +1316,24 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
       const payload = await callYigim("/payment/create", {
         reference: payment.id,
         type: YIGIM_PAYMENT_TYPE,
-        amount: Math.round(Number(plan.amount) * 100),
+        amount: yigimAmount(plan.amount),
         currency: YIGIM_CURRENCY,
         biller: process.env.YIGIM_BILLER_ID,
         description: `Bull & Bear - ${plan.name}`,
         template: YIGIM_TEMPLATE_ID,
         language: YIGIM_LANGUAGE,
         callback: statusCallback,
-        extra: `paymentId=${payment.id};planId=${planId};back-url=${successUrl};fail-url=${failUrl}`
+        extra: buildYigimExtra({
+          paymentId: payment.id,
+          planId,
+          url: successUrl,
+          "back-url": successUrl,
+          "success-url": successUrl,
+          "fail-url": failUrl
+        })
       });
       const checkoutUrl = findCheckoutUrl(payload);
-      if (!checkoutUrl) throw new Error("Yigim did not return a checkout URL");
+      if (!checkoutUrl) throw new Error(yigimResponseMessage(payload));
       payment.status = "checkout_created";
       payment.checkoutUrl = checkoutUrl;
       payment.providerReference = payment.id;
