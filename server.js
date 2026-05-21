@@ -45,15 +45,9 @@ const PAYMENT_PLANS = {
     amount: 39.9,
     cadence: "monthly",
     accessDays: 30
-  },
-  "bull-bear-premium": {
-    name: "Bull & Bear Premium",
-    amount: 79.9,
-    cadence: "monthly",
-    accessDays: 30
   }
 };
-const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai", "bull-bear-premium"]);
+const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "yigim";
 const YIGIM_BASE_URL = (process.env.YIGIM_BASE_URL || "https://sandbox.api.pay.yigim.az").replace(/\/+$/, "");
 const YIGIM_TEMPLATE_ID = process.env.YIGIM_TEMPLATE_ID || "TPL0002";
@@ -211,7 +205,7 @@ function activateSubscription(db, userId, planId, paymentId) {
 }
 
 function isPremiumDiscordPlan(planId) {
-  return ["bull-bear-premium", "premium-discord-signals"].includes(planId);
+  return planId === "premium-discord-signals";
 }
 
 function hasActiveSubscription(db, userId, planIds) {
@@ -1746,13 +1740,6 @@ app.get("/api/plans", (req, res) => {
         price: 39.9,
         cadence: "monthly",
         features: ["Live scanner", "Advanced filters", "Browser alerts", "Saved coins", "Cancel anytime"]
-      },
-      {
-        id: "bull-bear-premium",
-        name: "Bull & Bear Premium",
-        price: 79.9,
-        cadence: "monthly",
-        features: ["AI + Premium Discord Signals", "Arbitrage scanner", "Course videos", "Book access", "Live streams", "Discord premium access"]
       }
     ]
   });
@@ -1803,7 +1790,7 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     const db = readDb();
     if (!hasAiAccess(db, req.auth)) {
       return res.status(402).json({
-        error: "Investor & Trader AI requires AI + Premium Discord Signals or Bull & Bear Premium.",
+        error: "Investor & Trader AI requires AI + Premium Discord Signals.",
         requiredPlan: "premium-discord-signals",
         checkoutUrl: "/checkout/premium-discord-signals"
       });
