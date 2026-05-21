@@ -20,7 +20,7 @@
     addCss();
     const note = document.createElement("div");
     note.className = "bb-ai-pro-note";
-    note.innerHTML = "<strong>AI Pro:</strong> crypto, forex, futures, strategy playbooks, teaching charts, risk rules, macro checklist, and journal workflow.";
+    note.innerHTML = "<strong>AI + Discord:</strong> crypto, forex, futures, premium signal planning, strategy playbooks, teaching charts, risk rules, macro checklist, and journal workflow.";
     target.parentNode.insertBefore(note, target);
   }
 

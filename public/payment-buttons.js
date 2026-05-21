@@ -3,8 +3,7 @@
   const productPlans = {
     course: "education-bundle",
     signals: "premium-discord-signals",
-    arbitrage: "arbitrage-only",
-    ai: "investor-trader-ai"
+    arbitrage: "arbitrage-only"
   };
 
   let observer = null;

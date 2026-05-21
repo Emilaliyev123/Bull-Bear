@@ -4,8 +4,7 @@ const CHECKOUT_PROVIDER = "yigim";
 const productPlanIds = {
   course: "education-bundle",
   signals: "premium-discord-signals",
-  arbitrage: "arbitrage-only",
-  ai: "investor-trader-ai"
+  arbitrage: "arbitrage-only"
 };
 
 const state = {
@@ -88,11 +87,11 @@ const productFeatures = {
     "Lifetime bundle access"
   ],
   signals: [
-    "Premium Discord rooms",
-    "Signals delivered in Discord",
+    "Investor & Trader AI included",
+    "Premium Discord signal rooms",
+    "Crypto, forex, and futures analysis",
     "Live streams and voice sessions",
-    "Member trade discussions",
-    "Free Discord community available"
+    "Teaching charts and risk models"
   ],
   arbitrage: [
     "Crypto opportunity scanner",
@@ -101,13 +100,7 @@ const productFeatures = {
     "Major exchanges",
     "Fast refresh workflow"
   ],
-  ai: [
-    "Professional AI market coach",
-    "Crypto, forex, and futures analysis",
-    "Signal-style scenario builder",
-    "Teaching charts and lesson plans",
-    "Risk and journal framework"
-  ]
+  ai: []
 };
 
 const legalPolicies = {
@@ -146,7 +139,7 @@ const legalPolicies = {
     intro: "This policy explains refund and exchange rules for digital products and subscriptions purchased through Bull & Bear Trading Academy.",
     sections: [
       ["Digital Product Sales", "One-time purchases such as courses and books provide digital access. Because digital products can be accessed immediately, purchases are generally final and non-refundable."],
-      ["Subscription Services", "Premium Discord Signals, Investor & Trader AI, and scanner subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
+      ["Subscription Services", "AI + Premium Discord Signals and scanner subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
       ["No Trading Result Refunds", "Refunds are not issued because of trading losses, market outcomes, or dissatisfaction with personal trading results. The products are educational and analytical tools."],
       ["Duplicate or Incorrect Purchases", "If a duplicate charge or accidental purchase occurs, contact support within 24 hours with account and order details so the request can be reviewed."],
       ["Exchange Requests", "Exchanges between different products are not guaranteed. Where appropriate, we may offer account credit or access adjustments at our discretion."],
@@ -161,7 +154,7 @@ const legalPolicies = {
     sections: [
       ["Payment Processing", "Payments are processed through secure third-party payment providers. The website does not store user card numbers or full payment credentials."],
       ["One-Time Purchases", "Courses and books are one-time digital purchases. After payment confirmation, access is granted through the user account or relevant download/view page."],
-      ["Recurring Subscriptions", "Premium Discord Signals, Investor & Trader AI, and scanner products may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
+      ["Recurring Subscriptions", "AI + Premium Discord Signals and scanner products may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
       ["Cancellation", `Users may request cancellation by contacting ${CONTACT_EMAIL}. Cancellation stops future renewals but does not automatically refund the current active billing period.`],
       ["Failed Payments", "If a recurring payment fails, access may be paused until payment is completed. No penalty fee is charged by the platform for failed payment attempts."],
       ["Price Changes", "Prices may change over time. Existing subscribers should be notified before a material subscription price change takes effect."]
@@ -208,7 +201,7 @@ function activeSubscriptionPlanIds() {
 function hasAiAccess() {
   if (isAdmin()) return true;
   const plans = activeSubscriptionPlanIds();
-  return plans.includes("investor-trader-ai") || plans.includes("bull-bear-premium");
+  return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai") || plans.includes("bull-bear-premium");
 }
 
 function setSession(token, user) {
@@ -527,8 +520,8 @@ function ticker() {
 
 function productCard(product) {
   const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : product.id === "ai" ? "gold" : "red";
-  const mark = product.id === "course" ? "2" : product.id === "signals" ? "D" : product.id === "ai" ? "AI" : "A";
-  const badge = product.id === "signals" ? `<div class="badge">MOST POPULAR</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
+  const mark = product.id === "course" ? "2" : product.id === "signals" ? "AI" : product.id === "ai" ? "AI" : "A";
+  const badge = product.id === "signals" ? `<div class="badge">AI + SIGNALS</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
   const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/arbitrage";
   const planId = product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
@@ -551,7 +544,7 @@ function productCard(product) {
           ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
         </ul>
         ${planId ? checkoutCta(planId, primaryLabel) : ""}
-        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Discord Access" : product.id === "ai" ? "View AI Desk" : "View Product"}</a>
+        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View AI + Discord" : "View Product"}</a>
       </div>
     </article>
   `;
@@ -560,11 +553,11 @@ function productCard(product) {
 function scannerPricingCards() {
   const plans = [
     {
-      id: "investor-trader-ai",
-      name: "Investor & Trader AI",
-      price: 19.9,
-      badge: "AI Pro",
-      features: ["Crypto market coach", "Forex and gold analysis", "Futures risk models", "Teaching charts", "Journal and lesson builder"]
+      id: "premium-discord-signals",
+      name: "AI + Premium Discord Signals",
+      price: 49.9,
+      badge: "AI + Signals",
+      features: ["Investor & Trader AI", "Premium Discord signal rooms", "Forex and gold analysis", "Live streams", "Teaching charts and risk rules"]
     },
     {
       id: "arbitrage-only",
@@ -578,7 +571,7 @@ function scannerPricingCards() {
       name: "Bull & Bear Premium",
       price: 79.9,
       badge: "Best Value",
-      features: ["Investor & Trader AI", "Arbitrage scanner", "VIP Discord signals", "Course videos", "Trading book", "Premium Discord access"]
+      features: ["AI + Premium Discord Signals", "Arbitrage scanner", "Course videos", "Trading book", "Live streams", "Premium Discord access"]
     }
   ];
   return `
@@ -650,7 +643,7 @@ function homePage() {
     ${heroSection()}
     <section class="section compact">
       <div class="metric-strip">
-        <div><strong>4</strong><span>Core products</span></div>
+        <div><strong>3</strong><span>Core products</span></div>
         <div><strong>${courses.length}</strong><span>Video lessons ready</span></div>
         <div><strong>Discord</strong><span>Signals and live streams</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
@@ -660,8 +653,8 @@ function homePage() {
       <div class="ai-home-band">
         <div>
           <div class="eyebrow">New AI Desk</div>
-          <h2 class="h2" style="margin-top:12px;">Investor & Trader AI</h2>
-          <p class="lead">Subscribe to the AI desk for crypto, forex, futures, market models, risk rules, lesson paths, and signal-style scenarios.</p>
+          <h2 class="h2" style="margin-top:12px;">AI + Premium Discord Signals</h2>
+          <p class="lead">One membership includes the AI desk, premium Discord signal rooms, live streams, crypto and forex analysis, risk rules, lesson paths, and signal-style scenarios.</p>
         </div>
         <a href="/ai" data-link class="btn primary">Open AI Desk</a>
       </div>
@@ -743,7 +736,7 @@ function productsPage() {
       <div class="section-head center">
         <div class="eyebrow">Premium Products</div>
         <h1 class="h2">Choose Your <span class="gold-text">Trading Journey</span></h1>
-        <p class="lead">Start with the 2-in-1 academy bundle, join premium Discord, subscribe to Investor & Trader AI, or use the live arbitrage scanner.</p>
+        <p class="lead">Start with the 2-in-1 academy bundle, join AI + Premium Discord Signals, or use the live arbitrage scanner.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="section-head center" style="margin-top:44px;">
@@ -862,22 +855,23 @@ function signalsPage() {
         <div>
           <div class="eyebrow">Discord Signals</div>
           <h1 class="h2" style="margin-top:12px;">Premium Signals Live Inside Discord</h1>
-          <p class="lead">We do not publish private signals on the website. After purchasing the Signals product, members receive premium Discord access for private signal rooms, live streams, market discussions, and more.</p>
+          <p class="lead">We do not publish private signals on the website. After purchasing AI + Premium Discord Signals, members receive the AI market coach plus private Discord signal rooms, live streams, market discussions, and more.</p>
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
             ${state.user
-              ? checkoutCta("premium-discord-signals", "Purchase Premium Access")
+              ? checkoutCta("premium-discord-signals", "Purchase AI + Discord")
               : `<a href="/login" data-link class="btn primary">Log In to Purchase</a>`}
           </div>
         </div>
         <div class="card pad">
-          <div class="price">$19.90 <span>/ monthly</span></div>
+          <div class="price">$49.90 <span>/ monthly</span></div>
           <ul class="feature-list">
+            <li>Investor & Trader AI included</li>
             <li>Premium Discord membership after purchase</li>
             <li>Private signal rooms and trade ideas</li>
             <li>Live streams and voice sessions</li>
-            <li>Market watchlists and member discussions</li>
-            <li>Free Discord community link available to everyone</li>
+            <li>Crypto, forex, futures, and gold analysis</li>
+            <li>Teaching charts, lesson plans, and risk rules</li>
           </ul>
         </div>
       </div>
@@ -888,8 +882,8 @@ function signalsPage() {
           <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small" style="margin-top:14px;">Join Free</a>
         </div>
         <div class="card pad">
-          <h2 class="h3">Premium Signals</h2>
-          <p class="muted">Paid members get private Discord rooms where signals and trade planning are delivered.</p>
+          <h2 class="h3">AI + Premium Signals</h2>
+          <p class="muted">Paid members get the AI desk plus private Discord rooms where signals and trade planning are delivered.</p>
         </div>
         <div class="card pad">
           <h2 class="h3">Live Streams</h2>
@@ -1143,7 +1137,7 @@ function renderAiChat() {
           <div class="eyebrow">AI Chat</div>
           <h2 class="h3" style="margin-top:10px;">Professional Market Assistant</h2>
         </div>
-        <span>${state.ai.loading ? "thinking..." : "AI Pro"}</span>
+        <span>${state.ai.loading ? "thinking..." : "AI + Signals"}</span>
       </div>
       <div class="ai-chat-thread">
         ${(state.ai.messages || []).map((message) => `
@@ -1347,17 +1341,17 @@ function aiAccessPanel() {
   return `
     <div class="ai-paywall card pad">
       <div>
-        <div class="eyebrow">${checking ? "Checking Access" : "AI Subscription"}</div>
-        <h2 class="h2" style="margin-top:12px;">Investor & Trader AI Pro</h2>
+        <div class="eyebrow">${checking ? "Checking Access" : "AI + Discord Subscription"}</div>
+        <h2 class="h2" style="margin-top:12px;">AI + Premium Discord Signals</h2>
         <p class="lead">${checking
           ? "Loading your account access..."
-          : "Unlock the paid AI market coach for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
+          : "Unlock the paid AI market coach plus premium Discord signal rooms for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
       </div>
       <div class="ai-plan-card">
         <span>Monthly Access</span>
-        <strong>$19.90</strong>
+        <strong>$49.90</strong>
         <small>Included in Bull & Bear Premium</small>
-        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("investor-trader-ai", state.user ? "Subscribe to AI" : "Log In to Subscribe")}
+        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("premium-discord-signals", state.user ? "Subscribe to AI + Discord" : "Log In to Subscribe")}
         <a href="/products" data-link class="btn secondary">Compare Plans</a>
       </div>
       <div class="ai-paywall-grid">
@@ -1377,13 +1371,13 @@ function aiPage() {
       <div class="ai-hero">
         <div>
           <div class="eyebrow">Investor & Trader AI</div>
-          <h1 class="h2" style="margin-top:12px;">Paid AI Market Coach For Traders</h1>
-          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. AI Pro builds structured answers, teaching graphics, risk rules, scenarios, and lesson paths.</p>
+          <h1 class="h2" style="margin-top:12px;">AI Market Coach + Premium Discord Signals</h1>
+          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. The combined membership builds structured answers, teaching graphics, risk rules, scenarios, lesson paths, and includes premium Discord signal access.</p>
         </div>
         <div class="ai-preview-card">
-          <span>AI Pro</span>
-          <strong>$19.90/mo</strong>
-          <small>Crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
+          <span>AI + Signals</span>
+          <strong>$49.90/mo</strong>
+          <small>AI market coach, premium Discord signals, crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
         </div>
       </div>
 
@@ -2292,8 +2286,8 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   event.preventDefault();
   if (!hasAiAccess()) {
     state.ai.error = state.user
-      ? "Investor & Trader AI requires the $19.90 monthly subscription."
-      : "Please log in and subscribe to Investor & Trader AI first.";
+      ? "Investor & Trader AI requires AI + Premium Discord Signals ($49.90/month)."
+      : "Please log in and subscribe to AI + Premium Discord Signals first.";
     render();
     return false;
   }
