@@ -1384,6 +1384,68 @@ canvas {
   line-height: 1;
 }
 
+.ai-paywall {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(250px, 0.35fr);
+  gap: 24px;
+  margin-bottom: 28px;
+  border-color: rgba(245, 158, 11, 0.32);
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.14), transparent 42%),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.08), transparent 72%),
+    #0b0b0b;
+}
+
+.ai-plan-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: 8px;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.ai-plan-card span,
+.ai-plan-card small {
+  color: var(--muted);
+}
+
+.ai-plan-card strong {
+  color: var(--text);
+  font-size: 38px;
+  line-height: 1;
+}
+
+.ai-paywall-grid {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.ai-paywall-grid div {
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.ai-paywall-grid strong,
+.ai-paywall-grid span {
+  display: block;
+}
+
+.ai-paywall-grid strong {
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.ai-paywall-grid span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .ai-layout {
   grid-template-columns: minmax(320px, 0.38fr) minmax(0, 1fr);
   align-items: start;
@@ -1399,6 +1461,167 @@ canvas {
 .ai-output {
   display: grid;
   gap: 18px;
+}
+
+.ai-chat-card {
+  border-color: rgba(250, 204, 21, 0.24);
+}
+
+.ai-chat-head,
+.ai-chart-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.ai-chat-head > span,
+.ai-chart-head > span,
+.ai-teaching-card > span {
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--green);
+  background: rgba(16, 185, 129, 0.08);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ai-chat-thread {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ai-message {
+  width: min(100%, 680px);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.ai-message.user {
+  justify-self: end;
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.ai-message span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ai-message p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.ai-snapshot-grid,
+.ai-teaching-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.ai-snapshot-grid article {
+  border: 1px solid rgba(245, 158, 11, 0.18);
+  border-radius: 8px;
+  padding: 16px;
+  background:
+    linear-gradient(145deg, rgba(245, 158, 11, 0.08), transparent 58%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.ai-snapshot-grid span,
+.ai-snapshot-grid small {
+  display: block;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.ai-snapshot-grid span {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.ai-snapshot-grid strong {
+  display: block;
+  margin: 8px 0 4px;
+  color: var(--text);
+  font-size: 24px;
+}
+
+.ai-chart-card {
+  overflow: hidden;
+}
+
+.ai-chart-head p {
+  margin: 8px 0 0;
+}
+
+.ai-chart {
+  width: 100%;
+  min-height: 300px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    #080808;
+  background-size: 38px 38px;
+}
+
+.ai-chart-empty {
+  min-height: 230px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.ai-teaching-card {
+  min-height: 220px;
+}
+
+.ai-teaching-card .h3 {
+  margin-top: 14px;
+}
+
+.ai-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.ai-flow strong {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(245, 158, 11, 0.26);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text);
+  font-size: 12px;
 }
 
 .ai-summary-card {
@@ -1583,7 +1806,10 @@ canvas {
   .pricing-grid,
   .scanner-filters,
   .provider-grid,
-  .exchange-strip {
+  .exchange-strip,
+  .ai-paywall-grid,
+  .ai-snapshot-grid,
+  .ai-teaching-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1595,6 +1821,7 @@ canvas {
   .bundle-callout,
   .support-hero,
   .legal-layout,
+  .ai-paywall,
   .ai-home-band,
   .ai-hero,
   .ai-layout {
@@ -1668,7 +1895,10 @@ canvas {
   .scanner-filters,
   .provider-grid,
   .exchange-strip,
-  .admin-exchanges {
+  .admin-exchanges,
+  .ai-paywall-grid,
+  .ai-snapshot-grid,
+  .ai-teaching-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1692,8 +1922,12 @@ canvas {
   .discord-panel,
   .discord-hero,
   .bundle-callout,
+  .ai-paywall,
   .ai-home-band,
   .ai-preview-card,
+  .ai-chat-card,
+  .ai-chart-card,
+  .ai-teaching-card,
   .legal-doc {
     padding: 22px;
   }

@@ -4,7 +4,8 @@ const CHECKOUT_PROVIDER = "yigim";
 const productPlanIds = {
   course: "education-bundle",
   signals: "premium-discord-signals",
-  arbitrage: "arbitrage-only"
+  arbitrage: "arbitrage-only",
+  ai: "investor-trader-ai"
 };
 
 const state = {
@@ -41,15 +42,21 @@ const state = {
     result: null,
     meta: null,
     error: "",
+    messages: [
+      {
+        role: "assistant",
+        text: "Ask me anything about crypto, forex, futures, investing, market structure, risk management, portfolio planning, or lessons. I can build a structured professional answer with charts and teaching models."
+      }
+    ],
     form: {
       mode: "trader",
-      market: "Crypto",
-      asset: "BTC, ETH, SOL",
+      market: "Crypto, Forex, Futures",
+      asset: "BTC, ETH, EURUSD, XAUUSD",
       timeframe: "swing",
       riskProfile: "balanced",
       experienceLevel: "intermediate",
       capitalRange: "$500 - $2,000",
-      question: "Analyze current crypto market structure and give a disciplined watchlist with risk rules."
+      question: "Analyze BTC, EURUSD, and XAUUSD with a disciplined watchlist, support/resistance, scenarios, and risk rules."
     }
   },
   adminPlatform: null,
@@ -93,6 +100,13 @@ const productFeatures = {
     "Net spread focus",
     "Major exchanges",
     "Fast refresh workflow"
+  ],
+  ai: [
+    "Professional AI market coach",
+    "Crypto, forex, and futures analysis",
+    "Signal-style scenario builder",
+    "Teaching charts and lesson plans",
+    "Risk and journal framework"
   ]
 };
 
@@ -119,7 +133,7 @@ const legalPolicies = {
     sections: [
       ["Educational Purpose", "All content is provided for education and market analysis. It is not financial, investment, legal, or tax advice. Trading involves risk and users are responsible for their own decisions."],
       ["Accounts and Access", "Users must provide accurate account information and keep credentials secure. Access to paid products is personal and may not be resold, shared, copied, or redistributed."],
-      ["Digital Products", "Courses, books, Discord memberships, and scanner subscriptions are delivered digitally. Premium signals are delivered inside Discord, not published publicly on the website."],
+      ["Digital Products", "Courses, books, Discord memberships, AI memberships, and scanner subscriptions are delivered digitally. Premium signals are delivered inside Discord, not published publicly on the website."],
       ["Acceptable Use", "Users may not attempt to bypass access controls, scrape protected content, upload harmful files, disrupt the service, or misuse academy materials."],
       ["Intellectual Property", "All academy content, branding, design, text, videos, PDFs, and platform materials belong to Bull & Bear Trading Academy or its licensors unless otherwise stated."],
       ["Limitation of Liability", "The platform is provided on an as-available basis. Bull & Bear Trading Academy is not responsible for trading losses, market outcomes, or indirect damages."]
@@ -132,7 +146,7 @@ const legalPolicies = {
     intro: "This policy explains refund and exchange rules for digital products and subscriptions purchased through Bull & Bear Trading Academy.",
     sections: [
       ["Digital Product Sales", "One-time purchases such as courses and books provide digital access. Because digital products can be accessed immediately, purchases are generally final and non-refundable."],
-      ["Subscription Services", "Premium Discord Signals and scanner subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
+      ["Subscription Services", "Premium Discord Signals, Investor & Trader AI, and scanner subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
       ["No Trading Result Refunds", "Refunds are not issued because of trading losses, market outcomes, or dissatisfaction with personal trading results. The products are educational and analytical tools."],
       ["Duplicate or Incorrect Purchases", "If a duplicate charge or accidental purchase occurs, contact support within 24 hours with account and order details so the request can be reviewed."],
       ["Exchange Requests", "Exchanges between different products are not guaranteed. Where appropriate, we may offer account credit or access adjustments at our discretion."],
@@ -147,7 +161,7 @@ const legalPolicies = {
     sections: [
       ["Payment Processing", "Payments are processed through secure third-party payment providers. The website does not store user card numbers or full payment credentials."],
       ["One-Time Purchases", "Courses and books are one-time digital purchases. After payment confirmation, access is granted through the user account or relevant download/view page."],
-      ["Recurring Subscriptions", "Premium Discord Signals and scanner products may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
+      ["Recurring Subscriptions", "Premium Discord Signals, Investor & Trader AI, and scanner products may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
       ["Cancellation", `Users may request cancellation by contacting ${CONTACT_EMAIL}. Cancellation stops future renewals but does not automatically refund the current active billing period.`],
       ["Failed Payments", "If a recurring payment fails, access may be paused until payment is completed. No penalty fee is charged by the platform for failed payment attempts."],
       ["Price Changes", "Prices may change over time. Existing subscribers should be notified before a material subscription price change takes effect."]
@@ -182,6 +196,19 @@ function readStoredUser() {
 
 function isAdmin() {
   return state.user?.role === "admin" || state.user?.isAdmin === true;
+}
+
+function activeSubscriptionPlanIds() {
+  const now = Date.now();
+  return (state.userDashboard?.subscriptions || [])
+    .filter((item) => item.status === "active" && (!item.expiresAt || new Date(item.expiresAt).getTime() > now))
+    .map((item) => item.planId);
+}
+
+function hasAiAccess() {
+  if (isAdmin()) return true;
+  const plans = activeSubscriptionPlanIds();
+  return plans.includes("investor-trader-ai") || plans.includes("bull-bear-premium");
 }
 
 function setSession(token, user) {
@@ -382,7 +409,10 @@ function mountRouteEffects() {
     clearInterval(scannerPollTimer);
     scannerPollTimer = null;
   }
-  if (path === "/ai") loadScannerData();
+  if (path === "/ai") {
+    loadScannerData();
+    if (state.token && state.user && !isAdmin()) loadUserDashboard();
+  }
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (checkoutMatch) {
@@ -496,11 +526,14 @@ function ticker() {
 }
 
 function productCard(product) {
-  const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : "red";
-  const mark = product.id === "course" ? "2" : product.id === "signals" ? "D" : "A";
-  const badge = product.id === "signals" ? `<div class="badge">MOST POPULAR</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : "";
-  const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : "/arbitrage";
+  const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : product.id === "ai" ? "gold" : "red";
+  const mark = product.id === "course" ? "2" : product.id === "signals" ? "D" : product.id === "ai" ? "AI" : "A";
+  const badge = product.id === "signals" ? `<div class="badge">MOST POPULAR</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
+  const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/arbitrage";
   const planId = product.planId || productPlanIds[product.id];
+  const primaryLabel = planId === "education-bundle"
+    ? (state.user ? "Buy Now" : "Log In to Buy")
+    : (state.user ? "Subscribe Now" : "Log In to Subscribe");
 
   return `
     <article class="card product-card" data-product="${esc(product.id)}">
@@ -517,8 +550,8 @@ function productCard(product) {
         <ul class="feature-list">
           ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
         </ul>
-        ${planId ? checkoutCta(planId, state.user ? "Buy Now" : "Log In to Buy") : ""}
-        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Discord Access" : "View Product"}</a>
+        ${planId ? checkoutCta(planId, primaryLabel) : ""}
+        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Discord Access" : product.id === "ai" ? "View AI Desk" : "View Product"}</a>
       </div>
     </article>
   `;
@@ -526,6 +559,13 @@ function productCard(product) {
 
 function scannerPricingCards() {
   const plans = [
+    {
+      id: "investor-trader-ai",
+      name: "Investor & Trader AI",
+      price: 19.9,
+      badge: "AI Pro",
+      features: ["Crypto market coach", "Forex and gold analysis", "Futures risk models", "Teaching charts", "Journal and lesson builder"]
+    },
     {
       id: "arbitrage-only",
       name: "Arbitrage Scanner Only",
@@ -538,7 +578,7 @@ function scannerPricingCards() {
       name: "Bull & Bear Premium",
       price: 79.9,
       badge: "Best Value",
-      features: ["Arbitrage scanner", "VIP Discord signals", "Course videos", "Trading book", "Premium Discord access"]
+      features: ["Investor & Trader AI", "Arbitrage scanner", "VIP Discord signals", "Course videos", "Trading book", "Premium Discord access"]
     }
   ];
   return `
@@ -610,7 +650,7 @@ function homePage() {
     ${heroSection()}
     <section class="section compact">
       <div class="metric-strip">
-        <div><strong>3</strong><span>Core products</span></div>
+        <div><strong>4</strong><span>Core products</span></div>
         <div><strong>${courses.length}</strong><span>Video lessons ready</span></div>
         <div><strong>Discord</strong><span>Signals and live streams</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
@@ -621,7 +661,7 @@ function homePage() {
         <div>
           <div class="eyebrow">New AI Desk</div>
           <h2 class="h2" style="margin-top:12px;">Investor & Trader AI</h2>
-          <p class="lead">Generate market models, risk rules, lesson paths, and signal-style scenarios using academy context and scanner opportunities.</p>
+          <p class="lead">Subscribe to the AI desk for crypto, forex, futures, market models, risk rules, lesson paths, and signal-style scenarios.</p>
         </div>
         <a href="/ai" data-link class="btn primary">Open AI Desk</a>
       </div>
@@ -703,7 +743,7 @@ function productsPage() {
       <div class="section-head center">
         <div class="eyebrow">Premium Products</div>
         <h1 class="h2">Choose Your <span class="gold-text">Trading Journey</span></h1>
-        <p class="lead">Start with the 2-in-1 academy bundle, join premium Discord, or subscribe to the live arbitrage scanner.</p>
+        <p class="lead">Start with the 2-in-1 academy bundle, join premium Discord, subscribe to Investor & Trader AI, or use the live arbitrage scanner.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="section-head center" style="margin-top:44px;">
@@ -1017,7 +1057,7 @@ function aiTemplates() {
     {
       label: "Market Model",
       mode: "trader",
-      question: "Build a market model for BTC, ETH, and SOL. Include trend, key confirmation signals, invalidation, and lessons I should study."
+      question: "Build a market model for BTC, ETH, EURUSD, and XAUUSD. Include trend, confirmation signals, invalidation, and lessons I should study."
     },
     {
       label: "Investor Plan",
@@ -1028,6 +1068,16 @@ function aiTemplates() {
       label: "Signal Scenario",
       mode: "signal",
       question: "Create signal-style scenarios for high-probability crypto setups. Use trigger, confirmation, invalidation, and position risk notes."
+    },
+    {
+      label: "Forex Desk",
+      mode: "forex",
+      question: "Analyze EURUSD, GBPUSD, and XAUUSD with session logic, support/resistance, pip risk, and news-aware rules."
+    },
+    {
+      label: "Futures Risk",
+      mode: "futures",
+      question: "Build a futures plan for BTC, NAS100, and gold with leverage limits, liquidation buffer, and daily loss rules."
     },
     {
       label: "Lesson Path",
@@ -1049,6 +1099,15 @@ function aiValueText(value) {
     return Object.entries(value).map(([key, item]) => `${key}: ${item}`).join(" | ");
   }
   return value;
+}
+
+function aiPriceText(item = {}) {
+  const price = Number(item.price || 0);
+  if (!price) return "Market model";
+  const asset = String(item.asset || "").toUpperCase();
+  const decimals = price >= 1000 ? 2 : price >= 10 ? 3 : 5;
+  const formatted = price.toLocaleString(undefined, { maximumFractionDigits: decimals });
+  return /^[A-Z]{6}$/.test(asset) || asset === "DXY" ? formatted : `$${formatted}`;
 }
 
 function renderAiObject(item) {
@@ -1076,27 +1135,176 @@ function renderAiSection(title, items, emptyText) {
   `;
 }
 
+function renderAiChat() {
+  return `
+    <div class="ai-chat-card card pad">
+      <div class="ai-chat-head">
+        <div>
+          <div class="eyebrow">AI Chat</div>
+          <h2 class="h3" style="margin-top:10px;">Professional Market Assistant</h2>
+        </div>
+        <span>${state.ai.loading ? "thinking..." : "AI Pro"}</span>
+      </div>
+      <div class="ai-chat-thread">
+        ${(state.ai.messages || []).map((message) => `
+          <article class="ai-message ${message.role === "user" ? "user" : "assistant"}">
+            <span>${message.role === "user" ? "You" : "Bull & Bear AI"}</span>
+            <p>${esc(message.text)}</p>
+          </article>
+        `).join("")}
+        ${state.ai.loading ? `
+          <article class="ai-message assistant">
+            <span>Bull & Bear AI</span>
+            <p>Reading market structure, scanner context, and risk model...</p>
+          </article>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderAiMarketSnapshot(items = []) {
+  if (!items.length) return "";
+  return `
+    <div class="ai-snapshot-grid">
+      ${items.map((item) => `
+        <article>
+          <span>${esc(item.asset || "Asset")}</span>
+          <strong>${aiPriceText(item)}</strong>
+          <small>${esc(item.trend || "structure")} · RSI ${esc(item.rsi14 || "-")} · ${esc(item.changePct || "0%")}</small>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAiChart(chartData) {
+  const candles = Array.isArray(chartData?.candles) ? chartData.candles.slice(-42) : [];
+  if (!candles.length) {
+    return `
+      <div class="card pad ai-chart-card">
+        <h3 class="h3">Teaching Chart</h3>
+        <div class="ai-chart-empty">Ask about BTC, ETH, SOL, or another Binance-listed USDT pair to build a teaching chart.</div>
+      </div>
+    `;
+  }
+  const width = 720;
+  const height = 320;
+  const pad = 28;
+  const lows = candles.map((item) => Number(item.low));
+  const highs = candles.map((item) => Number(item.high));
+  const min = Math.min(...lows, Number(chartData.support || Infinity));
+  const max = Math.max(...highs, Number(chartData.resistance || -Infinity));
+  const range = Math.max(1, max - min);
+  const xStep = (width - pad * 2) / Math.max(1, candles.length - 1);
+  const y = (value) => pad + ((max - Number(value)) / range) * (height - pad * 2);
+  const candleWidth = Math.max(5, Math.min(12, xStep * 0.54));
+  const supportY = y(chartData.support || min);
+  const resistanceY = y(chartData.resistance || max);
+  const closeLine = candles.map((item, index) => `${pad + index * xStep},${y(item.close).toFixed(2)}`).join(" ");
+  return `
+    <div class="card pad ai-chart-card">
+      <div class="ai-chart-head">
+        <div>
+          <h3 class="h3">${esc(chartData.symbol || "Market")} Teaching Chart</h3>
+          <p class="muted">${esc(chartData.interval || "live")} candles with support, resistance, and close path.</p>
+        </div>
+        <span>${esc(chartData.source || "Teaching context")}</span>
+      </div>
+      <svg class="ai-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chartData.symbol || "Market")} teaching chart">
+        <defs>
+          <linearGradient id="aiChartGold" x1="0" x2="1">
+            <stop offset="0" stop-color="#f59e0b" stop-opacity="0.2"/>
+            <stop offset="1" stop-color="#facc15" stop-opacity="0.9"/>
+          </linearGradient>
+        </defs>
+        ${Array.from({ length: 6 }, (_, index) => {
+          const yy = pad + index * ((height - pad * 2) / 5);
+          return `<line x1="${pad}" y1="${yy}" x2="${width - pad}" y2="${yy}" stroke="rgba(255,255,255,0.06)"/>`;
+        }).join("")}
+        <line x1="${pad}" y1="${resistanceY.toFixed(2)}" x2="${width - pad}" y2="${resistanceY.toFixed(2)}" stroke="#ef4444" stroke-dasharray="6 6"/>
+        <line x1="${pad}" y1="${supportY.toFixed(2)}" x2="${width - pad}" y2="${supportY.toFixed(2)}" stroke="#10b981" stroke-dasharray="6 6"/>
+        ${candles.map((item, index) => {
+          const x = pad + index * xStep;
+          const up = Number(item.close) >= Number(item.open);
+          const bodyTop = y(Math.max(item.open, item.close));
+          const bodyBottom = y(Math.min(item.open, item.close));
+          const color = up ? "#10b981" : "#ef4444";
+          return `
+            <line x1="${x.toFixed(2)}" y1="${y(item.high).toFixed(2)}" x2="${x.toFixed(2)}" y2="${y(item.low).toFixed(2)}" stroke="${color}" stroke-opacity="0.78"/>
+            <rect x="${(x - candleWidth / 2).toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${candleWidth.toFixed(2)}" height="${Math.max(3, bodyBottom - bodyTop).toFixed(2)}" rx="1" fill="${color}" opacity="0.86"/>
+          `;
+        }).join("")}
+        <polyline points="${closeLine}" fill="none" stroke="url(#aiChartGold)" stroke-width="2.4"/>
+        <text x="${pad + 8}" y="${Math.max(16, resistanceY - 8).toFixed(2)}" fill="#ef4444" font-size="12" font-weight="800">Resistance ${esc(chartData.resistance || "")}</text>
+        <text x="${pad + 8}" y="${Math.min(height - 8, supportY + 18).toFixed(2)}" fill="#10b981" font-size="12" font-weight="800">Support ${esc(chartData.support || "")}</text>
+      </svg>
+    </div>
+  `;
+}
+
+function renderAiTeachingGraphics(items = []) {
+  if (!items.length) return "";
+  return `
+    <div class="ai-teaching-grid">
+      ${items.map((item) => `
+        <article class="card pad ai-teaching-card">
+          <span>${esc(item.type || "model")}</span>
+          <h3 class="h3">${esc(item.title || "Teaching Model")}</h3>
+          <div class="ai-flow">
+            ${(item.steps || []).map((step) => `<strong>${esc(step)}</strong>`).join("")}
+          </div>
+          <p class="muted">${esc(item.note || "")}</p>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAiRiskCalculator(calculator) {
+  if (!calculator) return "";
+  return `
+    <div class="card pad ai-result-card ai-risk-panel">
+      <h3 class="h3">Risk Calculator</h3>
+      <div class="ai-kv" style="margin-top:14px;">
+        ${Object.entries(calculator).map(([key, value]) => `
+          <div>
+            <span>${esc(String(key).replace(/([A-Z])/g, " $1").replace(/^./, (char) => char.toUpperCase()))}</span>
+            <strong>${esc(aiValueText(value))}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderAiResult() {
   const result = state.ai.result;
   if (!result) {
     return `
+      ${renderAiChat()}
       <div class="card pad ai-empty-panel">
-        <h2 class="h3">Ready for analysis</h2>
-        <p class="muted">Ask for a market model, signal-style scenarios, portfolio education, or the best lesson path. The AI will use academy content and recent scanner context when available.</p>
+        <h2 class="h3">Ready for professional analysis</h2>
+        <p class="muted">Ask for crypto, forex, futures, market structure, investing models, signal-style scenarios, portfolio education, risk rules, or lesson paths. The AI can build teaching charts and risk frameworks for professional study.</p>
       </div>
     `;
   }
   return `
     <div class="ai-output">
+      ${renderAiChat()}
       <div class="card pad ai-summary-card">
         <div class="eyebrow">AI Analysis</div>
         <h2 class="h3" style="margin-top:12px;">${esc(result.title)}</h2>
-        <p class="muted">${esc(result.summary)}</p>
+        <p class="muted">${esc(result.chatAnswer || result.summary)}</p>
         <div class="ai-meta">
           <span>Model: ${esc(state.ai.meta?.model || "OpenAI")}</span>
+          <span>Market: ${esc(state.ai.meta?.marketSource || "Academy model")}</span>
           <span>${state.ai.meta?.generatedAt ? new Date(state.ai.meta.generatedAt).toLocaleString() : "Generated now"}</span>
         </div>
       </div>
+      ${renderAiMarketSnapshot(result.marketSnapshot)}
+      ${renderAiChart(result.chartData)}
+      ${renderAiTeachingGraphics(result.teachingGraphics)}
       <div class="grid two">
         ${renderAiSection("Market Models", result.marketModel, "No market model returned yet.")}
         ${renderAiSection("Watchlist", result.watchlist, "No watchlist returned yet.")}
@@ -1104,6 +1312,20 @@ function renderAiResult() {
       <div class="grid two">
         ${renderAiSection("Signal-Style Scenarios", result.signalScenarios, "No signal scenarios returned yet.")}
         ${renderAiSection("Lesson Plan", result.lessonPlan, "No lesson plan returned yet.")}
+      </div>
+      <div class="grid two">
+        ${renderAiSection("Strategy Playbook", result.strategyPlaybook, "No strategy playbook returned yet.")}
+        ${renderAiRiskCalculator(result.riskCalculator)}
+      </div>
+      <div class="grid two">
+        <div class="card pad ai-result-card">
+          <h3 class="h3">Macro Checklist</h3>
+          <ul class="feature-list">${(result.macroChecklist || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
+        <div class="card pad ai-result-card">
+          <h3 class="h3">Journal Checklist</h3>
+          <ul class="feature-list">${(result.journalChecklist || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
       </div>
       <div class="grid two">
         <div class="card pad ai-result-card">
@@ -1120,25 +1342,56 @@ function renderAiResult() {
   `;
 }
 
+function aiAccessPanel() {
+  const checking = state.user && !isAdmin() && !state.userDashboard;
+  return `
+    <div class="ai-paywall card pad">
+      <div>
+        <div class="eyebrow">${checking ? "Checking Access" : "AI Subscription"}</div>
+        <h2 class="h2" style="margin-top:12px;">Investor & Trader AI Pro</h2>
+        <p class="lead">${checking
+          ? "Loading your account access..."
+          : "Unlock the paid AI market coach for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
+      </div>
+      <div class="ai-plan-card">
+        <span>Monthly Access</span>
+        <strong>$19.90</strong>
+        <small>Included in Bull & Bear Premium</small>
+        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("investor-trader-ai", state.user ? "Subscribe to AI" : "Log In to Subscribe")}
+        <a href="/products" data-link class="btn secondary">Compare Plans</a>
+      </div>
+      <div class="ai-paywall-grid">
+        <div><strong>Forex desk</strong><span>EURUSD, GBPUSD, XAUUSD, DXY, session logic, pip risk.</span></div>
+        <div><strong>Futures risk</strong><span>Leverage, liquidation buffer, funding, daily loss limits.</span></div>
+        <div><strong>Teaching charts</strong><span>Support/resistance, candle path, RSI, trend model.</span></div>
+        <div><strong>Professional workflow</strong><span>Watchlist, scenarios, macro checklist, journal checklist.</span></div>
+      </div>
+    </div>
+  `;
+}
+
 function aiPage() {
+  const allowed = hasAiAccess();
   return `
     <section class="section">
       <div class="ai-hero">
         <div>
           <div class="eyebrow">Investor & Trader AI</div>
-          <h1 class="h2" style="margin-top:12px;">Analyze Markets With Discipline</h1>
-          <p class="lead">Free market models, signal-style scenarios, investing frameworks, risk plans, and lesson paths. Built for education, not guaranteed financial outcomes.</p>
+          <h1 class="h2" style="margin-top:12px;">Paid AI Market Coach For Traders</h1>
+          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. AI Pro builds structured answers, teaching graphics, risk rules, scenarios, and lesson paths.</p>
         </div>
         <div class="ai-preview-card">
-          <span>Live Context</span>
-          <strong>${state.scanner.opportunities.length || "Scanner"} ideas</strong>
-          <small>${state.scanner.lastUpdated ? `Updated ${new Date(state.scanner.lastUpdated).toLocaleTimeString()}` : "Scanner context loads on demand"}</small>
+          <span>AI Pro</span>
+          <strong>$19.90/mo</strong>
+          <small>Crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
         </div>
       </div>
 
+      ${allowed ? "" : aiAccessPanel()}
+      ${allowed ? `
       <div class="ai-layout">
         <div class="card pad">
-          <h2 class="h3">Ask Bull & Bear AI</h2>
+          <h2 class="h3">Ask Anything</h2>
           <div class="ai-template-row">
             ${aiTemplates().map((template) => `
               <button class="pill" type="button" data-ai-template="${esc(template.mode)}" data-ai-question="${esc(template.question)}">${esc(template.label)}</button>
@@ -1152,6 +1405,8 @@ function aiPage() {
                   ${[
                     ["trader", "Trader"],
                     ["investor", "Investor"],
+                    ["forex", "Forex Analyst"],
+                    ["futures", "Futures Risk"],
                     ["signal", "Signal Scenarios"],
                     ["lesson", "Lesson Coach"],
                     ["portfolio", "Portfolio Education"],
@@ -1161,13 +1416,13 @@ function aiPage() {
               </div>
               <div class="field">
                 <label>Market</label>
-                <input name="market" value="${aiFieldValue("market")}" placeholder="Crypto, stocks, forex">
+                <input name="market" value="${aiFieldValue("market")}" placeholder="Crypto, forex, futures, stocks">
               </div>
             </div>
             <div class="form-grid two">
               <div class="field">
                 <label>Assets</label>
-                <input name="asset" value="${aiFieldValue("asset")}" placeholder="BTC, ETH, SOL">
+                <input name="asset" value="${aiFieldValue("asset")}" placeholder="BTC, ETH, EURUSD, XAUUSD">
               </div>
               <div class="field">
                 <label>Timeframe</label>
@@ -1195,10 +1450,10 @@ function aiPage() {
               <input name="capitalRange" value="${aiFieldValue("capitalRange")}" placeholder="$500 - $2,000">
             </div>
             <div class="field">
-              <label>Question</label>
+              <label>Your Message</label>
               <textarea name="question" rows="6" required>${aiFieldValue("question")}</textarea>
             </div>
-            <button class="btn primary" type="submit">${state.ai.loading ? "Analyzing..." : "Generate AI Analysis"}</button>
+            <button class="btn primary" type="submit">${state.ai.loading ? "Thinking..." : "Ask Bull & Bear AI"}</button>
             <div data-ai-status>${state.ai.error ? `<div class="status err">${esc(state.ai.error)}</div>` : state.ai.loading ? `<div class="status">Analyzing market context...</div>` : ""}</div>
           </form>
         </div>
@@ -1206,6 +1461,7 @@ function aiPage() {
           ${renderAiResult()}
         </div>
       </div>
+      ` : ""}
     </section>
   `;
 }
@@ -2034,6 +2290,13 @@ window.submitAnnouncement = async function submitAnnouncement(event) {
 
 window.submitAiAdvisor = async function submitAiAdvisor(event) {
   event.preventDefault();
+  if (!hasAiAccess()) {
+    state.ai.error = state.user
+      ? "Investor & Trader AI requires the $19.90 monthly subscription."
+      : "Please log in and subscribe to Investor & Trader AI first.";
+    render();
+    return false;
+  }
   const form = event.currentTarget;
   const data = new FormData(form);
   const payload = {
@@ -2049,6 +2312,10 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   state.ai.form = { ...state.ai.form, ...payload };
   state.ai.loading = true;
   state.ai.error = "";
+  state.ai.messages = [
+    ...(state.ai.messages || []),
+    { role: "user", text: payload.question || "Analyze the market." }
+  ].slice(-8);
   render();
   try {
     const response = await api("/api/ai/advisor", {
@@ -2058,9 +2325,17 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
     });
     state.ai.result = response.result;
     state.ai.meta = response.meta;
+    state.ai.messages = [
+      ...(state.ai.messages || []),
+      { role: "assistant", text: response.result?.chatAnswer || response.result?.summary || "Analysis completed." }
+    ].slice(-8);
     state.ai.error = "";
   } catch (error) {
     state.ai.error = error.message;
+    state.ai.messages = [
+      ...(state.ai.messages || []),
+      { role: "assistant", text: `I could not complete the analysis: ${error.message}` }
+    ].slice(-8);
   } finally {
     state.ai.loading = false;
     render();
