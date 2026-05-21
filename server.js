@@ -29,8 +29,8 @@ const PAYMENT_PLANS = {
     accessDays: 3650
   },
   "premium-discord-signals": {
-    name: "Premium Discord Signals",
-    amount: 19.9,
+    name: "AI + Premium Discord Signals",
+    amount: 49.9,
     cadence: "monthly",
     accessDays: 30
   },
@@ -53,7 +53,7 @@ const PAYMENT_PLANS = {
     accessDays: 30
   }
 };
-const AI_ACCESS_PLAN_IDS = new Set(["investor-trader-ai", "bull-bear-premium"]);
+const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai", "bull-bear-premium"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "yigim";
 const YIGIM_BASE_URL = (process.env.YIGIM_BASE_URL || "https://sandbox.api.pay.yigim.az").replace(/\/+$/, "");
 const YIGIM_TEMPLATE_ID = process.env.YIGIM_TEMPLATE_ID || "TPL0002";
@@ -1697,10 +1697,10 @@ function serializeContent(db) {
       {
         id: "signals",
         planId: "premium-discord-signals",
-        title: "Premium Discord Signals",
-        subtitle: "Private Discord Membership",
-        description: "Premium Discord access with signals, live streams, trade discussions, and member-only rooms.",
-        price: 19.9,
+        title: "AI + Premium Discord Signals",
+        subtitle: "AI Market Coach + Private Discord",
+        description: "Premium Discord access with signals, live streams, trade discussions, and Investor & Trader AI for crypto, forex, futures, lessons, and risk models.",
+        price: 49.9,
         cadence: "monthly"
       },
       {
@@ -1710,15 +1710,6 @@ function serializeContent(db) {
         subtitle: "Find Price Differences",
         description: "Scan crypto opportunities across leading exchanges with clean net-spread views.",
         price: 39.9,
-        cadence: "monthly"
-      },
-      {
-        id: "ai",
-        planId: "investor-trader-ai",
-        title: "Investor & Trader AI",
-        subtitle: "Market Coach + Strategy Builder",
-        description: "Premium AI for crypto, forex, futures, risk models, signal-style scenarios, lessons, and teaching charts.",
-        price: 19.9,
         cadence: "monthly"
       }
     ]
@@ -1743,11 +1734,11 @@ app.get("/api/plans", (req, res) => {
   res.json({
     plans: [
       {
-        id: "investor-trader-ai",
-        name: "Investor & Trader AI",
-        price: 19.9,
+        id: "premium-discord-signals",
+        name: "AI + Premium Discord Signals",
+        price: 49.9,
         cadence: "monthly",
-        features: ["Crypto analysis", "Forex analysis", "Futures risk models", "Teaching charts", "Strategy builder"]
+        features: ["Investor & Trader AI", "Crypto and forex analysis", "Premium Discord signals", "Live streams", "Teaching charts", "Risk and lesson builder"]
       },
       {
         id: "arbitrage-only",
@@ -1761,7 +1752,7 @@ app.get("/api/plans", (req, res) => {
         name: "Bull & Bear Premium",
         price: 79.9,
         cadence: "monthly",
-        features: ["Investor & Trader AI", "Arbitrage scanner", "VIP Discord signals", "Course videos", "Book access", "Discord premium access"]
+        features: ["AI + Premium Discord Signals", "Arbitrage scanner", "Course videos", "Book access", "Live streams", "Discord premium access"]
       }
     ]
   });
@@ -1812,9 +1803,9 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     const db = readDb();
     if (!hasAiAccess(db, req.auth)) {
       return res.status(402).json({
-        error: "Investor & Trader AI requires an active $19.90 monthly subscription.",
-        requiredPlan: "investor-trader-ai",
-        checkoutUrl: "/checkout/investor-trader-ai"
+        error: "Investor & Trader AI requires AI + Premium Discord Signals or Bull & Bear Premium.",
+        requiredPlan: "premium-discord-signals",
+        checkoutUrl: "/checkout/premium-discord-signals"
       });
     }
 
