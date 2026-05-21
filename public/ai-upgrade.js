@@ -21,7 +21,7 @@
     const note = document.createElement("div");
     note.className = "bb-ai-pro-note";
     note.innerHTML = "<strong>AI + Discord:</strong> crypto, forex, futures, premium signal planning, strategy playbooks, teaching charts, risk rules, macro checklist, and journal workflow.";
-    target.parentNode.insertBefore(note, target);
+    target.insertBefore(note, target.firstChild);
   }
 
   const observer = new MutationObserver(() => requestAnimationFrame(enhance));
