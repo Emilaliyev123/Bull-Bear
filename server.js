@@ -34,6 +34,12 @@ const PAYMENT_PLANS = {
     cadence: "monthly",
     accessDays: 30
   },
+  "investor-trader-ai": {
+    name: "Investor & Trader AI",
+    amount: 19.9,
+    cadence: "monthly",
+    accessDays: 30
+  },
   "arbitrage-only": {
     name: "Arbitrage Scanner Only",
     amount: 39.9,
@@ -47,6 +53,7 @@ const PAYMENT_PLANS = {
     accessDays: 30
   }
 };
+const AI_ACCESS_PLAN_IDS = new Set(["investor-trader-ai", "bull-bear-premium"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "yigim";
 const YIGIM_BASE_URL = (process.env.YIGIM_BASE_URL || "https://sandbox.api.pay.yigim.az").replace(/\/+$/, "");
 const YIGIM_TEMPLATE_ID = process.env.YIGIM_TEMPLATE_ID || "TPL0002";
@@ -205,6 +212,21 @@ function activateSubscription(db, userId, planId, paymentId) {
 
 function isPremiumDiscordPlan(planId) {
   return ["bull-bear-premium", "premium-discord-signals"].includes(planId);
+}
+
+function hasActiveSubscription(db, userId, planIds) {
+  if (!userId) return false;
+  const now = Date.now();
+  return db.subscriptions.some((item) => (
+    item.userId === userId
+    && item.status === "active"
+    && planIds.has(item.planId)
+    && (!item.expiresAt || new Date(item.expiresAt).getTime() > now)
+  ));
+}
+
+function hasAiAccess(db, auth = {}) {
+  return Boolean(auth.admin || hasActiveSubscription(db, auth.userId, AI_ACCESS_PLAN_IDS));
 }
 
 function notifySubscriptionActivated(db, payment) {
@@ -847,7 +869,7 @@ function filteredOpportunities(query = {}) {
 }
 
 const aiUsage = new Map();
-const aiModes = new Set(["investor", "trader", "lesson", "signal", "portfolio", "risk"]);
+const aiModes = new Set(["investor", "trader", "lesson", "signal", "portfolio", "risk", "forex", "futures", "arbitrage"]);
 
 function isOpenAiConfigured() {
   return AI_USE_OPENAI && Boolean(OPENAI_API_KEY);
@@ -905,13 +927,25 @@ function parseAiJson(text) {
 
 function normalizeAiResult(result = {}) {
   const list = (value) => Array.isArray(value) ? value.slice(0, 8) : [];
+  const snapshots = Array.isArray(result.marketSnapshot) ? result.marketSnapshot.slice(0, 8) : [];
+  const graphics = Array.isArray(result.teachingGraphics) ? result.teachingGraphics.slice(0, 6) : [];
+  const chartData = result.chartData && typeof result.chartData === "object" ? result.chartData : null;
+  const riskCalculator = result.riskCalculator && typeof result.riskCalculator === "object" ? result.riskCalculator : null;
   return {
     title: trimText(result.title || "Bull & Bear Investor & Trader AI", 120),
     summary: trimText(result.summary, 1600),
+    chatAnswer: trimText(result.chatAnswer || result.summary, 3600),
+    marketSnapshot: snapshots,
+    chartData,
+    teachingGraphics: graphics,
     marketModel: list(result.marketModel),
     watchlist: list(result.watchlist),
     signalScenarios: list(result.signalScenarios),
     lessonPlan: list(result.lessonPlan),
+    strategyPlaybook: list(result.strategyPlaybook),
+    macroChecklist: list(result.macroChecklist).map((item) => trimText(item, 240)),
+    journalChecklist: list(result.journalChecklist).map((item) => trimText(item, 240)),
+    riskCalculator,
     riskRules: list(result.riskRules).map((item) => trimText(item, 240)),
     nextSteps: list(result.nextSteps).map((item) => trimText(item, 240)),
     disclaimer: trimText(result.disclaimer || "Educational analysis only. This is not financial advice, investment advice, or a guarantee of results.", 280)
@@ -982,16 +1016,446 @@ function aiTopScannerIdeas(context = {}) {
     .slice(0, 4);
 }
 
+function aiIntervalForTimeframe(timeframe) {
+  const value = String(timeframe || "").toLowerCase();
+  if (value.includes("intra")) return "15m";
+  if (value.includes("weekly") || value.includes("long")) return "1d";
+  return "4h";
+}
+
+function aiSymbolFromAsset(asset) {
+  const cleaned = String(asset || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9/]/g, "")
+    .replace(/\/USDT$/, "")
+    .replace(/USDT$/, "");
+  if (!cleaned || cleaned.length > 12) return "";
+  return `${cleaned}USDT`;
+}
+
+function detectAiMarketType(request = {}) {
+  const text = `${request.mode || ""} ${request.market || ""} ${request.asset || ""} ${request.question || ""}`.toLowerCase();
+  if (/\b(forex|fx|eurusd|gbpusd|usdjpy|usdchf|audusd|nzdusd|usdcad|xauusd|gold|xagusd|silver|dxy|london|new york session)\b/.test(text)) {
+    return "forex";
+  }
+  if (/\b(futures|perp|perpetual|leverage|liquidation|funding|margin|nas100|us100|spx|sp500|dow|oil)\b/.test(text)) {
+    return "futures";
+  }
+  if (/\b(stock|stocks|equity|shares|nasdaq|s&p|spx|apple|tesla|nvidia)\b/.test(text)) {
+    return "stocks";
+  }
+  return "crypto";
+}
+
+function normalizeForexAsset(asset) {
+  const raw = String(asset || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9/]/g, "")
+    .replace("/", "");
+  const aliases = {
+    GOLD: "XAUUSD",
+    XAU: "XAUUSD",
+    SILVER: "XAGUSD",
+    XAG: "XAGUSD",
+    DOLLAR: "DXY",
+    USDINDEX: "DXY"
+  };
+  if (aliases[raw]) return aliases[raw];
+  if (/^[A-Z]{6}$/.test(raw)) return raw;
+  if (/^(XAUUSD|XAGUSD|DXY)$/.test(raw)) return raw;
+  return "";
+}
+
+function normalizeIndexOrFutureAsset(asset) {
+  const raw = String(asset || "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  const aliases = {
+    BTC: "BTCUSDT",
+    ETH: "ETHUSDT",
+    SOL: "SOLUSDT",
+    NASDAQ: "NAS100",
+    US100: "NAS100",
+    NQ: "NAS100",
+    SPX: "SPX500",
+    SP500: "SPX500",
+    ES: "SPX500",
+    DOW: "US30",
+    YM: "US30",
+    OIL: "WTI",
+    GOLD: "XAUUSD"
+  };
+  return aliases[raw] || raw || "";
+}
+
+function aiRequestedSymbols(request, context = {}) {
+  const marketType = detectAiMarketType(request);
+  const typed = String(request.asset || "")
+    .split(/[\s,;/]+/)
+    .map((asset) => {
+      if (marketType === "forex") return normalizeForexAsset(asset);
+      if (marketType === "futures" || marketType === "stocks") return normalizeIndexOrFutureAsset(asset);
+      return aiSymbolFromAsset(asset);
+    })
+    .filter(Boolean);
+  if (marketType === "forex") {
+    return Array.from(new Set([...typed, "EURUSD", "XAUUSD", "GBPUSD"])).slice(0, 4);
+  }
+  if (marketType === "futures" || marketType === "stocks") {
+    return Array.from(new Set([...typed, "BTCUSDT", "NAS100", "XAUUSD"])).slice(0, 4);
+  }
+  const scanner = (context.recentScannerOpportunities || [])
+    .map((item) => aiSymbolFromAsset(String(item.pair || "").split("/")[0]))
+    .filter(Boolean);
+  return Array.from(new Set([...typed, ...scanner, "BTCUSDT", "ETHUSDT"])).slice(0, 4);
+}
+
+function mean(values) {
+  if (!values.length) return 0;
+  return values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+}
+
+function sma(values, period) {
+  if (values.length < period) return mean(values);
+  return mean(values.slice(-period));
+}
+
+function rsi(values, period = 14) {
+  if (values.length <= period) return 50;
+  const changes = [];
+  for (let index = 1; index < values.length; index += 1) {
+    changes.push(values[index] - values[index - 1]);
+  }
+  const recent = changes.slice(-period);
+  const gains = recent.map((change) => Math.max(0, change));
+  const losses = recent.map((change) => Math.max(0, -change));
+  const avgGain = mean(gains);
+  const avgLoss = mean(losses);
+  if (!avgLoss) return 100;
+  return 100 - (100 / (1 + avgGain / avgLoss));
+}
+
+function atr(candles, period = 14) {
+  if (candles.length < 2) return 0;
+  const ranges = [];
+  for (let index = 1; index < candles.length; index += 1) {
+    const candle = candles[index];
+    const previousClose = candles[index - 1].close;
+    ranges.push(Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previousClose),
+      Math.abs(candle.low - previousClose)
+    ));
+  }
+  return mean(ranges.slice(-period));
+}
+
+function supportResistance(candles) {
+  const recent = candles.slice(-30);
+  if (!recent.length) return { support: 0, resistance: 0 };
+  const lows = recent.map((item) => item.low).sort((a, b) => a - b);
+  const highs = recent.map((item) => item.high).sort((a, b) => b - a);
+  return {
+    support: lows[Math.min(3, lows.length - 1)] || lows[0] || 0,
+    resistance: highs[Math.min(3, highs.length - 1)] || highs[0] || 0
+  };
+}
+
+function analyzeAiCandles(symbol, interval, candles, marketType = "crypto", source = "Binance spot candles") {
+  const closes = candles.map((item) => item.close);
+  const volumes = candles.map((item) => item.volume);
+  const last = candles[candles.length - 1] || {};
+  const first = candles[Math.max(0, candles.length - 25)] || candles[0] || {};
+  const sma20 = sma(closes, 20);
+  const sma50 = sma(closes, Math.min(50, closes.length));
+  const rsi14 = rsi(closes, 14);
+  const atr14 = atr(candles, 14);
+  const levels = supportResistance(candles);
+  const changePct = first.close ? ((last.close - first.close) / first.close) * 100 : 0;
+  const volumeNow = mean(volumes.slice(-6));
+  const volumeBase = mean(volumes.slice(-24));
+  const trend = last.close > sma20 && sma20 >= sma50
+    ? "bullish"
+    : last.close < sma20 && sma20 <= sma50 ? "bearish" : "range";
+  const momentum = rsi14 >= 68 ? "extended" : rsi14 <= 35 ? "washed out" : rsi14 >= 52 ? "constructive" : "soft";
+  return {
+    asset: marketType === "crypto" ? symbol.replace(/USDT$/, "") : symbol,
+    symbol,
+    marketType,
+    source,
+    interval,
+    price: Number(last.close || 0),
+    changePct: Number(changePct.toFixed(2)),
+    rsi14: Number(rsi14.toFixed(1)),
+    sma20: Number(sma20.toFixed(4)),
+    sma50: Number(sma50.toFixed(4)),
+    atrPct: last.close ? Number(((atr14 / last.close) * 100).toFixed(2)) : 0,
+    support: Number(levels.support.toFixed(4)),
+    resistance: Number(levels.resistance.toFixed(4)),
+    trend,
+    momentum,
+    volumeBias: volumeNow > volumeBase * 1.15 ? "above average" : volumeNow < volumeBase * 0.85 ? "below average" : "normal",
+    updatedAt: nowIso(),
+    candles: candles.slice(-52).map((item) => ({
+      time: item.time,
+      open: Number(item.open.toFixed(4)),
+      high: Number(item.high.toFixed(4)),
+      low: Number(item.low.toFixed(4)),
+      close: Number(item.close.toFixed(4)),
+      volume: Number(item.volume.toFixed(4))
+    }))
+  };
+}
+
+async function fetchBinanceCandles(symbol, interval, limit = 80) {
+  const url = new URL("https://api.binance.com/api/v3/klines");
+  url.searchParams.set("symbol", symbol);
+  url.searchParams.set("interval", interval);
+  url.searchParams.set("limit", String(limit));
+  const response = await fetch(url, {
+    headers: { accept: "application/json", "user-agent": "BullBearInvestorAI/1.0" },
+    signal: AbortSignal.timeout(9000)
+  });
+  if (!response.ok) throw new Error(`Binance returned ${response.status} for ${symbol}`);
+  const data = await response.json();
+  return data.map((item) => ({
+    time: Number(item[0]),
+    open: Number(item[1]),
+    high: Number(item[2]),
+    low: Number(item[3]),
+    close: Number(item[4]),
+    volume: Number(item[5])
+  })).filter((item) => Number.isFinite(item.close) && item.close > 0);
+}
+
+function marketProfile(symbol, marketType) {
+  const profiles = {
+    EURUSD: { base: 1.085, volatility: 0.004, volume: 180000 },
+    GBPUSD: { base: 1.272, volatility: 0.005, volume: 150000 },
+    USDJPY: { base: 156.4, volatility: 0.006, volume: 170000 },
+    USDCHF: { base: 0.91, volatility: 0.004, volume: 100000 },
+    AUDUSD: { base: 0.665, volatility: 0.005, volume: 120000 },
+    NZDUSD: { base: 0.61, volatility: 0.005, volume: 90000 },
+    USDCAD: { base: 1.36, volatility: 0.004, volume: 110000 },
+    XAUUSD: { base: 2360, volatility: 0.011, volume: 220000 },
+    XAGUSD: { base: 30.5, volatility: 0.014, volume: 120000 },
+    DXY: { base: 104.2, volatility: 0.0035, volume: 80000 },
+    NAS100: { base: 18850, volatility: 0.012, volume: 210000 },
+    SPX500: { base: 5250, volatility: 0.009, volume: 200000 },
+    US30: { base: 39200, volatility: 0.008, volume: 180000 },
+    WTI: { base: 79, volatility: 0.018, volume: 160000 },
+    BTCUSDT: { base: 68000, volatility: 0.018, volume: 800000 },
+    ETHUSDT: { base: 3500, volatility: 0.02, volume: 650000 },
+    SOLUSDT: { base: 165, volatility: 0.025, volume: 420000 }
+  };
+  return profiles[symbol] || {
+    base: marketType === "forex" ? 1.1 : 100,
+    volatility: marketType === "forex" ? 0.005 : 0.018,
+    volume: 100000
+  };
+}
+
+function symbolSeed(symbol) {
+  return String(symbol || "").split("").reduce((sum, char, index) => sum + char.charCodeAt(0) * (index + 3), 17);
+}
+
+function syntheticCandles(symbol, interval, marketType, limit = 80) {
+  const profile = marketProfile(symbol, marketType);
+  const seed = symbolSeed(`${symbol}:${interval}:${marketType}`);
+  const candles = [];
+  let last = profile.base * (1 + ((seed % 17) - 8) * 0.0015);
+  const intervalMs = interval === "15m" ? 15 * 60 * 1000 : interval === "1d" ? 24 * 60 * 60 * 1000 : 4 * 60 * 60 * 1000;
+  const start = Date.now() - limit * intervalMs;
+  for (let index = 0; index < limit; index += 1) {
+    const wave = Math.sin((index + seed % 13) / 5) * profile.volatility;
+    const cycle = Math.cos((index + seed % 11) / 9) * profile.volatility * 0.55;
+    const drift = ((seed % 9) - 4) * profile.volatility * 0.018;
+    const open = last;
+    const close = Math.max(profile.base * 0.35, open * (1 + wave * 0.14 + cycle * 0.09 + drift));
+    const spread = profile.volatility * (0.22 + (index % 5) * 0.03);
+    const high = Math.max(open, close) * (1 + spread);
+    const low = Math.min(open, close) * (1 - spread);
+    candles.push({
+      time: start + index * intervalMs,
+      open,
+      high,
+      low,
+      close,
+      volume: profile.volume * (0.75 + ((index + seed) % 9) * 0.07)
+    });
+    last = close;
+  }
+  return candles;
+}
+
+async function aiMarketContext(request, context) {
+  const interval = aiIntervalForTimeframe(request.timeframe);
+  const marketType = detectAiMarketType(request);
+  const symbols = aiRequestedSymbols(request, context);
+  if (marketType !== "crypto") {
+    const snapshots = symbols.map((symbol) => (
+      analyzeAiCandles(
+        symbol,
+        interval,
+        syntheticCandles(symbol, interval, marketType),
+        marketType,
+        marketType === "forex" ? "Forex teaching model" : "Futures and index teaching model"
+      )
+    ));
+    return {
+      source: marketType === "forex" ? "Forex teaching model" : "Futures and index teaching model",
+      marketType,
+      interval,
+      snapshots,
+      errors: []
+    };
+  }
+  const settled = await Promise.allSettled(symbols.map(async (symbol) => {
+    const candles = await fetchBinanceCandles(symbol, interval);
+    return analyzeAiCandles(symbol, interval, candles, "crypto", "Binance spot candles");
+  }));
+  const snapshots = settled
+    .filter((item) => item.status === "fulfilled")
+    .map((item) => item.value);
+  const fallbackSnapshots = snapshots.length ? [] : symbols.map((symbol) => (
+    analyzeAiCandles(symbol, interval, syntheticCandles(symbol, interval, "crypto"), "crypto", "Crypto teaching model")
+  ));
+  return {
+    source: snapshots.length ? "Binance spot candles" : "Crypto teaching model",
+    marketType,
+    interval,
+    snapshots: snapshots.length ? snapshots : fallbackSnapshots,
+    errors: settled
+      .filter((item) => item.status === "rejected")
+      .map((item) => item.reason?.message || "Market fetch failed")
+      .slice(0, 4)
+  };
+}
+
 function aiRiskSentence(riskProfile) {
   if (riskProfile === "conservative") return "Use smaller sizing, wait for extra confirmation, and skip unclear setups.";
   if (riskProfile === "aggressive") return "Aggressive ideas still need fixed risk, hard invalidation, and no averaging down.";
   return "Use balanced sizing, define invalidation before entry, and avoid chasing candles after expansion.";
 }
 
-function generateFreeAdvisorResponse(input, context = {}) {
+function aiQuestionTopics(request) {
+  const text = `${request.mode} ${request.market} ${request.asset} ${request.question}`.toLowerCase();
+  const checks = [
+    ["risk", ["risk", "stop", "loss", "size", "drawdown", "manage"]],
+    ["portfolio", ["portfolio", "invest", "long term", "long-term", "allocation", "hold", "dca"]],
+    ["signal", ["signal", "entry", "buy", "sell", "setup", "trigger"]],
+    ["lesson", ["lesson", "learn", "teach", "course", "beginner", "explain"]],
+    ["technical", ["rsi", "support", "resistance", "trend", "candle", "chart", "indicator"]],
+    ["psychology", ["psychology", "emotion", "fear", "greed", "discipline", "revenge"]],
+    ["arbitrage", ["arbitrage", "spread", "exchange", "fee", "transfer"]],
+    ["forex", ["forex", "fx", "eurusd", "gbpusd", "usdjpy", "xauusd", "gold", "dxy", "london", "new york", "session", "pips"]],
+    ["futures", ["futures", "perp", "perpetual", "leverage", "liquidation", "funding", "margin", "nas100", "spx", "oil"]]
+  ];
+  const topics = checks.filter(([, words]) => words.some((word) => text.includes(word))).map(([topic]) => topic);
+  if (!topics.length) topics.push(request.mode === "investor" ? "portfolio" : "technical");
+  return Array.from(new Set(topics)).slice(0, 4);
+}
+
+function aiDirectAnswer(request, primary, riskText, scannerText, topics) {
+  const topicAdvice = {
+    risk: "For risk management, start with invalidation first. A setup is professional only when you know exactly where the idea is wrong, how much capital is at risk, and when you will stop trading for the day.",
+    portfolio: "For investing, build around allocation, time horizon, and review rules. A clean model is core positions first, smaller tactical positions second, and cash reserved for high-quality pullbacks.",
+    signal: "For signal-style work, avoid blind calls. Use trigger, confirmation, invalidation, target zone, and risk size. If one piece is missing, the signal is not ready.",
+    lesson: "For learning, the best path is structure first, then risk, then psychology, then execution review. Do not jump into advanced indicators before you can mark clean levels.",
+    technical: "For technical analysis, read the regime before indicators. Trend, support, resistance, volume, and candle location matter more than one RSI print.",
+    psychology: "For psychology, the edge is process discipline. Your job is to repeat high-quality decisions, avoid revenge trading, and review mistakes calmly after the market closes.",
+    arbitrage: "For arbitrage, spread is only the first filter. The usable edge depends on liquidity, trading fees, withdrawal fees, network choice, transfer time, and whether the price gap survives execution.",
+    forex: "For forex, separate session context from setup quality. London and New York liquidity can create clean moves, but every idea still needs trend, level, catalyst awareness, invalidation, and pip risk.",
+    futures: "For futures, leverage is the risk amplifier. Build the plan around liquidation distance, margin buffer, funding or rollover context, and a hard daily loss limit before thinking about targets."
+  };
+  const liveLine = primary
+    ? `Live chart context: ${primary.asset} is near ${primary.price}, RSI ${primary.rsi14}, trend ${primary.trend}, support ${primary.support}, resistance ${primary.resistance}.`
+    : "Live chart context is limited for this request, so the answer uses the academy model and scanner context.";
+  return [
+    `Direct answer: ${topics.map((topic) => topicAdvice[topic]).join(" ")}`,
+    liveLine,
+    scannerText,
+    `Best professional next move: write a plan with four lines: market regime, valid trigger, invalidation, and maximum risk. ${riskText}`
+  ].join("\n\n");
+}
+
+function aiTeachingGraphicsForTopics(topics) {
+  const graphics = [
+    {
+      title: "Trend Decision Model",
+      type: "flow",
+      steps: ["Regime", "Level", "Trigger", "Invalidation", "Size", "Review"],
+      note: "This is the core workflow before any signal-style idea."
+    }
+  ];
+  if (topics.includes("risk")) {
+    graphics.push({
+      title: "Risk Box",
+      type: "risk",
+      steps: ["Entry zone", "Stop zone", "Target zone"],
+      note: "A trade idea is incomplete until the downside is defined first."
+    });
+  }
+  if (topics.includes("technical")) {
+    graphics.push({
+      title: "RSI Teaching Map",
+      type: "momentum",
+      steps: ["Below 35: washed out", "45-60: balanced", "Above 68: extended"],
+      note: "RSI is context, not a standalone entry button."
+    });
+  }
+  if (topics.includes("portfolio")) {
+    graphics.push({
+      title: "Investor Allocation Map",
+      type: "portfolio",
+      steps: ["Core", "Satellite", "Cash", "Review"],
+      note: "Long-term investing should be planned before volatility arrives."
+    });
+  }
+  if (topics.includes("arbitrage")) {
+    graphics.push({
+      title: "Arbitrage Reality Check",
+      type: "execution",
+      steps: ["Spread", "Fees", "Liquidity", "Transfer", "Final net"],
+      note: "The visible spread is not the same as realized profit."
+    });
+  }
+  if (topics.includes("forex")) {
+    graphics.push({
+      title: "Forex Session Map",
+      type: "forex",
+      steps: ["Asia range", "London break", "NY confirmation", "Risk close"],
+      note: "Use sessions to understand liquidity, not to force entries."
+    });
+  }
+  if (topics.includes("futures")) {
+    graphics.push({
+      title: "Futures Leverage Guard",
+      type: "futures",
+      steps: ["Margin", "Liquidation", "Stop", "Daily limit"],
+      note: "Leverage should shrink position size, not increase emotional risk."
+    });
+  }
+  if (topics.includes("psychology")) {
+    graphics.push({
+      title: "Discipline Loop",
+      type: "psychology",
+      steps: ["Plan", "Wait", "Execute", "Journal", "Improve"],
+      note: "A calm repeatable process beats emotional prediction."
+    });
+  }
+  return graphics.slice(0, 4);
+}
+
+function generatePaidAdvisorResponse(input, context = {}) {
   const request = normalizeAiAdvisorRequest(input);
   const assets = aiAssetsFromRequest(request, context);
   const scannerIdeas = aiTopScannerIdeas(context);
+  const market = context.marketData || {};
+  const snapshots = market.snapshots || [];
+  const primary = snapshots[0];
+  const topics = aiQuestionTopics(request);
+  const marketType = market.marketType || detectAiMarketType(request);
   const bestIdea = scannerIdeas[0];
   const timeframeText = request.timeframe || "swing";
   const riskText = aiRiskSentence(request.riskProfile);
@@ -999,11 +1463,12 @@ function generateFreeAdvisorResponse(input, context = {}) {
     ? `Current scanner context is led by ${bestIdea.pair} with about ${Number(bestIdea.netSpreadPct || 0).toFixed(2)}% net spread between ${bestIdea.buyExchange} and ${bestIdea.sellExchange}. Treat this as context, not a guaranteed trade.`
     : "Scanner context is limited right now, so the plan focuses on structure, confirmation, and risk process.";
 
-  const watchlist = assets.slice(0, 5).map((asset, index) => ({
-    asset,
-    setup: index === 0 ? "Primary focus. Wait for a clean break and retest before planning risk." : "Secondary watch. Let price prove strength before entry.",
-    trigger: timeframeText === "intraday" ? "Momentum candle closes above the last local high with volume." : "Daily or 4H structure holds higher low, then breaks the reaction high.",
-    invalidation: "The setup is invalid if price closes back below the prior support or breaks the planned higher low.",
+  const watchlist = (snapshots.length ? snapshots : assets.slice(0, 5).map((asset) => ({ asset }))).slice(0, 5).map((item, index) => ({
+    asset: item.asset || item.symbol?.replace(/USDT$/, "") || assets[index],
+    bias: item.trend ? `${item.trend} / ${item.momentum}` : "structure watch",
+    setup: index === 0 ? "Primary focus. Wait for a clean break and retest before planning risk." : marketType === "forex" ? "Secondary pair. Wait for session liquidity to choose direction." : "Secondary watch. Let price prove strength before entry.",
+    trigger: item.resistance ? `A close above ${item.resistance} with normal or rising volume, then a retest that holds.` : timeframeText === "intraday" ? "Momentum candle closes above the last local high with volume." : "Daily or 4H structure holds higher low, then breaks the reaction high.",
+    invalidation: item.support ? `Invalid below ${item.support} or if price accepts back under the retest zone.` : "The setup is invalid if price closes back below the prior support or breaks the planned higher low.",
     risk: "Risk only a small fixed percentage per idea and avoid adding to losing positions."
   }));
 
@@ -1020,8 +1485,41 @@ function generateFreeAdvisorResponse(input, context = {}) {
   });
 
   return normalizeAiResult({
-    title: "Bull & Bear Free Investor & Trader AI",
-    summary: `${scannerText} For ${request.market} on a ${timeframeText} plan, the best model is patience first: define trend, wait for confirmation, then manage downside. ${riskText}`,
+    title: "Bull & Bear Investor & Trader AI",
+    summary: `${scannerText} For ${request.market} on a ${timeframeText} plan, the premium model is patience first: define trend, wait for confirmation, then manage downside. ${riskText}`,
+    chatAnswer: [
+      `I read your question as a ${request.mode} request for ${request.market} using a ${timeframeText} plan.`,
+      aiDirectAnswer(request, primary, riskText, scannerText, topics),
+      primary
+        ? `${primary.source || "Market"} context: ${primary.asset} is around ${primary.price}, ${primary.changePct}% over the sampled window, with RSI ${primary.rsi14}. The structure reads ${primary.trend}, momentum is ${primary.momentum}, and the practical teaching zone is support ${primary.support} / resistance ${primary.resistance}.`
+        : "Live Binance context is not available for the requested asset right now, so the answer uses academy models and scanner context.",
+      `Professional model: decide the market regime first, then create conditional scenarios. Do not ask “buy or sell now”; ask “what would need to happen for this setup to become valid?”`,
+      `Best answer: build the trade plan around trigger, confirmation, invalidation, and position size. ${riskText}`
+    ].join("\n\n"),
+    marketSnapshot: snapshots.map((item) => ({
+      asset: item.asset,
+      price: item.price,
+      changePct: `${item.changePct}%`,
+      rsi14: item.rsi14,
+      trend: item.trend,
+      momentum: item.momentum,
+      support: item.support,
+      resistance: item.resistance,
+      volumeBias: item.volumeBias,
+      source: item.source,
+      marketType: item.marketType,
+      interval: item.interval
+    })),
+    chartData: primary ? {
+      symbol: primary.symbol,
+      interval: primary.interval,
+      support: primary.support,
+      resistance: primary.resistance,
+      sma20: primary.sma20,
+      source: primary.source,
+      candles: primary.candles
+    } : null,
+    teachingGraphics: aiTeachingGraphicsForTopics(topics),
     marketModel: [
       {
         model: "Structure First",
@@ -1034,6 +1532,16 @@ function generateFreeAdvisorResponse(input, context = {}) {
         read: "For crypto and arbitrage ideas, spread alone is not enough. Volume, fees, network, and transfer time decide whether the idea is usable.",
         confirmation: bestIdea ? `${bestIdea.pair} currently needs fee and execution checks before any decision.` : "Use the scanner page to confirm live spreads before acting.",
         warning: "Avoid low-volume pairs where a good-looking spread can disappear during execution."
+      },
+      {
+        model: marketType === "forex" ? "Forex Liquidity Sessions" : marketType === "futures" ? "Futures Leverage Control" : "Multi-Timeframe Alignment",
+        read: marketType === "forex"
+          ? "Check Asia range, London expansion, New York continuation or reversal, and major news timing before planning risk."
+          : marketType === "futures"
+            ? "Map leverage, liquidation distance, funding or rollover context, and daily loss limits before selecting a setup."
+            : "Use higher timeframe direction for bias and lower timeframe structure for execution.",
+        confirmation: "The setup becomes valid only when direction, level, trigger, invalidation, and position size agree.",
+        warning: "If the plan depends on hope, the trade is not ready."
       }
     ],
     watchlist,
@@ -1055,9 +1563,51 @@ function generateFreeAdvisorResponse(input, context = {}) {
         practice: "Review screenshots after each setup and score discipline, not profit."
       }
     ],
+    strategyPlaybook: [
+      {
+        module: "Regime Map",
+        action: "Classify trend, range, or distribution before choosing strategy.",
+        output: "One sentence market thesis plus the level that proves it wrong."
+      },
+      {
+        module: "Execution Plan",
+        action: "Build conditional scenarios instead of instant predictions.",
+        output: "Trigger, confirmation, invalidation, target zone, and position size."
+      },
+      {
+        module: marketType === "forex" ? "Session Plan" : marketType === "futures" ? "Leverage Plan" : "Market Tool Plan",
+        action: marketType === "forex"
+          ? "Separate Asia, London, and New York behavior before selecting the pair."
+          : marketType === "futures"
+            ? "Reduce position size until stop distance and liquidation distance are both acceptable."
+            : "Check scanner data, volume, fees, and chart levels before using any opportunity.",
+        output: "A written go/no-go checklist before entry."
+      }
+    ],
+    macroChecklist: [
+      "Check high-impact economic news before forex, gold, index, or futures trades.",
+      "Avoid entering directly into major data releases unless the plan is specifically built for event risk.",
+      "Compare dollar strength, risk appetite, and session liquidity before trusting one chart.",
+      "For crypto, compare BTC dominance, stablecoin flows, and major exchange liquidity before altcoin setups."
+    ],
+    journalChecklist: [
+      "Screenshot before entry, after entry, and after exit.",
+      "Write why the setup is valid and the exact condition that cancels it.",
+      "Score discipline separately from profit or loss.",
+      "Review whether the entry was planned, chased, or emotional."
+    ],
+    riskCalculator: {
+      capitalRange: request.capitalRange,
+      suggestedRiskPerIdea: request.riskProfile === "conservative" ? "0.25% - 0.5%" : request.riskProfile === "aggressive" ? "0.75% - 1.25%" : "0.5% - 1%",
+      maxDailyLoss: request.riskProfile === "aggressive" ? "2% - 3%" : "1% - 2%",
+      positionRule: marketType === "futures" ? "Lower leverage until liquidation is far beyond the planned stop." : marketType === "forex" ? "Convert stop distance into pip value before placing the order." : "Use stop distance to calculate size before entry."
+    },
     riskRules: [
       "Education only. This is not financial advice and not a guaranteed signal.",
       "Risk a small fixed percentage per idea and define invalidation before entry.",
+      marketType === "forex"
+        ? "For forex, check economic calendar and session liquidity before taking any setup."
+        : marketType === "futures" ? "For futures, never use leverage without knowing liquidation distance and maximum daily loss." : "For crypto, confirm liquidity, spreads, fees, and BTC market context before altcoin entries.",
       "Skip trades when spread, volume, fees, or transfer time are unclear.",
       "Do not chase after a large candle. Wait for a retest or a new setup.",
       "Use demo or paper trading when testing a new model."
@@ -1068,7 +1618,7 @@ function generateFreeAdvisorResponse(input, context = {}) {
       "Write trigger, invalidation, and position size before entering any trade.",
       "Study the course lessons on structure and risk before using signal scenarios live."
     ],
-    disclaimer: "Free educational analysis only. This is not financial advice, investment advice, or a promise of profit."
+    disclaimer: "Premium educational analysis only. This is not financial advice, investment advice, or a promise of profit."
   });
 }
 
@@ -1080,10 +1630,13 @@ async function generateAiAdvisorResponse(input, context, auth) {
     "Give professional but cautious educational analysis for investing, trading, market models, risk management, and lesson recommendations.",
     "You may create watchlists and signal-style scenarios, but never promise profit, never claim certainty, and never tell the user that they must buy or sell immediately.",
     "Use conditional language: trigger, confirmation, invalidation, risk notes, and education next steps.",
+    "Support crypto, forex, index, and futures education. For forex, include session/liquidity/news awareness. For futures, include leverage, margin, liquidation, funding, and daily loss limits.",
     "If market data is insufficient or stale, say so and explain what data is needed.",
     "Do not provide legal, tax, or personalized financial advice. Keep answers suitable for education.",
-    "Return only valid JSON with these keys: title, summary, marketModel, watchlist, signalScenarios, lessonPlan, riskRules, nextSteps, disclaimer.",
-    "marketModel, watchlist, signalScenarios, and lessonPlan must be arrays of objects. riskRules and nextSteps must be arrays of short strings."
+    "Return only valid JSON with these keys: title, summary, chatAnswer, marketSnapshot, chartData, teachingGraphics, marketModel, watchlist, signalScenarios, lessonPlan, strategyPlaybook, macroChecklist, journalChecklist, riskCalculator, riskRules, nextSteps, disclaimer.",
+    "chartData should include symbol, interval, support, resistance, and candles when supplied by platform context.",
+    "teachingGraphics should be simple arrays of objects with title, type, steps, and note.",
+    "marketModel, watchlist, signalScenarios, lessonPlan, and strategyPlaybook must be arrays of objects. macroChecklist, journalChecklist, riskRules, and nextSteps must be arrays of short strings."
   ].join(" ");
 
   const response = await fetch(`${OPENAI_BASE_URL}/responses`, {
@@ -1158,6 +1711,15 @@ function serializeContent(db) {
         description: "Scan crypto opportunities across leading exchanges with clean net-spread views.",
         price: 39.9,
         cadence: "monthly"
+      },
+      {
+        id: "ai",
+        planId: "investor-trader-ai",
+        title: "Investor & Trader AI",
+        subtitle: "Market Coach + Strategy Builder",
+        description: "Premium AI for crypto, forex, futures, risk models, signal-style scenarios, lessons, and teaching charts.",
+        price: 19.9,
+        cadence: "monthly"
       }
     ]
   };
@@ -1181,6 +1743,13 @@ app.get("/api/plans", (req, res) => {
   res.json({
     plans: [
       {
+        id: "investor-trader-ai",
+        name: "Investor & Trader AI",
+        price: 19.9,
+        cadence: "monthly",
+        features: ["Crypto analysis", "Forex analysis", "Futures risk models", "Teaching charts", "Strategy builder"]
+      },
+      {
         id: "arbitrage-only",
         name: "Arbitrage Scanner Only",
         price: 39.9,
@@ -1192,7 +1761,7 @@ app.get("/api/plans", (req, res) => {
         name: "Bull & Bear Premium",
         price: 79.9,
         cadence: "monthly",
-        features: ["Arbitrage scanner", "VIP Discord signals", "Course videos", "Book access", "Discord premium access"]
+        features: ["Investor & Trader AI", "Arbitrage scanner", "VIP Discord signals", "Course videos", "Book access", "Discord premium access"]
       }
     ]
   });
@@ -1238,26 +1807,42 @@ app.get("/api/scanner/stream", (req, res) => {
   req.on("close", () => clearInterval(timer));
 });
 
-app.post("/api/ai/advisor", optionalAuth, async (req, res) => {
-  const userKey = req.auth.userId || req.auth.username || req.ip;
-  if (!consumeAiQuota(userKey)) {
-    return res.status(429).json({
-      error: "AI request limit reached. Please wait a few minutes and try again."
-    });
-  }
-
+app.post("/api/ai/advisor", requireAuth, async (req, res) => {
   try {
     const db = readDb();
+    if (!hasAiAccess(db, req.auth)) {
+      return res.status(402).json({
+        error: "Investor & Trader AI requires an active $19.90 monthly subscription.",
+        requiredPlan: "investor-trader-ai",
+        checkoutUrl: "/checkout/investor-trader-ai"
+      });
+    }
+
+    const userKey = req.auth.userId || req.auth.username || req.ip;
+    if (!consumeAiQuota(userKey)) {
+      return res.status(429).json({
+        error: "AI request limit reached. Please wait a few minutes and try again."
+      });
+    }
+
+    const normalizedRequest = normalizeAiAdvisorRequest(req.body || {});
     const context = aiContextFromDb(db, req.auth.userId || "");
-    let model = "Bull & Bear Free AI";
-    let result = generateFreeAdvisorResponse(req.body || {}, context);
+    context.marketData = await aiMarketContext(normalizedRequest, context).catch((error) => ({
+      source: "Academy model only",
+      marketType: detectAiMarketType(normalizedRequest),
+      interval: aiIntervalForTimeframe(normalizedRequest.timeframe),
+      snapshots: [],
+      errors: [error.message]
+    }));
+    let model = "Bull & Bear AI Pro";
+    let result = generatePaidAdvisorResponse(normalizedRequest, context);
 
     if (isOpenAiConfigured()) {
       try {
-        result = await generateAiAdvisorResponse(req.body || {}, context, req.auth);
+        result = await generateAiAdvisorResponse(normalizedRequest, context, req.auth);
         model = OPENAI_MODEL;
       } catch (error) {
-        console.warn("OpenAI advisor unavailable, using free advisor:", error.message);
+        console.warn("OpenAI advisor unavailable, using paid advisor model:", error.message);
       }
     }
 
@@ -1266,7 +1851,7 @@ app.post("/api/ai/advisor", optionalAuth, async (req, res) => {
       action: "ai.advisor.generated",
       actor: req.auth.email || req.auth.username || "guest",
       meta: {
-        mode: req.body?.mode || "trader",
+        mode: normalizedRequest.mode || "trader",
         model
       },
       createdAt: nowIso()
@@ -1278,6 +1863,8 @@ app.post("/api/ai/advisor", optionalAuth, async (req, res) => {
       meta: {
         model,
         generatedAt: nowIso(),
+        marketSource: context.marketData.source,
+        marketInterval: context.marketData.interval,
         scannerUpdatedAt: scannerState.lastUpdated
       }
     });
