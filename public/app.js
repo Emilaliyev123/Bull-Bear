@@ -201,7 +201,7 @@ function activeSubscriptionPlanIds() {
 function hasAiAccess() {
   if (isAdmin()) return true;
   const plans = activeSubscriptionPlanIds();
-  return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai") || plans.includes("bull-bear-premium");
+  return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai");
 }
 
 function setSession(token, user) {
@@ -553,36 +553,22 @@ function productCard(product) {
 function scannerPricingCards() {
   const plans = [
     {
-      id: "premium-discord-signals",
-      name: "AI + Premium Discord Signals",
-      price: 49.9,
-      badge: "AI + Signals",
-      features: ["Investor & Trader AI", "Premium Discord signal rooms", "Forex and gold analysis", "Live streams", "Teaching charts and risk rules"]
-    },
-    {
       id: "arbitrage-only",
       name: "Arbitrage Scanner Only",
       price: 39.9,
       badge: "Scanner",
       features: ["Live exchange scanner", "Advanced filters", "Browser alerts", "Saved opportunities", "Monthly subscription"]
-    },
-    {
-      id: "bull-bear-premium",
-      name: "Bull & Bear Premium",
-      price: 79.9,
-      badge: "Best Value",
-      features: ["AI + Premium Discord Signals", "Arbitrage scanner", "Course videos", "Trading book", "Live streams", "Premium Discord access"]
     }
   ];
   return `
     <div class="pricing-grid">
       ${plans.map((plan) => `
-        <article class="pricing-card ${plan.id === "bull-bear-premium" ? "featured" : ""}">
+        <article class="pricing-card">
           <span>${esc(plan.badge)}</span>
           <h3 class="h3">${esc(plan.name)}</h3>
           <div class="price">$${money(plan.price)} <span>/ monthly</span></div>
           <ul class="feature-list">${plan.features.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-          ${checkoutCta(plan.id, state.user ? "Start Subscription" : "Log In to Subscribe", `btn ${plan.id === "bull-bear-premium" ? "primary" : "secondary"}`)}
+          ${checkoutCta(plan.id, state.user ? "Start Subscription" : "Log In to Subscribe", "btn secondary")}
         </article>
       `).join("")}
     </div>
@@ -739,11 +725,6 @@ function productsPage() {
         <p class="lead">Start with the 2-in-1 academy bundle, join AI + Premium Discord Signals, or use the live arbitrage scanner.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
-      <div class="section-head center" style="margin-top:44px;">
-        <div class="eyebrow">Scanner SaaS Plans</div>
-        <h2 class="h2">Subscription Access</h2>
-      </div>
-      ${scannerPricingCards()}
       <div class="discord-mini">
         <span>Free Discord community is open to everyone.</span>
         <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Join Free Discord</a>
@@ -1038,7 +1019,7 @@ function arbitragePage() {
         <div class="section-head center" style="margin-top:34px;">
           <div class="eyebrow">Pricing</div>
           <h2 class="h2">Scanner Subscriptions</h2>
-          <p class="lead">Choose scanner-only access or unlock the full Bull & Bear premium membership.</p>
+          <p class="lead">Choose scanner-only access from the products page when you are ready to activate the live arbitrage tool.</p>
         </div>
         ${scannerPricingCards()}
       </div>
@@ -1350,7 +1331,7 @@ function aiAccessPanel() {
       <div class="ai-plan-card">
         <span>Monthly Access</span>
         <strong>$49.90</strong>
-        <small>Included in Bull & Bear Premium</small>
+        <small>Includes Premium Discord access</small>
         ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("premium-discord-signals", state.user ? "Subscribe to AI + Discord" : "Log In to Subscribe")}
         <a href="/products" data-link class="btn secondary">Compare Plans</a>
       </div>
@@ -1541,7 +1522,7 @@ function checkoutPage(planId) {
     : "";
   const productName = product
     ? state.content.products.find((item) => item.id === product)?.title
-    : planId === "bull-bear-premium" ? "Bull & Bear Premium" : "Selected product";
+    : "Selected product";
   return `
     <section class="section">
       <div class="login-wrap">

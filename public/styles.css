@@ -1271,7 +1271,7 @@ canvas {
 }
 
 .pricing-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .pricing-card {
@@ -1447,8 +1447,10 @@ canvas {
 }
 
 .ai-layout {
+  display: grid;
   grid-template-columns: minmax(320px, 0.38fr) minmax(0, 1fr);
   align-items: start;
+  gap: 24px;
 }
 
 .ai-template-row {
@@ -1461,6 +1463,7 @@ canvas {
 .ai-output {
   display: grid;
   gap: 18px;
+  min-width: 0;
 }
 
 .ai-chat-card {
@@ -1526,13 +1529,22 @@ canvas {
   color: var(--text);
   line-height: 1.65;
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .ai-snapshot-grid,
 .ai-teaching-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.ai-snapshot-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.ai-teaching-grid {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: stretch;
 }
 
 .ai-snapshot-grid article {
@@ -1598,10 +1610,12 @@ canvas {
 
 .ai-teaching-card {
   min-height: 220px;
+  min-width: 0;
 }
 
 .ai-teaching-card .h3 {
   margin-top: 14px;
+  overflow-wrap: anywhere;
 }
 
 .ai-flow {
@@ -1622,6 +1636,9 @@ canvas {
   background: rgba(245, 158, 11, 0.08);
   color: var(--text);
   font-size: 12px;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .ai-summary-card {
@@ -1630,6 +1647,7 @@ canvas {
 
 .ai-summary-card p {
   line-height: 1.7;
+  overflow-wrap: anywhere;
 }
 
 .ai-meta {
@@ -1642,6 +1660,7 @@ canvas {
 
 .ai-result-card {
   min-height: 240px;
+  min-width: 0;
 }
 
 .ai-list {
@@ -1655,6 +1674,7 @@ canvas {
   border-radius: 8px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.025);
+  min-width: 0;
 }
 
 .ai-kv {
@@ -1665,6 +1685,7 @@ canvas {
 .ai-kv div {
   display: grid;
   gap: 3px;
+  min-width: 0;
 }
 
 .ai-kv span {
@@ -1678,6 +1699,7 @@ canvas {
   color: var(--text);
   font-size: 14px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .ai-empty-panel {
@@ -1690,6 +1712,7 @@ canvas {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .modal-backdrop {
