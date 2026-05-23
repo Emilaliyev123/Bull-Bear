@@ -1,6 +1,6 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
 const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
-const CHECKOUT_PROVIDER = "yigim";
+const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   course: "education-bundle",
   signals: "premium-discord-signals",
@@ -1004,7 +1004,7 @@ function arbitragePage() {
         <div class="scanner-saas-grid">
           <div class="card pad">
             <h2 class="h3">Payment Ready</h2>
-            <p class="muted">Checkout records, provider webhooks, subscription activation, cancellation, and payment logs are prepared for Payriff, ePoint, Yigim, crypto, and card payments.</p>
+            <p class="muted">Checkout records, Payriff webhooks, subscription activation, cancellation, and payment logs are prepared for secure card payments.</p>
           </div>
           <div class="card pad">
             <h2 class="h3">Discord Membership</h2>
@@ -1503,7 +1503,7 @@ function paymentStatusPage(status) {
           <h1 class="h3" style="margin-top:12px;">${success ? "Payment request received" : "Payment was not completed"}</h1>
           <p class="muted" style="line-height:1.65;">
             ${success
-              ? "Your payment result is being checked. Access activates automatically after Yigim confirms the payment."
+              ? "Your payment result is being checked. Access activates automatically after Payriff confirms the payment."
               : "Please try checkout again or contact support if your bank charged the payment."}
           </p>
           <div class="hero-actions">
@@ -1528,7 +1528,7 @@ function checkoutPage(planId) {
       <div class="login-wrap">
         <div class="card pad">
           <div class="eyebrow">Secure Checkout</div>
-          <h1 class="h3" style="margin-top:12px;">${state.user ? "Creating your Yigim payment link" : "Log in to continue"}</h1>
+          <h1 class="h3" style="margin-top:12px;">${state.user ? "Creating your Payriff payment link" : "Log in to continue"}</h1>
           <p class="muted" style="line-height:1.65;">
             ${state.user
               ? `Preparing secure card payment for ${esc(productName || "your product")}.`
@@ -1801,7 +1801,7 @@ function adminPaymentsPanel() {
       <div class="card pad">
         <h2 class="h3">Payment Providers</h2>
         <div class="provider-grid">
-          ${["payriff", "epoint", "yigim", "crypto", "card"].map((name) => `
+          ${["payriff", "epoint", "crypto", "card"].map((name) => `
             <div class="provider-chip ${providers[name] ? "online" : ""}">
               <strong>${esc(name)}</strong>
               <span>${providers[name] ? "configured" : "needs keys"}</span>

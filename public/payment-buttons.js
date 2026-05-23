@@ -1,5 +1,5 @@
 (function () {
-  const provider = "yigim";
+  const provider = "payriff";
   const productPlans = {
     course: "education-bundle",
     signals: "premium-discord-signals",
