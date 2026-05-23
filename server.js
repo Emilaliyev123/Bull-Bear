@@ -49,7 +49,7 @@ const PAYMENT_PLANS = {
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
-const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
+const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.ae").replace(/\/+$/, "");
 const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
 const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:orderId";
 const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "USD";
@@ -367,16 +367,24 @@ async function callPayriff(method, pathname, body = null) {
   if (!isPayriffConfigured()) {
     throw new Error("Payriff is not configured. Add PAYRIFF_SECRET_KEY in Render environment variables.");
   }
-  const response = await fetch(`${config.baseUrl}${pathname}`, {
-    method,
-    headers: {
-      "accept": "application/json",
-      "content-type": "application/json",
-      "Authorization": config.secretKey
-    },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(15000)
-  });
+  const targetUrl = `${config.baseUrl}${pathname}`;
+  let response;
+  try {
+    response = await fetch(targetUrl, {
+      method,
+      headers: {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "Authorization": config.secretKey
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(15000)
+    });
+  } catch (error) {
+    const detail = error.cause?.code || error.cause?.message || error.name || "network_error";
+    console.warn("Payriff network request failed:", { targetUrl, detail });
+    throw new Error(`Payriff network error: ${detail}`);
+  }
   const text = await response.text();
   let payload;
   try {
