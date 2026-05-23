@@ -48,13 +48,12 @@ const PAYMENT_PLANS = {
   }
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
-const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "yigim";
-const YIGIM_BASE_URL = (process.env.YIGIM_BASE_URL || "https://sandbox.api.pay.yigim.az").replace(/\/+$/, "");
-const YIGIM_TEMPLATE_ID = process.env.YIGIM_TEMPLATE_ID || "TPL0002";
-const YIGIM_LANGUAGE = process.env.YIGIM_LANGUAGE || "az";
-const YIGIM_PAYMENT_TYPE = process.env.YIGIM_PAYMENT_TYPE || "SMS";
-const YIGIM_CURRENCY = process.env.YIGIM_CURRENCY || "944";
-const YIGIM_CURRENCY_LABEL = process.env.YIGIM_CURRENCY_LABEL || "USD";
+const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
+const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
+const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
+const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:orderId";
+const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "USD";
+const PAYRIFF_LANGUAGE = process.env.PAYRIFF_LANGUAGE || "EN";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
@@ -255,61 +254,6 @@ function finalizePaidPayment(db, payment, providerPayload = {}) {
   return subscription;
 }
 
-function yigimConfig() {
-  return {
-    baseUrl: YIGIM_BASE_URL,
-    merchantId: process.env.YIGIM_MERCHANT_ID,
-    secretKey: process.env.YIGIM_SECRET_KEY,
-    billerId: process.env.YIGIM_BILLER_ID,
-    templateId: YIGIM_TEMPLATE_ID,
-    language: YIGIM_LANGUAGE,
-    paymentType: YIGIM_PAYMENT_TYPE,
-    currency: YIGIM_CURRENCY
-  };
-}
-
-function isYigimConfigured() {
-  const config = yigimConfig();
-  return Boolean(config.merchantId && config.secretKey && config.billerId);
-}
-
-function yigimResponse(payload = {}) {
-  return payload && typeof payload.response === "object" && payload.response
-    ? payload.response
-    : payload;
-}
-
-function yigimResponseCode(payload = {}) {
-  const response = yigimResponse(payload);
-  return response?.code !== undefined ? String(response.code) : "";
-}
-
-function yigimResponseMessage(payload = {}) {
-  const response = yigimResponse(payload);
-  return response?.message || response?.error || payload?.message || payload?.error || "Yigim request failed";
-}
-
-function parseYigimXml(text) {
-  const result = {};
-  const body = String(text || "");
-  for (const key of ["url", "reference", "datetime", "method", "type", "token", "pan", "expiry", "amount", "fee", "offset", "currency", "biller", "system", "issuer", "rrn", "approval", "3ds", "refund", "status", "code", "message", "extra"]) {
-    const match = body.match(new RegExp(`<${key}>([\\s\\S]*?)<\\/${key}>`, "i"));
-    if (match) result[key] = match[1].trim();
-  }
-  return Object.keys(result).length ? { response: result } : { raw: text };
-}
-
-function yigimAmount(amount) {
-  return Math.round(Number(amount || 0) * 100);
-}
-
-function buildYigimExtra(values = {}) {
-  return Object.entries(values)
-    .filter(([, value]) => value !== undefined && value !== null && value !== "")
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
-    .join(";");
-}
-
 function findCheckoutUrl(value) {
   if (!value) return "";
   if (typeof value === "string") {
@@ -347,24 +291,90 @@ function findCheckoutUrl(value) {
   return "";
 }
 
-async function callYigim(pathname, params = {}) {
-  const config = yigimConfig();
-  if (!isYigimConfigured()) {
-    throw new Error("Yigim is not configured. Add merchant, secret key, and biller ID.");
+function payriffConfig() {
+  return {
+    baseUrl: PAYRIFF_BASE_URL,
+    secretKey: process.env.PAYRIFF_SECRET_KEY,
+    createPath: PAYRIFF_CREATE_PATH,
+    orderPath: PAYRIFF_ORDER_PATH,
+    currency: PAYRIFF_CURRENCY,
+    language: PAYRIFF_LANGUAGE
+  };
+}
+
+function isPayriffConfigured() {
+  const config = payriffConfig();
+  return Boolean(config.baseUrl && config.secretKey);
+}
+
+function payriffAmount(amount) {
+  return Number(Number(amount || 0).toFixed(2));
+}
+
+function payriffMessage(payload = {}, fallback = "Payriff request failed") {
+  return payload?.message
+    || payload?.error
+    || payload?.payload?.message
+    || payload?.payload?.error
+    || fallback;
+}
+
+function payriffReference(payload = {}) {
+  return String(
+    payload?.payload?.orderId
+    || payload?.payload?.id
+    || payload?.orderId
+    || payload?.id
+    || payload?.order_id
+    || payload?.transactionId
+    || ""
+  );
+}
+
+function payriffStatus(payload = {}) {
+  const value = payload?.payload?.paymentStatus
+    || payload?.payload?.status
+    || payload?.payload?.orderStatus
+    || payload?.paymentStatus
+    || payload?.status
+    || payload?.orderStatus
+    || payload?.transactionStatus
+    || "";
+  return String(value).trim().toUpperCase();
+}
+
+function isPayriffPaid(payload = {}) {
+  return ["PAID", "APPROVED", "COMPLETED", "SUCCESS", "SUCCEEDED"].includes(payriffStatus(payload));
+}
+
+function applyPayriffStatusToPayment(db, payment, payload = {}) {
+  if (isPayriffPaid(payload)) {
+    return finalizePaidPayment(db, payment, payload);
   }
-  const url = new URL(`${config.baseUrl}${pathname}`);
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
-    }
+  const status = payriffStatus(payload);
+  const failedStatuses = new Set(["CANCELED", "CANCELLED", "DECLINED", "EXPIRED", "FAILED", "REJECTED"]);
+  const pendingStatuses = new Set(["", "CREATED", "PENDING", "PREAUTH", "PROCESSING", "WAITING"]);
+  payment.status = failedStatuses.has(status)
+    ? "failed"
+    : pendingStatuses.has(status) ? "pending" : status.toLowerCase();
+  payment.providerPayload = payload;
+  payment.updatedAt = nowIso();
+  return null;
+}
+
+async function callPayriff(method, pathname, body = null) {
+  const config = payriffConfig();
+  if (!isPayriffConfigured()) {
+    throw new Error("Payriff is not configured. Add PAYRIFF_SECRET_KEY in Render environment variables.");
   }
-  const response = await fetch(url, {
+  const response = await fetch(`${config.baseUrl}${pathname}`, {
+    method,
     headers: {
       "accept": "application/json",
-      "X-Merchant": config.merchantId,
-      "X-API-Key": config.secretKey,
-      "X-Type": "JSON"
+      "content-type": "application/json",
+      "Authorization": config.secretKey
     },
+    body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(15000)
   });
   const text = await response.text();
@@ -372,45 +382,58 @@ async function callYigim(pathname, params = {}) {
   try {
     payload = text ? JSON.parse(text) : {};
   } catch {
-    payload = parseYigimXml(text);
+    payload = { raw: text };
   }
   if (!response.ok) {
-    const message = payload?.message || payload?.error || payload?.raw || `Yigim returned ${response.status}`;
-    throw new Error(message);
+    throw new Error(payriffMessage(payload, `Payriff returned ${response.status}`));
   }
-  const code = yigimResponseCode(payload);
-  if (code && code !== "0") {
-    throw new Error(yigimResponseMessage(payload));
+  if (payload?.code && !["00000", "0", "success", "SUCCESS"].includes(String(payload.code))) {
+    throw new Error(payriffMessage(payload));
   }
   return payload;
 }
 
-function yigimPaymentStatus(payload = {}) {
-  const response = yigimResponse(payload);
-  return String(response?.status || "").toUpperCase();
-}
-
-function isYigimPaid(payload = {}) {
-  return yigimResponseCode(payload) === "0" && yigimPaymentStatus(payload) === "00";
-}
-
-function applyYigimStatusToPayment(db, payment, payload = {}) {
-  if (isYigimPaid(payload)) {
-    return finalizePaidPayment(db, payment, payload);
-  }
-  const code = yigimResponseCode(payload);
-  const status = yigimPaymentStatus(payload);
-  const pendingStatuses = new Set(["", "S0", "S1", "S2"]);
-  payment.status = code && code !== "0"
-    ? "failed"
-    : pendingStatuses.has(status) ? "pending" : "failed";
+async function createPayriffCheckout(req, payment, plan, planId) {
+  const config = payriffConfig();
+  const baseUrl = requestBaseUrl(req);
+  const callbackUrl = `${baseUrl}/api/payments/webhook/payriff`;
+  const successUrl = `${baseUrl}/payment/success?paymentId=${encodeURIComponent(payment.id)}`;
+  const failUrl = `${baseUrl}/payment/failed?paymentId=${encodeURIComponent(payment.id)}`;
+  const payload = await callPayriff("POST", config.createPath, {
+    amount: payriffAmount(plan.amount),
+    currency: config.currency,
+    description: `Bull & Bear - ${plan.name}`,
+    callbackUrl,
+    cardSave: false,
+    operation: "PURCHASE",
+    language: config.language,
+    metadata: {
+      paymentId: payment.id,
+      planId,
+      userId: payment.userId,
+      successUrl,
+      failUrl
+    }
+  });
+  const checkoutUrl = findCheckoutUrl(payload);
+  if (!checkoutUrl) throw new Error(payriffMessage(payload, "Payriff did not return a checkout URL"));
+  payment.status = "checkout_created";
+  payment.checkoutUrl = checkoutUrl;
+  payment.providerReference = payriffReference(payload) || payment.id;
   payment.providerPayload = payload;
   payment.updatedAt = nowIso();
-  return null;
+  return payload;
 }
 
-async function getYigimPaymentStatus(reference) {
-  return callYigim("/payment/status", { reference });
+async function getPayriffPaymentStatus(reference) {
+  const config = payriffConfig();
+  const encoded = encodeURIComponent(reference);
+  const pathname = config.orderPath
+    .replace(":orderId", encoded)
+    .replace("{orderId}", encoded)
+    .replace(":id", encoded)
+    .replace("{id}", encoded);
+  return callPayriff("GET", pathname);
 }
 
 function signToken(payload) {
@@ -1854,7 +1877,7 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
 
 app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   const { planId, provider = PAYMENT_DEFAULT_PROVIDER } = req.body || {};
-  const supported = ["payriff", "epoint", "yigim", "crypto", "card", "manual"];
+  const supported = ["payriff", "epoint", "crypto", "card", "manual"];
   if (!supported.includes(provider)) return res.status(400).json({ error: "Unsupported payment provider" });
   const plan = PAYMENT_PLANS[planId];
   if (!plan) return res.status(400).json({ error: "Unknown payment plan" });
@@ -1866,56 +1889,27 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
     provider,
     status: provider === "manual" ? "pending_review" : "checkout_creating",
     amount: plan.amount,
-    currency: provider === "yigim" ? YIGIM_CURRENCY_LABEL : "USD",
+    currency: provider === "payriff" ? PAYRIFF_CURRENCY : "USD",
     checkoutUrl: provider === "manual" ? "/payment/success" : null,
     createdAt: nowIso()
   };
 
-  if (provider === "yigim") {
+  if (provider === "payriff") {
     db.payments.unshift(payment);
     try {
-      const baseUrl = requestBaseUrl(req);
-      const statusCallback = `${baseUrl}/api/payments/webhook/yigim`;
-      const successUrl = `${baseUrl}/payment/success?paymentId=${encodeURIComponent(payment.id)}`;
-      const failUrl = `${baseUrl}/payment/failed?paymentId=${encodeURIComponent(payment.id)}`;
-      const payload = await callYigim("/payment/create", {
-        reference: payment.id,
-        type: YIGIM_PAYMENT_TYPE,
-        amount: yigimAmount(plan.amount),
-        currency: YIGIM_CURRENCY,
-        biller: process.env.YIGIM_BILLER_ID,
-        description: `Bull & Bear - ${plan.name}`,
-        template: YIGIM_TEMPLATE_ID,
-        language: YIGIM_LANGUAGE,
-        callback: statusCallback,
-        extra: buildYigimExtra({
-          paymentId: payment.id,
-          planId,
-          url: successUrl,
-          "back-url": successUrl,
-          "success-url": successUrl,
-          "fail-url": failUrl
-        })
-      });
-      const checkoutUrl = findCheckoutUrl(payload);
-      if (!checkoutUrl) throw new Error(yigimResponseMessage(payload));
-      payment.status = "checkout_created";
-      payment.checkoutUrl = checkoutUrl;
-      payment.providerReference = payment.id;
-      payment.providerPayload = payload;
-      payment.updatedAt = nowIso();
+      await createPayriffCheckout(req, payment, plan, planId);
       writeDb(db);
       addAuditLog("payment.checkout.created", req.auth.email || req.auth.username, { planId, provider, paymentId: payment.id });
       return res.status(201).json({
         payment,
-        message: "Yigim checkout is ready. You will be redirected to the secure payment page."
+        message: "Payriff checkout is ready. You will be redirected to the secure payment page."
       });
     } catch (error) {
-      payment.status = isYigimConfigured() ? "checkout_failed" : "configuration_required";
+      payment.status = isPayriffConfigured() ? "checkout_failed" : "configuration_required";
       payment.error = error.message;
       payment.updatedAt = nowIso();
       writeDb(db);
-      return res.status(isYigimConfigured() ? 502 : 503).json({
+      return res.status(isPayriffConfigured() ? 502 : 503).json({
         error: error.message,
         payment
       });
@@ -1934,48 +1928,59 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   });
 });
 
-app.get("/api/payments/webhook/yigim", async (req, res) => {
-  const reference = String(req.query.reference || req.query.paymentId || req.query.orderId || "").trim();
+app.get("/api/payments/webhook/payriff", async (req, res) => {
+  const reference = String(
+    req.query.paymentId
+    || req.query.orderId
+    || req.query.order_id
+    || req.query.reference
+    || req.query.id
+    || ""
+  ).trim();
   const db = readDb();
   const payment = reference
     ? db.payments.find((item) => item.id === reference || item.providerReference === reference)
     : null;
 
-  if (!reference) {
+  if (!reference || !payment) {
     db.paymentLogs.unshift({
       id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "yigim",
-      status: "missing_reference",
-      paymentId: "",
+      provider: "payriff",
+      status: reference ? "unknown_reference" : "missing_reference",
+      paymentId: reference || "",
       createdAt: nowIso()
     });
     writeDb(db);
-    return res.status(400).json({ ok: false, error: "Missing payment reference" });
+    return res.status(reference ? 404 : 400).json({ ok: false, error: "Payment reference was not found" });
   }
 
   try {
-    const statusPayload = await getYigimPaymentStatus(reference);
-    const subscription = payment ? applyYigimStatusToPayment(db, payment, statusPayload) : null;
+    const statusPayload = payment.providerReference && isPayriffConfigured()
+      ? await getPayriffPaymentStatus(payment.providerReference)
+      : req.query;
+    const subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
     db.paymentLogs.unshift({
       id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "yigim",
-      status: payment ? `matched:${payment.status}` : "unknown_reference",
-      paymentId: payment?.id || reference,
+      provider: "payriff",
+      status: `matched:${payment.status}`,
+      paymentId: payment.id,
       createdAt: nowIso()
     });
     writeDb(db);
-    return res.json({ ok: true, payment: payment || null, subscription });
-  } catch (error) {
-    if (payment) {
-      payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
-      payment.error = error.message;
-      payment.updatedAt = nowIso();
+    if (req.accepts("html")) {
+      const destination = payment.status === "failed" ? "failed" : "success";
+      return res.redirect(`/payment/${destination}?paymentId=${encodeURIComponent(payment.id)}`);
     }
+    return res.json({ ok: true, payment, subscription });
+  } catch (error) {
+    payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
+    payment.error = error.message;
+    payment.updatedAt = nowIso();
     db.paymentLogs.unshift({
       id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "yigim",
+      provider: "payriff",
       status: "status_check_failed",
-      paymentId: payment?.id || reference,
+      paymentId: payment.id,
       createdAt: nowIso()
     });
     writeDb(db);
@@ -1993,14 +1998,35 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
       payload = {};
     }
   }
-  const paymentId = payload.paymentId || payload.payment_id || payload.orderId || payload.order_id || payload.reference;
-  const status = String(payload.status || payload.payment_status || "").toLowerCase();
-  const payment = paymentId ? db.payments.find((item) => item.id === paymentId) : null;
+  const paymentId = payload.paymentId
+    || payload.payment_id
+    || payload.metadata?.paymentId
+    || payload.payload?.metadata?.paymentId
+    || payload.orderId
+    || payload.order_id
+    || payload.payload?.orderId
+    || payload.payload?.id
+    || payload.reference;
+  const status = String(
+    payload.status
+    || payload.payment_status
+    || payload.paymentStatus
+    || payload.orderStatus
+    || payload.transactionStatus
+    || payload.payload?.status
+    || payload.payload?.paymentStatus
+    || ""
+  ).toLowerCase();
+  const payment = paymentId
+    ? db.payments.find((item) => item.id === paymentId || item.providerReference === paymentId)
+    : null;
   let subscription = null;
   if (payment) {
-    if (req.params.provider === "yigim") {
-      const statusPayload = await getYigimPaymentStatus(payment.id).catch(() => payload);
-      subscription = applyYigimStatusToPayment(db, payment, statusPayload);
+    if (req.params.provider === "payriff") {
+      const statusPayload = payment.providerReference && isPayriffConfigured()
+        ? await getPayriffPaymentStatus(payment.providerReference).catch(() => payload)
+        : payload;
+      subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
     } else {
       payment.status = ["paid", "success", "succeeded", "completed", "approved"].includes(status) ? "paid" : status || payment.status;
       payment.providerPayload = payload;
@@ -2264,9 +2290,8 @@ app.get("/api/admin/platform", requireAdmin, (req, res) => {
       rateLimit: AI_MAX_REQUESTS_PER_WINDOW
     },
     providers: {
-      payriff: Boolean(process.env.PAYRIFF_SECRET_KEY),
+      payriff: isPayriffConfigured(),
       epoint: Boolean(process.env.EPOINT_PRIVATE_KEY),
-      yigim: isYigimConfigured(),
       crypto: Boolean(process.env.CRYPTO_PAYMENT_WALLET),
       card: Boolean(process.env.CARD_PROVIDER_SECRET)
     }

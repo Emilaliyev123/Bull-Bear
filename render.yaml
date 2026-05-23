@@ -27,22 +27,16 @@ services:
       - key: DISCORD_FREE_INVITE
         value: https://discord.gg/zcXkSV34H
       - key: PAYMENT_DEFAULT_PROVIDER
-        value: yigim
-      - key: YIGIM_BASE_URL
-        value: https://sandbox.api.pay.yigim.az
-      - key: YIGIM_MERCHANT_ID
+        value: payriff
+      - key: PAYRIFF_BASE_URL
+        value: https://api.payriff.com
+      - key: PAYRIFF_CREATE_PATH
+        value: /api/v3/orders
+      - key: PAYRIFF_ORDER_PATH
+        value: /api/v3/orders/:orderId
+      - key: PAYRIFF_SECRET_KEY
         sync: false
-      - key: YIGIM_SECRET_KEY
-        sync: false
-      - key: YIGIM_BILLER_ID
-        sync: false
-      - key: YIGIM_TEMPLATE_ID
-        value: TPL0002
-      - key: YIGIM_LANGUAGE
-        value: az
-      - key: YIGIM_PAYMENT_TYPE
-        value: SMS
-      - key: YIGIM_CURRENCY
-        value: "944"
-      - key: YIGIM_CURRENCY_LABEL
+      - key: PAYRIFF_CURRENCY
         value: USD
+      - key: PAYRIFF_LANGUAGE
+        value: EN
