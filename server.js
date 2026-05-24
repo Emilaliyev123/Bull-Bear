@@ -405,8 +405,6 @@ async function createPayriffCheckout(req, payment, plan, planId) {
   const config = payriffConfig();
   const baseUrl = requestBaseUrl(req);
   const callbackUrl = `${baseUrl}/api/payments/webhook/payriff`;
-  const successUrl = `${baseUrl}/payment/success?paymentId=${encodeURIComponent(payment.id)}`;
-  const failUrl = `${baseUrl}/payment/failed?paymentId=${encodeURIComponent(payment.id)}`;
   const payload = await callPayriff("POST", config.createPath, {
     amount: payriffAmount(plan.amount),
     currency: config.currency,
@@ -418,9 +416,7 @@ async function createPayriffCheckout(req, payment, plan, planId) {
     metadata: {
       paymentId: payment.id,
       planId,
-      userId: payment.userId,
-      successUrl,
-      failUrl
+      userId: payment.userId
     }
   });
   const checkoutUrl = findCheckoutUrl(payload);
