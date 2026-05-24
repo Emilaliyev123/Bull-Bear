@@ -1,5 +1,4 @@
 (function () {
-  const provider = "payriff";
   const productPlans = {
     course: "education-bundle",
     signals: "premium-discord-signals",
@@ -38,7 +37,7 @@
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn primary bb-buy-button";
-    button.setAttribute("data-bb-checkout-plan", planId);
+    button.setAttribute("data-checkout-plan", planId);
     button.textContent = buttonLabel(planId);
     return button;
   }
@@ -91,51 +90,6 @@
     syncQueued = true;
     window.requestAnimationFrame(syncButtonsNow);
   }
-
-  async function startCheckout(planId) {
-    if (!isLoggedIn()) {
-      window.location.href = "/login";
-      return;
-    }
-
-    const response = await fetch("/api/payments/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${userToken()}`
-      },
-      body: JSON.stringify({ planId, provider })
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "Checkout could not be created.");
-    window.location.href = payload.payment?.checkoutUrl || "/payment/success";
-  }
-
-  document.addEventListener("click", async (event) => {
-    if (!(event.target instanceof Element)) return;
-
-    const checkout = event.target.closest("[data-bb-checkout-plan], [data-checkout-plan]");
-    if (!checkout) return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    event.stopImmediatePropagation();
-
-    const planId = checkout.getAttribute("data-bb-checkout-plan") || checkout.getAttribute("data-checkout-plan");
-    if (!planId) return;
-
-    checkout.disabled = true;
-    checkout.textContent = "Creating checkout...";
-
-    try {
-      await startCheckout(planId);
-    } catch (error) {
-      alert(error.message || "Checkout could not be created.");
-      checkout.disabled = false;
-      checkout.textContent = buttonLabel(planId);
-    }
-  }, true);
 
   window.addEventListener("DOMContentLoaded", () => {
     observer = new MutationObserver(queueSync);
