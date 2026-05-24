@@ -29,7 +29,7 @@ services:
       - key: PAYMENT_DEFAULT_PROVIDER
         value: payriff
       - key: PAYRIFF_BASE_URL
-        value: https://api.payriff.ae
+        value: https://api.payriff.com
       - key: PAYRIFF_CREATE_PATH
         value: /api/v3/orders
       - key: PAYRIFF_ORDER_PATH

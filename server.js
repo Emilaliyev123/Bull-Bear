@@ -49,7 +49,7 @@ const PAYMENT_PLANS = {
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
-const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.ae").replace(/\/+$/, "");
+const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
 const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
 const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:orderId";
 const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "USD";
