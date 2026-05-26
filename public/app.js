@@ -599,24 +599,41 @@ function heroSection() {
   return `
     <section class="hero">
       <canvas class="hero-canvas" id="marketCanvas" aria-hidden="true"></canvas>
+      <div class="hero-3d-stage" id="market3dStage" aria-hidden="true"></div>
       <div class="hero-inner">
         <div class="hero-copy">
-          <div class="eyebrow">Premium Trading Education</div>
-          <h1 class="h1" style="margin-top:18px;">Master The <span class="gold-text">Markets</span></h1>
+          <h1 class="h1">Bull & Bear <span class="gold-text">Market Command</span></h1>
           <p class="lead">
-            Professional trading courses, the Bull & Bear trading book, premium Discord signals, live streams, and market tools built for disciplined traders.
+            A premium trading academy with AI analysis, Discord signals, live streams, the Game of Candles book, and market tools built for disciplined traders.
           </p>
-          <div class="hero-badges" aria-label="Academy highlights">
-            <span>Video academy</span>
-            <span>2-in-1 trading bundle</span>
-            <span>Premium Discord</span>
-            <span>Crypto scanner</span>
+          <div class="hero-kpis" aria-label="Platform highlights">
+            <span><strong>AI + Signals</strong><small>$49.90 monthly</small></span>
+            <span><strong>Courses + Book</strong><small>$49.90 one-time</small></span>
+            <span><strong>Scanner</strong><small>Live exchange view</small></span>
           </div>
           <div class="hero-actions">
             <a href="/products" data-link class="btn primary">Start Learning</a>
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
           </div>
         </div>
+        <aside class="hero-console" aria-label="Bull and Bear platform preview">
+          <div class="console-top">
+            <span>Market Command</span>
+            <strong>Live Desk</strong>
+          </div>
+          <div class="console-grid">
+            <div><small>BTC</small><strong>Breakout Watch</strong><em>Risk 0.8%</em></div>
+            <div><small>XAUUSD</small><strong>Trend Retest</strong><em>London session</em></div>
+            <div><small>EURUSD</small><strong>Liquidity Sweep</strong><em>Wait for close</em></div>
+          </div>
+          <div class="console-wave" aria-hidden="true">
+            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          </div>
+          <div class="console-foot">
+            <span>AI model</span>
+            <strong>Scenario-based, risk-first analysis</strong>
+          </div>
+        </aside>
       </div>
       ${ticker()}
     </section>
