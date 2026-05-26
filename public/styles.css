@@ -863,6 +863,36 @@ canvas {
   font-weight: 750;
 }
 
+.glow-card {
+  border-color: rgba(245, 158, 11, 0.42);
+  background:
+    radial-gradient(circle at 16% 12%, rgba(245, 158, 11, 0.18), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent),
+    #101010;
+}
+
+.mini-list {
+  display: grid;
+  gap: 12px;
+}
+
+.mini-list div {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mini-list strong {
+  color: var(--gold-2);
+}
+
+.mini-list span {
+  color: var(--muted);
+}
+
 .course-card {
   cursor: pointer;
   transition: transform 150ms ease, border 150ms ease;

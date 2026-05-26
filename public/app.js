@@ -204,6 +204,12 @@ function hasAiAccess() {
   return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai");
 }
 
+function hasScannerAccess() {
+  if (isAdmin()) return true;
+  const plans = activeSubscriptionPlanIds();
+  return plans.includes("arbitrage-only") || plans.includes("bull-bear-premium");
+}
+
 function setSession(token, user) {
   state.token = token;
   state.user = user;
@@ -346,6 +352,7 @@ function scannerQuery(limit = 100) {
 }
 
 async function loadScannerData(force = false) {
+  if (!hasScannerAccess()) return;
   if (state.scanner.loading) return;
   if (!force && Date.now() - state.scanner.lastFetch < 8000) return;
   state.scanner.loading = true;
@@ -394,17 +401,26 @@ function mountRouteEffects() {
   const path = state.route.replace(/\/$/, "") || "/";
   const checkoutMatch = path.match(/^\/checkout\/([^/]+)$/);
   if (path === "/arbitrage") {
-    loadScannerData();
-    if (!scannerPollTimer) {
+    if (state.token && state.user && !isAdmin()) loadUserDashboard();
+    if (hasScannerAccess()) {
+      loadScannerData();
+    } else {
+      state.scanner.error = "";
+      state.scanner.loading = false;
+    }
+    if (hasScannerAccess() && !scannerPollTimer) {
       scannerPollTimer = setInterval(() => loadScannerData(true), 12000);
+    } else if (!hasScannerAccess() && scannerPollTimer) {
+      clearInterval(scannerPollTimer);
+      scannerPollTimer = null;
     }
   } else if (scannerPollTimer) {
     clearInterval(scannerPollTimer);
     scannerPollTimer = null;
   }
   if (path === "/ai") {
-    loadScannerData();
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
+    if (hasScannerAccess()) loadScannerData();
   }
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
@@ -892,7 +908,55 @@ function signalsPage() {
   `;
 }
 
+function scannerAccessGate(checking = false) {
+  const dashboardError = state.userDashboard?.error || "";
+  const action = !state.user
+    ? `<a href="/login" data-link class="btn primary">Log In to Subscribe</a>`
+    : checkoutCta("arbitrage-only", "Subscribe to Scanner");
+  return `
+    <section class="section">
+      <div class="section-head center">
+        <div class="eyebrow">Paid Scanner Access</div>
+        <h1 class="h2">Arbitrage Scanner Is A Paid Product</h1>
+        <p class="lead">The live scanner is locked for customers with an active Arbitrage Scanner subscription. Admin users can open it for management and testing.</p>
+      </div>
+      <div class="grid two" style="margin-top:28px;">
+        <div class="card pad glow-card">
+          <div class="badge" style="width:max-content;">SCANNER</div>
+          <h2 class="h3" style="margin-top:18px;">Arbitrage Scanner Only</h2>
+          <div class="price">$39.90 <span>/ monthly</span></div>
+          <ul class="feature-list">
+            <li>Live crypto opportunity scanner</li>
+            <li>Advanced filters and sorting</li>
+            <li>Exchange route and spread view</li>
+            <li>Volume, fees, transfer time, and risk indicators</li>
+            <li>Paid member access only</li>
+          </ul>
+          <div class="hero-actions" style="margin-top:22px;">
+            ${checking ? `<button class="btn primary" type="button" disabled>Checking access...</button>` : action}
+            <a href="/products" data-link class="btn secondary">View Products</a>
+          </div>
+          ${dashboardError ? `<div class="status err" style="margin-top:18px;">${esc(dashboardError)}</div>` : ""}
+        </div>
+        <div class="card pad">
+          <h2 class="h3">Why You See This Lock</h2>
+          <p class="muted">Being logged in is different from having a paid scanner subscription. The website now checks your active subscription before showing live scanner data.</p>
+          <div class="mini-list" style="margin-top:18px;">
+            <div><strong>Allowed</strong><span>Admin account or active Arbitrage Scanner subscription.</span></div>
+            <div><strong>Not Allowed</strong><span>Free account, expired subscription, or visitor without login.</span></div>
+            <div><strong>After Payment</strong><span>Access opens automatically when the payment provider confirms the order.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function arbitragePage() {
+  if (!state.user) return scannerAccessGate(false);
+  if (!isAdmin() && !state.userDashboard) return scannerAccessGate(true);
+  if (!hasScannerAccess()) return scannerAccessGate(false);
+
   const scanner = state.scanner;
   const filters = scanner.filters;
   const exchanges = scanner.exchanges.length ? scanner.exchanges : [
