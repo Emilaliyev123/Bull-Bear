@@ -48,6 +48,7 @@ const PAYMENT_PLANS = {
   }
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
+const SCANNER_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
 const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
 const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
@@ -220,6 +221,10 @@ function hasActiveSubscription(db, userId, planIds) {
 
 function hasAiAccess(db, auth = {}) {
   return Boolean(auth.admin || hasActiveSubscription(db, auth.userId, AI_ACCESS_PLAN_IDS));
+}
+
+function hasScannerAccess(db, auth = {}) {
+  return Boolean(auth.admin || hasActiveSubscription(db, auth.userId, SCANNER_ACCESS_PLAN_IDS));
 }
 
 function notifySubscriptionActivated(db, payment) {
@@ -480,6 +485,18 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ error: "Login required" });
   }
   req.auth = payload;
+  return next();
+}
+
+function requireScannerAccess(req, res, next) {
+  const db = readDb();
+  if (!hasScannerAccess(db, req.auth)) {
+    return res.status(402).json({
+      error: "Arbitrage Scanner requires an active scanner subscription.",
+      requiredPlan: "arbitrage-only",
+      checkoutUrl: "/checkout/arbitrage-only"
+    });
+  }
   return next();
 }
 
@@ -1772,7 +1789,7 @@ app.get("/api/plans", (req, res) => {
   });
 });
 
-app.get("/api/scanner/status", (req, res) => {
+app.get("/api/scanner/status", requireAuth, requireScannerAccess, (req, res) => {
   res.json({
     running: scannerState.running,
     lastUpdated: scannerState.lastUpdated,
@@ -1783,7 +1800,7 @@ app.get("/api/scanner/status", (req, res) => {
   });
 });
 
-app.get("/api/scanner/opportunities", async (req, res) => {
+app.get("/api/scanner/opportunities", requireAuth, requireScannerAccess, async (req, res) => {
   if (!scannerState.lastUpdated && !scannerState.running) {
     await refreshScanner().catch((error) => console.warn("Initial scanner refresh failed:", error.message));
   }
@@ -1796,7 +1813,7 @@ app.get("/api/scanner/opportunities", async (req, res) => {
   });
 });
 
-app.get("/api/scanner/stream", (req, res) => {
+app.get("/api/scanner/stream", requireAuth, requireScannerAccess, (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -2213,6 +2230,7 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
   }
   const db = readDb();
   const userId = req.auth.userId;
+  const canUseScanner = hasScannerAccess(db, req.auth);
   res.json({
     subscriptions: db.subscriptions.filter((item) => item.userId === userId),
     payments: db.payments.filter((item) => item.userId === userId).slice(0, 20),
@@ -2221,7 +2239,7 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
       connected: false,
       premiumRole: db.subscriptions.some((item) => item.userId === userId && item.status === "active" && isPremiumDiscordPlan(item.planId))
     },
-    recentOpportunities: scannerState.opportunities.slice(0, 8)
+    recentOpportunities: canUseScanner ? scannerState.opportunities.slice(0, 8) : []
   });
 });
 
