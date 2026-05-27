@@ -893,6 +893,16 @@ canvas {
   color: var(--muted);
 }
 
+.scanner-lock-grid {
+  width: min(100%, 900px);
+  margin: 28px auto 0;
+  display: grid;
+}
+
+.scanner-lock-card {
+  min-height: 440px;
+}
+
 .course-card {
   cursor: pointer;
   transition: transform 150ms ease, border 150ms ease;

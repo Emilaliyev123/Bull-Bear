@@ -920,8 +920,8 @@ function scannerAccessGate(checking = false) {
         <h1 class="h2">Arbitrage Scanner Is A Paid Product</h1>
         <p class="lead">The live scanner is locked for customers with an active Arbitrage Scanner subscription. Admin users can open it for management and testing.</p>
       </div>
-      <div class="grid two" style="margin-top:28px;">
-        <div class="card pad glow-card">
+      <div class="scanner-lock-grid">
+        <div class="card pad glow-card scanner-lock-card">
           <div class="badge" style="width:max-content;">SCANNER</div>
           <h2 class="h3" style="margin-top:18px;">Arbitrage Scanner Only</h2>
           <div class="price">$39.90 <span>/ monthly</span></div>
@@ -937,15 +937,6 @@ function scannerAccessGate(checking = false) {
             <a href="/products" data-link class="btn secondary">View Products</a>
           </div>
           ${dashboardError ? `<div class="status err" style="margin-top:18px;">${esc(dashboardError)}</div>` : ""}
-        </div>
-        <div class="card pad">
-          <h2 class="h3">Why You See This Lock</h2>
-          <p class="muted">Being logged in is different from having a paid scanner subscription. The website now checks your active subscription before showing live scanner data.</p>
-          <div class="mini-list" style="margin-top:18px;">
-            <div><strong>Allowed</strong><span>Admin account or active Arbitrage Scanner subscription.</span></div>
-            <div><strong>Not Allowed</strong><span>Free account, expired subscription, or visitor without login.</span></div>
-            <div><strong>After Payment</strong><span>Access opens automatically when the payment provider confirms the order.</span></div>
-          </div>
         </div>
       </div>
     </section>
