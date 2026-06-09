@@ -5,7 +5,7 @@
   "description": "Bull & Bear Arbitrage Scanner SaaS with academy content, subscriptions, admin uploads, and live exchange scanning.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node -r ./payment-preload.js server.js",
     "dev": "node --watch server.js"
   },
   "dependencies": {
