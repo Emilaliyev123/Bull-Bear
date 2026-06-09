@@ -231,13 +231,16 @@ function notifySubscriptionActivated(db, payment) {
   const alreadyExists = db.notifications.some((item) => item.paymentId === payment.id && item.type === "subscription");
   if (alreadyExists) return;
   const plan = PAYMENT_PLANS[payment.planId] || { name: payment.planId };
+  const body = payment.planId === "education-bundle"
+    ? "Your Courses + Trading Book access is active. Open your dashboard or Courses page to enter the private Telegram course channel."
+    : `Your ${plan.name} access is active.`;
   db.notifications.unshift({
     id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
     userId: payment.userId,
     paymentId: payment.id,
     type: "subscription",
     title: "Access activated",
-    body: `Your ${plan.name} access is active.`,
+    body,
     createdAt: nowIso()
   });
 }
@@ -409,7 +412,7 @@ async function callPayriff(method, pathname, body = null) {
 async function createPayriffCheckout(req, payment, plan, planId) {
   const config = payriffConfig();
   const baseUrl = requestBaseUrl(req);
-  const callbackUrl = `${baseUrl}/api/payments/webhook/payriff`;
+  const callbackUrl = `${baseUrl}/api/payments/webhook/payriff?paymentId=${encodeURIComponent(payment.id)}`;
   const payload = await callPayriff("POST", config.createPath, {
     amount: payriffAmount(plan.amount),
     currency: config.currency,
@@ -1728,7 +1731,7 @@ function serializeContent(db) {
         planId: "education-bundle",
         title: "Courses + Trading Book",
         subtitle: "Complete Education Bundle",
-        description: "One bundle with the full video course library and Bull & Bear Trading Mastery book.",
+        description: "One bundle with the Game of Candles book, two free website videos, and private Telegram access for the full course video library.",
         price: 49.9,
         cadence: "one-time"
       },
@@ -2019,6 +2022,11 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
       payload = {};
     }
   }
+  const queryPaymentId = req.query.paymentId
+    || req.query.orderId
+    || req.query.order_id
+    || req.query.reference
+    || req.query.id;
   const paymentId = payload.paymentId
     || payload.payment_id
     || payload.metadata?.paymentId
@@ -2027,7 +2035,8 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
     || payload.order_id
     || payload.payload?.orderId
     || payload.payload?.id
-    || payload.reference;
+    || payload.reference
+    || queryPaymentId;
   const status = String(
     payload.status
     || payload.payment_status

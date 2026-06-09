@@ -153,13 +153,16 @@ function finalizePaidPayment(db, payment, payload = {}) {
   const subscription = activateSubscription(db, payment);
   if (!wasPaid && !db.notifications.some((item) => item.paymentId === payment.id && item.type === "subscription")) {
     const plan = PAYMENT_PLANS[payment.planId] || { name: payment.planId };
+    const body = payment.planId === "education-bundle"
+      ? "Your Courses + Trading Book access is active. Open your dashboard or Courses page to enter the private Telegram course channel."
+      : `Your ${plan.name} access is active.`;
     db.notifications.unshift({
       id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
       userId: payment.userId,
       paymentId: payment.id,
       type: "subscription",
       title: "Access activated",
-      body: `Your ${plan.name} access is active.`,
+      body,
       createdAt: nowIso()
     });
   }
