@@ -1,5 +1,6 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
 const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
+const TELEGRAM_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   course: "education-bundle",
@@ -80,10 +81,10 @@ const categories = [
 
 const productFeatures = {
   course: [
-    "Trading courses + book",
-    "HD video lesson library",
-    "Premium PDF guide",
-    "Beginner to advanced content",
+    "Game of Candles book",
+    "2 free videos on website",
+    "Full course videos in Telegram",
+    "Private Telegram channel access",
     "Lifetime bundle access"
   ],
   signals: [
@@ -194,7 +195,10 @@ function isAdmin() {
 function activeSubscriptionPlanIds() {
   const now = Date.now();
   return (state.userDashboard?.subscriptions || [])
-    .filter((item) => item.status === "active" && (!item.expiresAt || new Date(item.expiresAt).getTime() > now))
+    .filter((item) => {
+      const paidUntil = item.paid_until || item.paidUntil || item.expiresAt;
+      return item.status === "active" && (!paidUntil || new Date(paidUntil).getTime() > now);
+    })
     .map((item) => item.planId);
 }
 
@@ -208,6 +212,11 @@ function hasScannerAccess() {
   if (isAdmin()) return true;
   const plans = activeSubscriptionPlanIds();
   return plans.includes("arbitrage-only") || plans.includes("bull-bear-premium");
+}
+
+function hasEducationAccess() {
+  if (isAdmin()) return true;
+  return activeSubscriptionPlanIds().includes("education-bundle");
 }
 
 function setSession(token, user) {
@@ -309,6 +318,32 @@ async function startPlanCheckout(planId, button = null) {
       if (button.tagName === "BUTTON") button.disabled = false;
       button.removeAttribute("aria-disabled");
       button.textContent = originalText || (planId === "education-bundle" ? "Buy Now" : "Subscribe Now");
+    }
+  }
+}
+
+async function connectDiscordAccount(button = null) {
+  if (!state.user) {
+    navigate("/login");
+    return;
+  }
+  const originalText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Opening Discord...";
+  }
+  try {
+    const result = await api("/api/integrations/discord/connect", { method: "POST" });
+    if (result.url) {
+      window.location.href = result.url;
+      return;
+    }
+    throw new Error("Discord connect link was not created.");
+  } catch (error) {
+    setMessage(error.message, "err");
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText || "Connect Discord";
     }
   }
 }
@@ -422,6 +457,7 @@ function mountRouteEffects() {
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
     if (hasScannerAccess()) loadScannerData();
   }
+  if (path === "/courses" && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (checkoutMatch) {
@@ -767,28 +803,54 @@ function productsPage() {
 }
 
 function coursesPage() {
+  const freeCourses = state.content.courses
+    .filter((course) => course.isFree)
+    .slice(0, 2);
   const filtered = state.selectedCategory === "all"
-    ? state.content.courses
-    : state.content.courses.filter((course) => course.category === state.selectedCategory);
+    ? freeCourses
+    : freeCourses.filter((course) => course.category === state.selectedCategory);
+  const checkingAccess = state.token && state.user && !isAdmin() && !state.userDashboard;
   return `
     <section class="section">
       <div class="section-head center">
         <div class="eyebrow">2-in-1 Bundle</div>
         <h1 class="h2">Trading Courses + Book</h1>
-        <p class="lead">One $49.90 product includes the video course library and the Game of Candles trading book.</p>
+        <p class="lead">One $49.90 product includes the Game of Candles book on this website and the full private course video library inside Telegram.</p>
       </div>
       <div class="card pad bundle-callout">
         <div>
           <h2 class="h3">Complete Education Bundle</h2>
-          <p class="muted">A focused trading education package with practical lessons, structured market concepts, risk frameworks, and the included Game of Candles PDF.</p>
+          <p class="muted">A focused trading education package with the Game of Candles PDF, two free website lessons, and paid Telegram access for the complete course video library.</p>
         </div>
         <div>
           <div class="price">$49.90 <span>/ one-time</span></div>
           ${checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy")}
         </div>
       </div>
+      <div class="card pad" style="margin-top:24px;">
+        <div class="telegram-access-row">
+          <div>
+            <div class="eyebrow">Course Video Access</div>
+            <h2 class="h3" style="margin-top:10px;">Premium lessons are delivered in Telegram</h2>
+            <p class="muted">The website keeps the book and two free sample videos here. After buying the bundle, open the private Telegram course channel for the full video library.</p>
+          </div>
+          <div class="hero-actions">
+            ${hasEducationAccess()
+              ? `<a href="${TELEGRAM_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Telegram Course Channel</a>`
+              : checkingAccess
+                ? `<button class="btn primary" type="button" disabled>Checking access...</button>`
+                : state.user
+                  ? checkoutCta("education-bundle", "Buy Bundle to Unlock")
+                  : `<a href="/login" data-link class="btn primary">Log In to Unlock</a>`}
+          </div>
+        </div>
+      </div>
       <div class="pill-row">
         ${categories.map(([id, label]) => `<button class="pill ${state.selectedCategory === id ? "active" : ""}" data-category="${id}">${label}</button>`).join("")}
+      </div>
+      <div class="section-head center" style="margin-top:14px;">
+        <div class="eyebrow">Free Website Lessons</div>
+        <p class="lead">These two sample videos stay public on the website. All other course videos are published inside the Telegram channel.</p>
       </div>
       ${filtered.length ? `<div class="grid three">${filtered.map(courseCard).join("")}</div>` : `<div class="empty">No lessons in this category yet.</div>`}
       ${courseModal()}
@@ -1672,6 +1734,7 @@ function profilePage() {
   if (!state.user) return authPage("login");
   const dashboard = state.userDashboard || {};
   const activeSubscription = (dashboard.subscriptions || []).find((item) => item.status === "active");
+  const activeUntil = activeSubscription?.paid_until || activeSubscription?.paidUntil || activeSubscription?.expiresAt;
   const payments = dashboard.payments || [];
   const recent = dashboard.recentOpportunities || state.scanner.opportunities.slice(0, 5);
   return `
@@ -1687,13 +1750,20 @@ function profilePage() {
       <div class="grid three">
         <div class="card pad">
           <h2 class="h3">Active Subscription</h2>
-          <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeSubscription.expiresAt).toLocaleDateString()}` : "No active subscription yet."}</p>
+          <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeUntil).toLocaleDateString()}` : "No active subscription yet."}</p>
           ${activeSubscription ? `<button class="btn danger small" data-cancel-subscription="${esc(activeSubscription.id)}">Cancel Auto-Renew</button>` : `<a href="/products" data-link class="btn primary small">View Plans</a>`}
         </div>
         <div class="card pad">
           <h2 class="h3">Discord</h2>
-          <p class="muted">${dashboard.discord?.premiumRole ? "Premium role ready after Discord connection." : "Connect Discord after purchasing premium access."}</p>
-          <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Discord</a>
+          <p class="muted">${
+            dashboard.discord?.connected
+              ? `Connected${dashboard.discord?.username ? ` as ${esc(dashboard.discord.username)}` : ""}. VIP role ${dashboard.discord?.premiumRole ? "is active" : "will activate after payment"}`
+              : "Connect Discord after purchasing premium access to receive the VIP Member role."
+          }</p>
+          <div class="hero-actions small-actions">
+            <button class="btn primary small" type="button" data-connect-discord>${dashboard.discord?.connected ? "Reconnect Discord" : "Connect Discord"}</button>
+            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Discord</a>
+          </div>
         </div>
         <div class="card pad">
           <h2 class="h3">Billing History</h2>
@@ -1701,6 +1771,21 @@ function profilePage() {
           <a href="/products" data-link class="btn secondary small">Plans</a>
         </div>
       </div>
+      ${hasEducationAccess() ? `
+        <div class="card pad" style="margin-top:24px;">
+          <div class="telegram-access-row">
+            <div>
+              <div class="eyebrow">Education Bundle</div>
+              <h2 class="h3" style="margin-top:10px;">Your Telegram course channel is unlocked</h2>
+              <p class="muted">Use Telegram for premium course videos. The Game of Candles book remains available on the website.</p>
+            </div>
+            <div class="hero-actions">
+              <a href="${TELEGRAM_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Telegram Course Channel</a>
+              <a href="/book" data-link class="btn secondary">Open Book</a>
+            </div>
+          </div>
+        </div>
+      ` : ""}
       <div class="grid two" style="margin-top:24px;">
         <div class="card pad">
           <h2 class="h3">Recent Opportunities</h2>
@@ -2452,6 +2537,12 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("[data-refresh-scanner]")) {
     await loadScannerData(true);
+    return;
+  }
+
+  const connectDiscord = event.target.closest("[data-connect-discord]");
+  if (connectDiscord) {
+    await connectDiscordAccount(connectDiscord);
     return;
   }
 
