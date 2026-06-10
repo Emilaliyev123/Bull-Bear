@@ -195,7 +195,10 @@ function isAdmin() {
 function activeSubscriptionPlanIds() {
   const now = Date.now();
   return (state.userDashboard?.subscriptions || [])
-    .filter((item) => item.status === "active" && (!item.expiresAt || new Date(item.expiresAt).getTime() > now))
+    .filter((item) => {
+      const paidUntil = item.paid_until || item.paidUntil || item.expiresAt;
+      return item.status === "active" && (!paidUntil || new Date(paidUntil).getTime() > now);
+    })
     .map((item) => item.planId);
 }
 
@@ -315,6 +318,32 @@ async function startPlanCheckout(planId, button = null) {
       if (button.tagName === "BUTTON") button.disabled = false;
       button.removeAttribute("aria-disabled");
       button.textContent = originalText || (planId === "education-bundle" ? "Buy Now" : "Subscribe Now");
+    }
+  }
+}
+
+async function connectDiscordAccount(button = null) {
+  if (!state.user) {
+    navigate("/login");
+    return;
+  }
+  const originalText = button?.textContent || "";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Opening Discord...";
+  }
+  try {
+    const result = await api("/api/integrations/discord/connect", { method: "POST" });
+    if (result.url) {
+      window.location.href = result.url;
+      return;
+    }
+    throw new Error("Discord connect link was not created.");
+  } catch (error) {
+    setMessage(error.message, "err");
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText || "Connect Discord";
     }
   }
 }
@@ -1705,6 +1734,7 @@ function profilePage() {
   if (!state.user) return authPage("login");
   const dashboard = state.userDashboard || {};
   const activeSubscription = (dashboard.subscriptions || []).find((item) => item.status === "active");
+  const activeUntil = activeSubscription?.paid_until || activeSubscription?.paidUntil || activeSubscription?.expiresAt;
   const payments = dashboard.payments || [];
   const recent = dashboard.recentOpportunities || state.scanner.opportunities.slice(0, 5);
   return `
@@ -1720,13 +1750,20 @@ function profilePage() {
       <div class="grid three">
         <div class="card pad">
           <h2 class="h3">Active Subscription</h2>
-          <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeSubscription.expiresAt).toLocaleDateString()}` : "No active subscription yet."}</p>
+          <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeUntil).toLocaleDateString()}` : "No active subscription yet."}</p>
           ${activeSubscription ? `<button class="btn danger small" data-cancel-subscription="${esc(activeSubscription.id)}">Cancel Auto-Renew</button>` : `<a href="/products" data-link class="btn primary small">View Plans</a>`}
         </div>
         <div class="card pad">
           <h2 class="h3">Discord</h2>
-          <p class="muted">${dashboard.discord?.premiumRole ? "Premium role ready after Discord connection." : "Connect Discord after purchasing premium access."}</p>
-          <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Discord</a>
+          <p class="muted">${
+            dashboard.discord?.connected
+              ? `Connected${dashboard.discord?.username ? ` as ${esc(dashboard.discord.username)}` : ""}. VIP role ${dashboard.discord?.premiumRole ? "is active" : "will activate after payment"}`
+              : "Connect Discord after purchasing premium access to receive the VIP Member role."
+          }</p>
+          <div class="hero-actions small-actions">
+            <button class="btn primary small" type="button" data-connect-discord>${dashboard.discord?.connected ? "Reconnect Discord" : "Connect Discord"}</button>
+            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Discord</a>
+          </div>
         </div>
         <div class="card pad">
           <h2 class="h3">Billing History</h2>
@@ -2500,6 +2537,12 @@ document.addEventListener("click", async (event) => {
 
   if (event.target.closest("[data-refresh-scanner]")) {
     await loadScannerData(true);
+    return;
+  }
+
+  const connectDiscord = event.target.closest("[data-connect-discord]");
+  if (connectDiscord) {
+    await connectDiscordAccount(connectDiscord);
     return;
   }
 
