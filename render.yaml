@@ -26,6 +26,18 @@ services:
         value: "false"
       - key: DISCORD_FREE_INVITE
         value: https://discord.gg/zcXkSV34H
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_PREMIUM_ROLE_ID
+        sync: false
+      - key: DISCORD_AUTO_JOIN
+        value: "true"
       - key: PAYMENT_DEFAULT_PROVIDER
         value: payriff
       - key: PAYRIFF_BASE_URL

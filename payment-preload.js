@@ -31,6 +31,59 @@ function writeDb(db) {
   fs.renameSync(tmp, DATA_FILE);
 }
 
+function normalizeSubscriptionRecord(subscription) {
+  if (!subscription) return subscription;
+  const paidUntil = subscription.paid_until || subscription.paidUntil || subscription.expiresAt || "";
+  if (paidUntil) {
+    subscription.paid_until = paidUntil;
+    subscription.paidUntil = paidUntil;
+    subscription.expiresAt = paidUntil;
+  }
+  return subscription;
+}
+
+function paidUntilTime(subscription) {
+  const value = subscription?.paid_until || subscription?.paidUntil || subscription?.expiresAt || "";
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function findActiveSubscription(db, userId, planId) {
+  return db.subscriptions
+    .map(normalizeSubscriptionRecord)
+    .find((item) => item.userId === userId && item.planId === planId && item.status === "active");
+}
+
+function isPremiumDiscordPlan(planId) {
+  return planId === "premium-discord-signals";
+}
+
+async function syncDiscordRole(user, shouldHaveRole) {
+  if (!user?.discordId || !process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_GUILD_ID || !process.env.DISCORD_PREMIUM_ROLE_ID) return false;
+  const method = shouldHaveRole ? "PUT" : "DELETE";
+  const url = `https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${user.discordId}/roles/${process.env.DISCORD_PREMIUM_ROLE_ID}`;
+  const response = await fetch(url, {
+    method,
+    headers: { authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` }
+  });
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Discord role ${shouldHaveRole ? "add" : "remove"} failed with ${response.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+  }
+  return response.ok || response.status === 404;
+}
+
+function deactivateSubscriptionForPayment(db, payment, status) {
+  if (!payment?.userId || !payment?.planId) return null;
+  const subscription = findActiveSubscription(db, payment.userId, payment.planId);
+  if (!subscription) return null;
+  subscription.status = status || "payment_failed";
+  subscription.paymentStatus = payment.status || status || "failed";
+  subscription.autoRenew = false;
+  subscription.updatedAt = nowIso();
+  return subscription;
+}
+
 function requestBaseUrl(req) {
   const appUrl = String(process.env.APP_URL || "").replace(/\/+$/, "");
   return appUrl || `${req.protocol}://${req.get("host")}`;
@@ -120,12 +173,20 @@ function isPayriffPaid(payload = {}) {
 
 function activateSubscription(db, payment) {
   const plan = PAYMENT_PLANS[payment.planId] || PAYMENT_PLANS["arbitrage-only"];
-  const expiresAt = new Date(Date.now() + (plan.accessDays || 30) * 24 * 60 * 60 * 1000).toISOString();
-  let subscription = db.subscriptions.find((item) => item.userId === payment.userId && item.planId === payment.planId && item.status === "active");
+  const now = Date.now();
+  let subscription = findActiveSubscription(db, payment.userId, payment.planId);
+  const baseTime = subscription && plan.cadence === "monthly"
+    ? Math.max(now, paidUntilTime(subscription))
+    : now;
+  const paidUntil = new Date(baseTime + (plan.accessDays || 30) * 24 * 60 * 60 * 1000).toISOString();
   if (subscription) {
-    subscription.expiresAt = expiresAt;
+    subscription.status = "active";
+    subscription.paid_until = paidUntil;
+    subscription.paidUntil = paidUntil;
+    subscription.expiresAt = paidUntil;
     subscription.autoRenew = plan.cadence === "monthly";
     subscription.paymentId = payment.id;
+    subscription.paymentStatus = "paid";
     subscription.updatedAt = nowIso();
     return subscription;
   }
@@ -136,8 +197,11 @@ function activateSubscription(db, payment) {
     status: "active",
     autoRenew: plan.cadence === "monthly",
     currentPeriodStart: nowIso(),
-    expiresAt,
+    paid_until: paidUntil,
+    paidUntil,
+    expiresAt: paidUntil,
     paymentId: payment.id,
+    paymentStatus: "paid",
     createdAt: nowIso()
   };
   db.subscriptions.unshift(subscription);
@@ -166,6 +230,10 @@ function finalizePaidPayment(db, payment, payload = {}) {
       createdAt: nowIso()
     });
   }
+  if (!wasPaid && isPremiumDiscordPlan(payment.planId)) {
+    const user = db.users.find((item) => item.id === payment.userId);
+    syncDiscordRole(user, true).catch((error) => console.warn("Discord role sync failed:", error.message));
+  }
   return subscription;
 }
 
@@ -179,6 +247,13 @@ function applyPayriffStatusToPayment(db, payment, payload = {}) {
     : pendingStatuses.has(status) ? "pending" : status.toLowerCase();
   payment.providerPayload = payload;
   payment.updatedAt = nowIso();
+  if (payment.status === "failed" && isPremiumDiscordPlan(payment.planId)) {
+    const subscription = deactivateSubscriptionForPayment(db, payment, "payment_failed");
+    const user = db.users.find((item) => item.id === payment.userId);
+    if (subscription) {
+      syncDiscordRole(user, false).catch((error) => console.warn("Discord role removal failed:", error.message));
+    }
+  }
   return null;
 }
 

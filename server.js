@@ -89,6 +89,7 @@ function readDb() {
   db.subscriptions = Array.isArray(db.subscriptions) ? db.subscriptions : [];
   db.payments = Array.isArray(db.payments) ? db.payments : [];
   db.paymentLogs = Array.isArray(db.paymentLogs) ? db.paymentLogs : [];
+  db.oauthStates = Array.isArray(db.oauthStates) ? db.oauthStates : [];
   db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
   db.announcements = Array.isArray(db.announcements) ? db.announcements : [];
   db.notifications = Array.isArray(db.notifications) ? db.notifications : [];
@@ -99,6 +100,17 @@ function readDb() {
     refreshMs: SCANNER_REFRESH_MS
   };
   return db;
+}
+
+function normalizeSubscriptionRecord(subscription) {
+  if (!subscription) return subscription;
+  const paidUntil = subscription.paid_until || subscription.paidUntil || subscription.expiresAt || "";
+  if (paidUntil) {
+    subscription.paid_until = paidUntil;
+    subscription.paidUntil = paidUntil;
+    subscription.expiresAt = paidUntil;
+  }
+  return subscription;
 }
 
 function writeDb(db) {
@@ -151,7 +163,10 @@ function publicUser(user) {
     name: user.name,
     email: user.email,
     role: user.role || "user",
-    isAdmin: user.role === "admin"
+    isAdmin: user.role === "admin",
+    discordId: user.discordId || "",
+    discordUsername: user.discordUsername || "",
+    discordConnected: Boolean(user.discordId)
   };
 }
 
@@ -176,16 +191,46 @@ function addAuditLog(action, actor, meta = {}) {
   }
 }
 
+function paidUntilTime(subscription) {
+  const value = subscription?.paid_until || subscription?.paidUntil || subscription?.expiresAt || "";
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function isSubscriptionActive(subscription) {
+  return subscription?.status === "active" && paidUntilTime(subscription) > Date.now();
+}
+
+function findActiveSubscription(db, userId, planId) {
+  return db.subscriptions
+    .map(normalizeSubscriptionRecord)
+    .find((item) => item.userId === userId && item.planId === planId && item.status === "active");
+}
+
+function activePlanIdsForUser(db, userId) {
+  return db.subscriptions
+    .map(normalizeSubscriptionRecord)
+    .filter((item) => item.userId === userId && isSubscriptionActive(item))
+    .map((item) => item.planId);
+}
+
 function activateSubscription(db, userId, planId, paymentId) {
   const plan = PAYMENT_PLANS[planId] || PAYMENT_PLANS["arbitrage-only"];
   const days = plan.accessDays || 30;
   const now = Date.now();
-  const existing = db.subscriptions.find((item) => item.userId === userId && item.planId === planId && item.status === "active");
-  const expiresAt = new Date(now + days * 24 * 60 * 60 * 1000).toISOString();
+  const existing = findActiveSubscription(db, userId, planId);
+  const baseTime = existing && plan.cadence === "monthly"
+    ? Math.max(now, paidUntilTime(existing))
+    : now;
+  const paidUntil = new Date(baseTime + days * 24 * 60 * 60 * 1000).toISOString();
   if (existing) {
-    existing.expiresAt = expiresAt;
+    existing.status = "active";
+    existing.paid_until = paidUntil;
+    existing.paidUntil = paidUntil;
+    existing.expiresAt = paidUntil;
     existing.autoRenew = plan.cadence === "monthly";
     existing.paymentId = paymentId || existing.paymentId;
+    existing.paymentStatus = "paid";
     existing.updatedAt = nowIso();
     return existing;
   }
@@ -196,8 +241,11 @@ function activateSubscription(db, userId, planId, paymentId) {
     status: "active",
     autoRenew: plan.cadence === "monthly",
     currentPeriodStart: nowIso(),
-    expiresAt,
+    paid_until: paidUntil,
+    paidUntil,
+    expiresAt: paidUntil,
     paymentId,
+    paymentStatus: "paid",
     createdAt: nowIso()
   };
   db.subscriptions.unshift(subscription);
@@ -210,13 +258,22 @@ function isPremiumDiscordPlan(planId) {
 
 function hasActiveSubscription(db, userId, planIds) {
   if (!userId) return false;
-  const now = Date.now();
-  return db.subscriptions.some((item) => (
+  return db.subscriptions.map(normalizeSubscriptionRecord).some((item) => (
     item.userId === userId
-    && item.status === "active"
     && planIds.has(item.planId)
-    && (!item.expiresAt || new Date(item.expiresAt).getTime() > now)
+    && isSubscriptionActive(item)
   ));
+}
+
+function deactivateSubscriptionForPayment(db, payment, status) {
+  if (!payment?.userId || !payment?.planId) return null;
+  const subscription = findActiveSubscription(db, payment.userId, payment.planId);
+  if (!subscription) return null;
+  subscription.status = status || "payment_failed";
+  subscription.paymentStatus = payment.status || status || "failed";
+  subscription.autoRenew = false;
+  subscription.updatedAt = nowIso();
+  return subscription;
 }
 
 function hasAiAccess(db, auth = {}) {
@@ -367,6 +424,13 @@ function applyPayriffStatusToPayment(db, payment, payload = {}) {
     : pendingStatuses.has(status) ? "pending" : status.toLowerCase();
   payment.providerPayload = payload;
   payment.updatedAt = nowIso();
+  if (payment.status === "failed" && isPremiumDiscordPlan(payment.planId)) {
+    const subscription = deactivateSubscriptionForPayment(db, payment, "payment_failed");
+    const user = db.users.find((item) => item.id === payment.userId);
+    if (subscription) {
+      syncDiscordRole(user, false).catch((error) => console.warn("Discord role removal failed:", error.message));
+    }
+  }
   return null;
 }
 
@@ -546,6 +610,59 @@ function oauthConfig(provider, req) {
   return null;
 }
 
+function oauthAuthorizeUrl(config, state, prompt = "select_account") {
+  const params = new URLSearchParams({
+    client_id: config.clientId,
+    redirect_uri: config.redirectUri,
+    response_type: "code",
+    scope: config.scope,
+    state,
+    prompt
+  });
+  return `${config.authorizeUrl}?${params.toString()}`;
+}
+
+function createOauthState(db, provider, userId = "") {
+  const state = crypto.randomBytes(18).toString("hex");
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  db.oauthStates = (db.oauthStates || []).filter((item) => new Date(item.expiresAt).getTime() > Date.now());
+  db.oauthStates.push({
+    state,
+    provider,
+    userId,
+    createdAt: nowIso(),
+    expiresAt
+  });
+  return state;
+}
+
+function consumeOauthState(db, state, provider) {
+  if (!state) return null;
+  const index = (db.oauthStates || []).findIndex((item) => (
+    item.state === state
+    && item.provider === provider
+    && new Date(item.expiresAt).getTime() > Date.now()
+  ));
+  if (index === -1) return null;
+  const [record] = db.oauthStates.splice(index, 1);
+  return record;
+}
+
+async function ensureDiscordGuildMember(user, accessToken) {
+  if (!user?.discordId || !accessToken || !process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_GUILD_ID) return false;
+  if (String(process.env.DISCORD_AUTO_JOIN || "true").toLowerCase() === "false") return false;
+  const url = `https://discord.com/api/v10/guilds/${process.env.DISCORD_GUILD_ID}/members/${user.discordId}`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}`,
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ access_token: accessToken })
+  });
+  return response.ok || response.status === 204;
+}
+
 async function syncDiscordRole(user, shouldHaveRole) {
   if (!user?.discordId || !process.env.DISCORD_BOT_TOKEN || !process.env.DISCORD_GUILD_ID || !process.env.DISCORD_PREMIUM_ROLE_ID) return false;
   const method = shouldHaveRole ? "PUT" : "DELETE";
@@ -554,7 +671,53 @@ async function syncDiscordRole(user, shouldHaveRole) {
     method,
     headers: { authorization: `Bot ${process.env.DISCORD_BOT_TOKEN}` }
   });
-  return response.ok;
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => "");
+    throw new Error(`Discord role ${shouldHaveRole ? "add" : "remove"} failed with ${response.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+  }
+  return response.ok || response.status === 404;
+}
+
+async function syncExpiredDiscordMemberships() {
+  const db = readDb();
+  let changed = false;
+  let removedRoles = 0;
+  const now = Date.now();
+  for (const subscription of db.subscriptions.map(normalizeSubscriptionRecord)) {
+    if (!isPremiumDiscordPlan(subscription.planId)) continue;
+    const expired = paidUntilTime(subscription) <= now;
+    const inactive = subscription.status !== "active";
+    if (!expired && !inactive) continue;
+    if (subscription.status === "active") {
+      subscription.status = "expired";
+      subscription.paymentStatus = "expired";
+      subscription.autoRenew = false;
+      subscription.updatedAt = nowIso();
+      changed = true;
+    }
+    const user = db.users.find((item) => item.id === subscription.userId);
+    if (user?.discordId) {
+      try {
+        const ok = await syncDiscordRole(user, false);
+        if (ok) removedRoles += 1;
+      } catch (error) {
+        console.warn("Discord expiry role removal failed:", error.message);
+      }
+    }
+  }
+  if (changed) writeDb(db);
+  if (changed || removedRoles) {
+    addAuditLog("discord.membership.expiry_sync", "system", { removedRoles });
+  }
+}
+
+function scheduleDiscordMembershipSync() {
+  setTimeout(() => {
+    syncExpiredDiscordMemberships().catch((error) => console.warn("Discord membership sync failed:", error.message));
+  }, 10000);
+  setInterval(() => {
+    syncExpiredDiscordMemberships().catch((error) => console.warn("Discord membership sync failed:", error.message));
+  }, 24 * 60 * 60 * 1000);
 }
 
 function upsertOauthUser(db, provider, profile) {
@@ -574,6 +737,11 @@ function upsertOauthUser(db, provider, profile) {
   }
   user.name = user.name || profile.name || profile.username || email.split("@")[0];
   user[`${provider}Id`] = profile.id;
+  if (provider === "discord") {
+    user.discordUsername = profile.username || profile.name || "";
+    user.discordEmail = email;
+    user.discordConnectedAt = nowIso();
+  }
   user.emailVerified = true;
   user.updatedAt = nowIso();
   return user;
@@ -2063,6 +2231,12 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
       payment.updatedAt = nowIso();
       if (payment.status === "paid") {
         subscription = finalizePaidPayment(db, payment, payload);
+      } else if (["failed", "declined", "rejected", "expired", "cancelled", "canceled"].includes(payment.status) && isPremiumDiscordPlan(payment.planId)) {
+        subscription = deactivateSubscriptionForPayment(db, payment, "payment_failed");
+        const user = db.users.find((item) => item.id === payment.userId);
+        if (subscription) {
+          syncDiscordRole(user, false).catch((error) => console.warn("Discord role removal failed:", error.message));
+        }
       }
     }
   }
@@ -2078,12 +2252,31 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
 });
 
 app.get("/api/integrations/discord/status", requireAuth, (req, res) => {
+  const db = readDb();
+  const user = req.auth.admin ? null : db.users.find((item) => item.id === req.auth.userId);
   res.json({
     oauthConfigured: Boolean(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET),
     botConfigured: Boolean(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_PREMIUM_ROLE_ID && process.env.DISCORD_GUILD_ID),
     freeInvite: process.env.DISCORD_FREE_INVITE || "https://discord.gg/zcXkSV34H",
-    premiumRoleId: process.env.DISCORD_PREMIUM_ROLE_ID ? "configured" : "missing"
+    premiumRoleId: process.env.DISCORD_PREMIUM_ROLE_ID ? "configured" : "missing",
+    connected: Boolean(user?.discordId),
+    discordUsername: user?.discordUsername || "",
+    premiumRole: Boolean(user?.discordId && activePlanIdsForUser(db, user.id).some(isPremiumDiscordPlan))
   });
+});
+
+app.post("/api/integrations/discord/connect", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.status(400).json({ error: "Use a customer account to connect Discord." });
+  const config = oauthConfig("discord", req);
+  if (!config?.clientId || !config?.clientSecret) {
+    return res.status(503).json({ error: "Discord OAuth is not configured yet." });
+  }
+  const db = readDb();
+  const user = db.users.find((item) => item.id === req.auth.userId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const state = createOauthState(db, "discord-connect", user.id);
+  writeDb(db);
+  res.json({ url: oauthAuthorizeUrl(config, state) });
 });
 
 app.get("/api/auth/oauth/:provider", (req, res) => {
@@ -2092,15 +2285,7 @@ app.get("/api/auth/oauth/:provider", (req, res) => {
   if (!config.clientId || !config.clientSecret) {
     return res.redirect(`/login?oauth=${encodeURIComponent(`${config.provider}-not-configured`)}`);
   }
-  const params = new URLSearchParams({
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    response_type: "code",
-    scope: config.scope,
-    state: crypto.randomBytes(12).toString("hex"),
-    prompt: "select_account"
-  });
-  res.redirect(`${config.authorizeUrl}?${params.toString()}`);
+  res.redirect(oauthAuthorizeUrl(config, crypto.randomBytes(12).toString("hex")));
 });
 
 app.get("/api/auth/oauth/:provider/callback", async (req, res) => {
@@ -2127,10 +2312,35 @@ app.get("/api/auth/oauth/:provider/callback", async (req, res) => {
     const profileData = await profileResponse.json();
     const profile = config.provider === "google"
       ? { id: profileData.id, email: profileData.email, name: profileData.name }
-      : { id: profileData.id, email: profileData.email, name: profileData.global_name || profileData.username, username: profileData.username };
+      : {
+        id: profileData.id,
+        email: profileData.email,
+        name: profileData.global_name || profileData.username,
+        username: profileData.username
+      };
     const db = readDb();
-    const user = upsertOauthUser(db, config.provider, profile);
-    const hasPremium = db.subscriptions.some((item) => item.userId === user.id && item.status === "active" && isPremiumDiscordPlan(item.planId));
+    const connectState = config.provider === "discord"
+      ? consumeOauthState(db, String(req.query.state || ""), "discord-connect")
+      : null;
+    let user;
+    if (connectState?.userId) {
+      user = db.users.find((item) => item.id === connectState.userId);
+      if (!user) throw new Error("Linked Bull & Bear account was not found");
+      user.discordId = profile.id;
+      user.discordUsername = profile.username || profile.name || "";
+      user.discordEmail = normalizeEmail(profile.email) || user.email;
+      user.discordConnectedAt = nowIso();
+      user.updatedAt = nowIso();
+    } else {
+      user = upsertOauthUser(db, config.provider, profile);
+    }
+    const hasPremium = activePlanIdsForUser(db, user.id).some(isPremiumDiscordPlan);
+    if (config.provider === "discord") {
+      await ensureDiscordGuildMember(user, tokenData.access_token).catch((error) => {
+        console.warn("Discord guild join failed:", error.message);
+        return false;
+      });
+    }
     writeDb(db);
     if (config.provider === "discord" && hasPremium) {
       syncDiscordRole(user, true).catch((error) => console.warn("Discord role sync failed:", error.message));
@@ -2239,14 +2449,17 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
   }
   const db = readDb();
   const userId = req.auth.userId;
+  const user = db.users.find((item) => item.id === userId);
   const canUseScanner = hasScannerAccess(db, req.auth);
   res.json({
-    subscriptions: db.subscriptions.filter((item) => item.userId === userId),
+    subscriptions: db.subscriptions.filter((item) => item.userId === userId).map(normalizeSubscriptionRecord),
     payments: db.payments.filter((item) => item.userId === userId).slice(0, 20),
     notifications: db.notifications.filter((item) => item.userId === userId).slice(0, 20),
     discord: {
-      connected: false,
-      premiumRole: db.subscriptions.some((item) => item.userId === userId && item.status === "active" && isPremiumDiscordPlan(item.planId))
+      connected: Boolean(user?.discordId),
+      username: user?.discordUsername || "",
+      userId: user?.discordId ? "connected" : "",
+      premiumRole: activePlanIdsForUser(db, userId).some(isPremiumDiscordPlan)
     },
     recentOpportunities: canUseScanner ? scannerState.opportunities.slice(0, 8) : []
   });
@@ -2254,16 +2467,12 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
 
 app.post("/api/subscriptions/cancel", requireAuth, (req, res) => {
   const db = readDb();
-  const subscription = db.subscriptions.find((item) => item.id === req.body?.subscriptionId && item.userId === req.auth.userId);
+  const subscription = normalizeSubscriptionRecord(db.subscriptions.find((item) => item.id === req.body?.subscriptionId && item.userId === req.auth.userId));
   if (!subscription) return res.status(404).json({ error: "Subscription not found" });
-  subscription.status = "cancelled";
   subscription.autoRenew = false;
+  subscription.cancelAtPeriodEnd = true;
   subscription.cancelledAt = nowIso();
   subscription.updatedAt = nowIso();
-  const user = db.users.find((item) => item.id === req.auth.userId);
-  if (isPremiumDiscordPlan(subscription.planId)) {
-    syncDiscordRole(user, false).catch((error) => console.warn("Discord role removal failed:", error.message));
-  }
   writeDb(db);
   addAuditLog("subscription.cancelled", req.auth.email, { subscriptionId: subscription.id });
   res.json(subscription);
@@ -2276,7 +2485,7 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
     uploadedVideos: db.courses.filter((course) => course.videoUrl).length,
     bookUploaded: Boolean(db.book?.pdfUrl),
     users: db.users.length,
-    activeSubscriptions: db.subscriptions.filter((item) => item.status === "active").length,
+    activeSubscriptions: db.subscriptions.map(normalizeSubscriptionRecord).filter(isSubscriptionActive).length,
     revenue: db.payments.filter((item) => item.status === "paid").reduce((sum, item) => sum + Number(item.amount || 0), 0),
     payments: db.payments.length,
     scanner: {
@@ -2296,7 +2505,7 @@ app.get("/api/admin/users", requireAdmin, (req, res) => {
   const db = readDb();
   res.json({
     users: db.users.map(publicUser),
-    subscriptions: db.subscriptions,
+    subscriptions: db.subscriptions.map(normalizeSubscriptionRecord),
     payments: db.payments.slice(0, 100)
   });
 });
@@ -2305,7 +2514,7 @@ app.get("/api/admin/platform", requireAdmin, (req, res) => {
   const db = readDb();
   res.json({
     users: db.users.map(publicUser),
-    subscriptions: db.subscriptions,
+    subscriptions: db.subscriptions.map(normalizeSubscriptionRecord),
     payments: db.payments.slice(0, 100),
     paymentLogs: db.paymentLogs.slice(0, 100),
     auditLogs: db.auditLogs.slice(0, 100),
@@ -2453,6 +2662,7 @@ app.use((req, res) => {
 });
 
 scheduleScanner();
+scheduleDiscordMembershipSync();
 
 app.listen(PORT, () => {
   console.log(`Bull & Bear Academy is running on http://localhost:${PORT}`);
