@@ -280,7 +280,11 @@ function navigate(path) {
 function setMessage(message, type = "") {
   state.message = message ? `<div class="status ${type}">${esc(message)}</div>` : "";
   const holder = document.querySelector("[data-status]");
-  if (holder) holder.innerHTML = state.message;
+  if (holder) {
+    holder.innerHTML = state.message;
+  } else if (message && type === "err") {
+    alert(message);
+  }
 }
 
 function checkoutCta(planId, label, className = "btn primary") {
@@ -1744,6 +1748,7 @@ function profilePage() {
           <div class="eyebrow">Account</div>
           <h1 class="h2" style="margin-top:12px;">Welcome, ${esc(state.user.name || "Trader")}</h1>
           <p class="lead">Your dashboard tracks subscription access, billing, Discord connection, notifications, and recent scanner opportunities.</p>
+          <div data-status>${state.message}</div>
         </div>
         <button class="btn secondary small" data-logout>Logout</button>
       </div>
