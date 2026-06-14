@@ -17,6 +17,11 @@
     }
   };
 
+  const clearStaleLogin = () => {
+    localStorage.removeItem("bb_token");
+    localStorage.removeItem("bb_user");
+  };
+
   const connectDiscord = async (button) => {
     const token = localStorage.getItem("bb_token");
     if (!token) {
@@ -48,6 +53,13 @@
       window.location.href = result.url;
     } catch (error) {
       const message = error?.message || "Discord connection failed.";
+      if (/user not found|session expired/i.test(message)) {
+        clearStaleLogin();
+        alert("Your login session expired after the last update. Please log in again, then connect Discord.");
+        window.location.href = "/login";
+        return;
+      }
+
       setStatus(message, "err");
       alert(`Discord connect failed: ${message}`);
       button.disabled = false;
