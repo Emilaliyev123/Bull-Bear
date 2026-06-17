@@ -10,6 +10,7 @@ const PAYMENT_PLANS = {
   "investor-trader-ai": { name: "Investor & Trader AI", amount: 19.9, cadence: "monthly", accessDays: 30 },
   "arbitrage-only": { name: "Arbitrage Scanner Only", amount: 39.9, cadence: "monthly", accessDays: 30 }
 };
+const PAYRIFF_USD_TO_AZN_RATE = Number(process.env.PAYRIFF_USD_TO_AZN_RATE || 1.7);
 
 function nowIso() {
   return new Date().toISOString();
@@ -29,6 +30,18 @@ function writeDb(db) {
   const tmp = `${DATA_FILE}.tmp`;
   fs.writeFileSync(tmp, `${JSON.stringify(db, null, 2)}\n`);
   fs.renameSync(tmp, DATA_FILE);
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function findUserForAuth(db, auth = {}) {
+  if (!auth || auth.admin) return null;
+  const email = normalizeEmail(auth.email);
+  return db.users.find((item) => item.id === auth.userId)
+    || (email ? db.users.find((item) => normalizeEmail(item.email) === email) : null)
+    || null;
 }
 
 function normalizeSubscriptionRecord(subscription) {
@@ -95,7 +108,7 @@ function payriffConfig() {
     secretKey: process.env.PAYRIFF_SECRET_KEY,
     createPath: process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders",
     orderPath: process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:orderId",
-    currency: process.env.PAYRIFF_CURRENCY || "USD",
+    currency: String(process.env.PAYRIFF_CURRENCY || "AZN").trim().toUpperCase() || "AZN",
     language: process.env.PAYRIFF_LANGUAGE || "EN"
   };
 }
@@ -163,8 +176,23 @@ function payriffMessage(payload = {}, fallback = "Payriff request failed") {
     || fallback;
 }
 
-function payriffAmount(amount) {
+function payriffDisplayAmount(amount) {
   return Number(Number(amount || 0).toFixed(2));
+}
+
+function payriffUsdToAznRate() {
+  return Number.isFinite(PAYRIFF_USD_TO_AZN_RATE) && PAYRIFF_USD_TO_AZN_RATE > 0
+    ? PAYRIFF_USD_TO_AZN_RATE
+    : 1.7;
+}
+
+function payriffAmount(amount, currency = payriffConfig().currency) {
+  const displayAmount = payriffDisplayAmount(amount);
+  const normalizedCurrency = String(currency || "").trim().toUpperCase();
+  const checkoutAmount = normalizedCurrency === "AZN"
+    ? displayAmount * payriffUsdToAznRate()
+    : displayAmount;
+  return Number(checkoutAmount.toFixed(2));
 }
 
 function isPayriffPaid(payload = {}) {
@@ -301,8 +329,14 @@ async function createPayriffCheckout(req, payment, plan, planId) {
   const config = payriffConfig();
   const baseUrl = requestBaseUrl(req);
   const callbackUrl = `${baseUrl}/api/payments/webhook/payriff?paymentId=${encodeURIComponent(payment.id)}`;
+  const checkoutAmount = payriffAmount(plan.amount, config.currency);
+  payment.displayAmount = payriffDisplayAmount(plan.amount);
+  payment.displayCurrency = "USD";
+  payment.providerAmount = checkoutAmount;
+  payment.providerCurrency = config.currency;
+  payment.exchangeRate = config.currency === "AZN" ? payriffUsdToAznRate() : null;
   const payload = await callPayriff("POST", config.createPath, {
-    amount: payriffAmount(plan.amount),
+    amount: checkoutAmount,
     currency: config.currency,
     description: `Bull & Bear - ${plan.name}`,
     callbackUrl,
@@ -446,13 +480,23 @@ appProto.post = function patchedPost(route, ...handlers) {
       const plan = PAYMENT_PLANS[planId];
       if (!plan) return res.status(404).json({ error: "Plan not found" });
       const db = readDb();
+      const checkoutUser = req.auth?.admin ? null : findUserForAuth(db, req.auth);
+      if (!req.auth?.admin && !checkoutUser) {
+        return res.status(401).json({ error: "Session expired. Please log in again." });
+      }
+      const config = payriffConfig();
       const payment = {
         id: `pay-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-        userId: req.auth.userId,
+        userId: req.auth?.admin ? "admin" : checkoutUser.id,
         planId,
         provider: "payriff",
-        amount: plan.amount,
-        currency: payriffConfig().currency,
+        amount: payriffDisplayAmount(plan.amount),
+        currency: "USD",
+        displayAmount: payriffDisplayAmount(plan.amount),
+        displayCurrency: "USD",
+        providerAmount: payriffAmount(plan.amount, config.currency),
+        providerCurrency: config.currency,
+        exchangeRate: config.currency === "AZN" ? payriffUsdToAznRate() : null,
         status: "checkout_creating",
         createdAt: nowIso()
       };

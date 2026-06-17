@@ -49,6 +49,8 @@ services:
       - key: PAYRIFF_SECRET_KEY
         sync: false
       - key: PAYRIFF_CURRENCY
-        value: USD
+        value: AZN
+      - key: PAYRIFF_USD_TO_AZN_RATE
+        value: "1.7"
       - key: PAYRIFF_LANGUAGE
         value: EN

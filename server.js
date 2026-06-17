@@ -53,7 +53,8 @@ const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payrif
 const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
 const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
 const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:orderId";
-const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "USD";
+const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "AZN";
+const PAYRIFF_USD_TO_AZN_RATE = Number(process.env.PAYRIFF_USD_TO_AZN_RATE || 1.7);
 const PAYRIFF_LANGUAGE = process.env.PAYRIFF_LANGUAGE || "EN";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
@@ -170,6 +171,18 @@ function publicUser(user) {
   };
 }
 
+function findUserForAuth(db, auth = {}) {
+  if (!auth || auth.admin) return null;
+  const email = normalizeEmail(auth.email);
+  return db.users.find((item) => item.id === auth.userId)
+    || (email ? db.users.find((item) => normalizeEmail(item.email) === email) : null)
+    || null;
+}
+
+function authUserId(db, auth = {}) {
+  return findUserForAuth(db, auth)?.id || "";
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -277,11 +290,11 @@ function deactivateSubscriptionForPayment(db, payment, status) {
 }
 
 function hasAiAccess(db, auth = {}) {
-  return Boolean(auth.admin || hasActiveSubscription(db, auth.userId, AI_ACCESS_PLAN_IDS));
+  return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), AI_ACCESS_PLAN_IDS));
 }
 
 function hasScannerAccess(db, auth = {}) {
-  return Boolean(auth.admin || hasActiveSubscription(db, auth.userId, SCANNER_ACCESS_PLAN_IDS));
+  return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), SCANNER_ACCESS_PLAN_IDS));
 }
 
 function notifySubscriptionActivated(db, payment) {
@@ -362,7 +375,7 @@ function payriffConfig() {
     secretKey: process.env.PAYRIFF_SECRET_KEY,
     createPath: PAYRIFF_CREATE_PATH,
     orderPath: PAYRIFF_ORDER_PATH,
-    currency: PAYRIFF_CURRENCY,
+    currency: String(PAYRIFF_CURRENCY || "AZN").trim().toUpperCase() || "AZN",
     language: PAYRIFF_LANGUAGE
   };
 }
@@ -372,8 +385,23 @@ function isPayriffConfigured() {
   return Boolean(config.baseUrl && config.secretKey);
 }
 
-function payriffAmount(amount) {
+function payriffDisplayAmount(amount) {
   return Number(Number(amount || 0).toFixed(2));
+}
+
+function payriffUsdToAznRate() {
+  return Number.isFinite(PAYRIFF_USD_TO_AZN_RATE) && PAYRIFF_USD_TO_AZN_RATE > 0
+    ? PAYRIFF_USD_TO_AZN_RATE
+    : 1.7;
+}
+
+function payriffAmount(amount, currency = payriffConfig().currency) {
+  const displayAmount = payriffDisplayAmount(amount);
+  const normalizedCurrency = String(currency || "").trim().toUpperCase();
+  const checkoutAmount = normalizedCurrency === "AZN"
+    ? displayAmount * payriffUsdToAznRate()
+    : displayAmount;
+  return Number(checkoutAmount.toFixed(2));
 }
 
 function payriffMessage(payload = {}, fallback = "Payriff request failed") {
@@ -477,8 +505,14 @@ async function createPayriffCheckout(req, payment, plan, planId) {
   const config = payriffConfig();
   const baseUrl = requestBaseUrl(req);
   const callbackUrl = `${baseUrl}/api/payments/webhook/payriff?paymentId=${encodeURIComponent(payment.id)}`;
+  const checkoutAmount = payriffAmount(plan.amount, config.currency);
+  payment.displayAmount = payriffDisplayAmount(plan.amount);
+  payment.displayCurrency = "USD";
+  payment.providerAmount = checkoutAmount;
+  payment.providerCurrency = config.currency;
+  payment.exchangeRate = config.currency === "AZN" ? payriffUsdToAznRate() : null;
   const payload = await callPayriff("POST", config.createPath, {
-    amount: payriffAmount(plan.amount),
+    amount: checkoutAmount,
     currency: config.currency,
     description: `Bull & Bear - ${plan.name}`,
     callbackUrl,
@@ -2003,6 +2037,10 @@ app.get("/api/scanner/stream", requireAuth, requireScannerAccess, (req, res) => 
 app.post("/api/ai/advisor", requireAuth, async (req, res) => {
   try {
     const db = readDb();
+    const effectiveUserId = authUserId(db, req.auth);
+    if (!req.auth.admin && !effectiveUserId) {
+      return res.status(401).json({ error: "Session expired. Please log in again." });
+    }
     if (!hasAiAccess(db, req.auth)) {
       return res.status(402).json({
         error: "Investor & Trader AI requires AI + Premium Discord Signals.",
@@ -2011,7 +2049,7 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
       });
     }
 
-    const userKey = req.auth.userId || req.auth.username || req.ip;
+    const userKey = effectiveUserId || req.auth.username || req.ip;
     if (!consumeAiQuota(userKey)) {
       return res.status(429).json({
         error: "AI request limit reached. Please wait a few minutes and try again."
@@ -2019,7 +2057,7 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     }
 
     const normalizedRequest = normalizeAiAdvisorRequest(req.body || {});
-    const context = aiContextFromDb(db, req.auth.userId || "");
+    const context = aiContextFromDb(db, effectiveUserId);
     context.marketData = await aiMarketContext(normalizedRequest, context).catch((error) => ({
       source: "Academy model only",
       marketType: detectAiMarketType(normalizedRequest),
@@ -2074,14 +2112,23 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   const plan = PAYMENT_PLANS[planId];
   if (!plan) return res.status(400).json({ error: "Unknown payment plan" });
   const db = readDb();
+  const checkoutUser = req.auth.admin ? null : findUserForAuth(db, req.auth);
+  if (!req.auth.admin && !checkoutUser) {
+    return res.status(401).json({ error: "Session expired. Please log in again." });
+  }
   const payment = {
     id: `pay-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-    userId: req.auth.userId || "admin",
+    userId: req.auth.admin ? "admin" : checkoutUser.id,
     planId,
     provider,
     status: provider === "manual" ? "pending_review" : "checkout_creating",
-    amount: plan.amount,
-    currency: provider === "payriff" ? PAYRIFF_CURRENCY : "USD",
+    amount: payriffDisplayAmount(plan.amount),
+    currency: "USD",
+    displayAmount: payriffDisplayAmount(plan.amount),
+    displayCurrency: "USD",
+    providerAmount: provider === "payriff" ? payriffAmount(plan.amount, payriffConfig().currency) : payriffDisplayAmount(plan.amount),
+    providerCurrency: provider === "payriff" ? payriffConfig().currency : "USD",
+    exchangeRate: provider === "payriff" && payriffConfig().currency === "AZN" ? payriffUsdToAznRate() : null,
     checkoutUrl: provider === "manual" ? "/payment/success" : null,
     createdAt: nowIso()
   };
@@ -2253,7 +2300,7 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
 
 app.get("/api/integrations/discord/status", requireAuth, (req, res) => {
   const db = readDb();
-  const user = req.auth.admin ? null : db.users.find((item) => item.id === req.auth.userId);
+  const user = req.auth.admin ? null : findUserForAuth(db, req.auth);
   res.json({
     oauthConfigured: Boolean(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET),
     botConfigured: Boolean(process.env.DISCORD_BOT_TOKEN && process.env.DISCORD_PREMIUM_ROLE_ID && process.env.DISCORD_GUILD_ID),
@@ -2272,8 +2319,8 @@ app.post("/api/integrations/discord/connect", requireAuth, (req, res) => {
     return res.status(503).json({ error: "Discord OAuth is not configured yet." });
   }
   const db = readDb();
-  const user = db.users.find((item) => item.id === req.auth.userId);
-  if (!user) return res.status(404).json({ error: "User not found" });
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
   const state = createOauthState(db, "discord-connect", user.id);
   writeDb(db);
   res.json({ url: oauthAuthorizeUrl(config, state) });
@@ -2432,8 +2479,8 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
     return res.json({ user: { id: "admin", name: "Admin", email: ADMIN_USERNAME, role: "admin", isAdmin: true } });
   }
   const db = readDb();
-  const user = db.users.find((item) => item.id === req.auth.userId);
-  if (!user) return res.status(404).json({ error: "User not found" });
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
   return res.json({ user: publicUser(user) });
 });
 
@@ -2448,8 +2495,9 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
     });
   }
   const db = readDb();
-  const userId = req.auth.userId;
-  const user = db.users.find((item) => item.id === userId);
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
+  const userId = user.id;
   const canUseScanner = hasScannerAccess(db, req.auth);
   res.json({
     subscriptions: db.subscriptions.filter((item) => item.userId === userId).map(normalizeSubscriptionRecord),
@@ -2467,7 +2515,9 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
 
 app.post("/api/subscriptions/cancel", requireAuth, (req, res) => {
   const db = readDb();
-  const subscription = normalizeSubscriptionRecord(db.subscriptions.find((item) => item.id === req.body?.subscriptionId && item.userId === req.auth.userId));
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired. Please log in again." });
+  const subscription = normalizeSubscriptionRecord(db.subscriptions.find((item) => item.id === req.body?.subscriptionId && item.userId === user.id));
   if (!subscription) return res.status(404).json({ error: "Subscription not found" });
   subscription.autoRenew = false;
   subscription.cancelAtPeriodEnd = true;
