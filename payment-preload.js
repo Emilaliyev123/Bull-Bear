@@ -32,6 +32,16 @@ function writeDb(db) {
   fs.renameSync(tmp, DATA_FILE);
 }
 
+function addPaymentLog(db, provider, status, paymentId = "") {
+  db.paymentLogs.unshift({
+    id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+    provider,
+    status,
+    paymentId,
+    createdAt: nowIso()
+  });
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -360,15 +370,20 @@ async function createPayriffCheckout(req, payment, plan, planId) {
 }
 
 async function settlePayriffPayment(req, payment, fallbackPayload = {}) {
-  let statusPayload = fallbackPayload;
-  if (payment.providerReference && isPayriffConfigured()) {
-    try {
-      statusPayload = await getPayriffPaymentStatus(payment.providerReference);
-    } catch {
-      statusPayload = fallbackPayload;
-    }
+  if (!isPayriffConfigured()) {
+    throw new Error("Payriff is not configured. Cannot verify payment status.");
   }
-  return statusPayload;
+  const fallbackReference = fallbackPayload.paymentId
+    || fallbackPayload.payment_id
+    || fallbackPayload.orderId
+    || fallbackPayload.order_id
+    || fallbackPayload.reference
+    || req.query.paymentId
+    || req.query.orderId
+    || req.query.order_id
+    || req.query.reference
+    || req.query.id;
+  return getPayriffPaymentStatus(payment.providerReference || fallbackReference);
 }
 
 function installRoutes(app, express) {
@@ -389,29 +404,31 @@ function installRoutes(app, express) {
       ? db.payments.find((item) => item.id === reference || item.providerReference === reference)
       : null;
     if (!reference || !payment) {
-      db.paymentLogs.unshift({
-        id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-        provider: "payriff",
-        status: reference ? "unknown_reference" : "missing_reference",
-        paymentId: reference || "",
-        createdAt: nowIso()
-      });
+      addPaymentLog(db, "payriff", reference ? "unknown_reference" : "missing_reference", reference || "");
       writeDb(db);
       return res.redirect(`/payment/failed?reason=${encodeURIComponent("Payment reference was not found")}`);
     }
-    const statusPayload = await settlePayriffPayment(req, payment, req.query);
-    const subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
-    db.paymentLogs.unshift({
-      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "payriff",
-      status: `matched:${payment.status}`,
-      paymentId: payment.id,
-      createdAt: nowIso()
-    });
-    writeDb(db);
-    const destination = payment.status === "failed" ? "failed" : "success";
-    if (req.accepts("html")) return res.redirect(`/payment/${destination}?paymentId=${encodeURIComponent(payment.id)}`);
-    return res.json({ ok: true, payment, subscription });
+    if (payment.provider && payment.provider !== "payriff") {
+      addPaymentLog(db, "payriff", "provider_mismatch", payment.id);
+      writeDb(db);
+      return res.status(409).json({ ok: false, error: "Payment provider mismatch" });
+    }
+    try {
+      const statusPayload = await settlePayriffPayment(req, payment, req.query);
+      const subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
+      addPaymentLog(db, "payriff", `matched:${payment.status}`, payment.id);
+      writeDb(db);
+      const destination = payment.status === "failed" ? "failed" : "success";
+      if (req.accepts("html")) return res.redirect(`/payment/${destination}?paymentId=${encodeURIComponent(payment.id)}`);
+      return res.json({ ok: true, payment, subscription });
+    } catch (error) {
+      payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
+      payment.error = error.message;
+      payment.updatedAt = nowIso();
+      addPaymentLog(db, "payriff", "status_check_failed", payment.id);
+      writeDb(db);
+      return res.status(isPayriffConfigured() ? 502 : 503).json({ ok: false, error: error.message });
+    }
   });
 
   app.post("/api/payments/webhook/payriff", express.raw({ type: "*/*" }), async (req, res) => {
@@ -443,16 +460,21 @@ function installRoutes(app, express) {
       : null;
     let subscription = null;
     if (payment) {
-      const statusPayload = await settlePayriffPayment(req, payment, payload);
-      subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
+      if (payment.provider && payment.provider !== "payriff") {
+        addPaymentLog(db, "payriff", "provider_mismatch", payment.id);
+        writeDb(db);
+        return res.status(409).json({ ok: false, error: "Payment provider mismatch" });
+      }
+      try {
+        const statusPayload = await settlePayriffPayment(req, payment, payload);
+        subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
+      } catch (error) {
+        addPaymentLog(db, "payriff", "status_check_failed", payment.id);
+        writeDb(db);
+        return res.status(isPayriffConfigured() ? 502 : 503).json({ ok: false, error: error.message });
+      }
     }
-    db.paymentLogs.unshift({
-      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "payriff",
-      status: payment ? `matched:${payment.status}` : "received",
-      paymentId: payment?.id || "",
-      createdAt: nowIso()
-    });
+    addPaymentLog(db, "payriff", payment ? `matched:${payment.status}` : "received", payment?.id || "");
     writeDb(db);
     res.json({ ok: true, payment: payment || null, subscription });
   });

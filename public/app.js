@@ -163,6 +163,14 @@ const legalPolicies = {
   }
 };
 
+const legalPolicyAliases = {
+  "/privacy": "/privacy-policy",
+  "/terms": "/terms-and-conditions",
+  "/terms-of-service": "/terms-and-conditions",
+  "/refund": "/refund-policy",
+  "/cancellation": "/cancellation-policy"
+};
+
 function esc(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -331,6 +339,7 @@ async function connectDiscordAccount(button = null) {
     navigate("/login");
     return;
   }
+  setMessage("Opening Discord authorization...");
   const originalText = button?.textContent || "";
   if (button) {
     button.disabled = true;
@@ -345,6 +354,7 @@ async function connectDiscordAccount(button = null) {
     throw new Error("Discord connect link was not created.");
   } catch (error) {
     setMessage(error.message, "err");
+    alert(error.message);
     if (button) {
       button.disabled = false;
       button.textContent = originalText || "Connect Discord";
@@ -439,7 +449,7 @@ async function loadUserDashboard(force = false) {
 function mountRouteEffects() {
   const path = state.route.replace(/\/$/, "") || "/";
   const checkoutMatch = path.match(/^\/checkout\/([^/]+)$/);
-  if (path === "/arbitrage") {
+  if (path === "/arbitrage" || path === "/scanner") {
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
     if (hasScannerAccess()) {
       loadScannerData();
@@ -463,7 +473,7 @@ function mountRouteEffects() {
   }
   if (path === "/courses" && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
-  if (path === "/profile" && state.token && state.user && !isAdmin()) loadUserDashboard();
+  if ((path === "/profile" || path === "/dashboard") && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (checkoutMatch) {
     if (checkoutRouteStarted !== path) {
       checkoutRouteStarted = path;
@@ -2194,12 +2204,13 @@ function notFoundPage() {
 
 function page() {
   const path = state.route.replace(/\/$/, "") || "/";
+  const legalPath = legalPolicyAliases[path] || path;
   if (path === "/") return homePage();
   if (path === "/products") return productsPage();
   if (path === "/courses") return coursesPage();
   if (path === "/book") return bookPage();
-  if (path === "/signals") return signalsPage();
-  if (path === "/arbitrage") return arbitragePage();
+  if (path === "/signals" || path === "/discord") return signalsPage();
+  if (path === "/arbitrage" || path === "/scanner") return arbitragePage();
   if (path === "/ai") return aiPage();
   if (path === "/support") return supportPage();
   if (path === "/login") return authPage("login");
@@ -2207,9 +2218,9 @@ function page() {
   if (path.startsWith("/checkout/")) return checkoutPage(decodeURIComponent(path.split("/").pop() || ""));
   if (path === "/payment/success") return paymentStatusPage("success");
   if (path === "/payment/failed") return paymentStatusPage("failed");
-  if (path === "/profile") return profilePage();
+  if (path === "/profile" || path === "/dashboard") return profilePage();
   if (path === "/admin") return adminPage();
-  if (legalPolicies[path]) return policyPage(path);
+  if (legalPolicies[legalPath]) return policyPage(legalPath);
   return notFoundPage();
 }
 

@@ -479,6 +479,18 @@ canvas {
   margin-top: 30px;
 }
 
+.telegram-access-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+}
+
+.telegram-access-row .hero-actions {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
 .ticker {
   position: absolute;
   z-index: 3;
@@ -2128,14 +2140,9 @@ canvas {
   .header-actions {
     width: 100%;
     justify-content: flex-start;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .nav::-webkit-scrollbar,
-  .header-actions::-webkit-scrollbar {
-    display: none;
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: 4px;
   }
 
   .nav a,
@@ -2203,6 +2210,14 @@ canvas {
   .section-head {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .telegram-access-row {
+    grid-template-columns: 1fr;
+  }
+
+  .telegram-access-row .hero-actions {
+    justify-content: stretch;
   }
 
   .btn {

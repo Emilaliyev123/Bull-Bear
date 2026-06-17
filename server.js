@@ -15,8 +15,9 @@ const UPLOAD_DIR = path.join(ROOT, "uploads");
 const PUBLIC_DIR = path.join(ROOT, "public");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "BullBearAdmin#2026!Q7";
-const ADMIN_SECRET = process.env.ADMIN_SECRET || "bull-bear-academy-session-secret-2026";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(32).toString("hex");
+const ADMIN_LOGIN_ENABLED = Boolean(ADMIN_USERNAME && ADMIN_PASSWORD);
 const SCANNER_REFRESH_MS = Number(process.env.SCANNER_REFRESH_MS || 12000);
 const DEFAULT_NOTIONAL_USD = Number(process.env.SCANNER_NOTIONAL_USD || 1000);
 const MAX_REASONABLE_SPREAD_PCT = Number(process.env.SCANNER_MAX_SPREAD_PCT || 25);
@@ -49,6 +50,7 @@ const PAYMENT_PLANS = {
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
 const SCANNER_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium"]);
+const WEBHOOK_PROVIDER_IDS = new Set(["payriff", "epoint", "crypto", "card"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
 const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
 const PAYRIFF_CREATE_PATH = process.env.PAYRIFF_CREATE_PATH || "/api/v3/orders";
@@ -158,6 +160,15 @@ function verifyPassword(password, stored) {
   return attemptedBuffer.length === hashBuffer.length && crypto.timingSafeEqual(attemptedBuffer, hashBuffer);
 }
 
+function timingSafeStringEqual(actual, expected) {
+  const actualValue = String(actual || "");
+  const expectedValue = String(expected || "");
+  if (!actualValue || !expectedValue) return false;
+  const actualBuffer = Buffer.from(actualValue);
+  const expectedBuffer = Buffer.from(expectedValue);
+  return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -202,6 +213,21 @@ function addAuditLog(action, actor, meta = {}) {
   } catch (error) {
     console.warn("Audit log failed:", error.message);
   }
+}
+
+function addPaymentLog(db, provider, status, paymentId = "") {
+  db.paymentLogs.unshift({
+    id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
+    provider,
+    status,
+    paymentId,
+    createdAt: nowIso()
+  });
+}
+
+function providerWebhookSecret(provider) {
+  const key = `${String(provider || "").toUpperCase()}_WEBHOOK_SECRET`;
+  return process.env[key] || process.env.WEBHOOK_SHARED_SECRET || "";
 }
 
 function paidUntilTime(subscription) {
@@ -2182,29 +2208,27 @@ app.get("/api/payments/webhook/payriff", async (req, res) => {
     : null;
 
   if (!reference || !payment) {
-    db.paymentLogs.unshift({
-      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "payriff",
-      status: reference ? "unknown_reference" : "missing_reference",
-      paymentId: reference || "",
-      createdAt: nowIso()
-    });
+    addPaymentLog(db, "payriff", reference ? "unknown_reference" : "missing_reference", reference || "");
     writeDb(db);
     return res.status(reference ? 404 : 400).json({ ok: false, error: "Payment reference was not found" });
   }
 
+  if (payment.provider && payment.provider !== "payriff") {
+    addPaymentLog(db, "payriff", "provider_mismatch", payment.id);
+    writeDb(db);
+    return res.status(409).json({ ok: false, error: "Payment provider mismatch" });
+  }
+
+  if (!isPayriffConfigured()) {
+    addPaymentLog(db, "payriff", "configuration_required", payment.id);
+    writeDb(db);
+    return res.status(503).json({ ok: false, error: "Payriff is not configured. Cannot verify payment status." });
+  }
+
   try {
-    const statusPayload = payment.providerReference && isPayriffConfigured()
-      ? await getPayriffPaymentStatus(payment.providerReference)
-      : req.query;
+    const statusPayload = await getPayriffPaymentStatus(payment.providerReference || reference);
     const subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
-    db.paymentLogs.unshift({
-      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "payriff",
-      status: `matched:${payment.status}`,
-      paymentId: payment.id,
-      createdAt: nowIso()
-    });
+    addPaymentLog(db, "payriff", `matched:${payment.status}`, payment.id);
     writeDb(db);
     if (req.accepts("html")) {
       const destination = payment.status === "failed" ? "failed" : "success";
@@ -2215,19 +2239,17 @@ app.get("/api/payments/webhook/payriff", async (req, res) => {
     payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
     payment.error = error.message;
     payment.updatedAt = nowIso();
-    db.paymentLogs.unshift({
-      id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-      provider: "payriff",
-      status: "status_check_failed",
-      paymentId: payment.id,
-      createdAt: nowIso()
-    });
+    addPaymentLog(db, "payriff", "status_check_failed", payment.id);
     writeDb(db);
     return res.status(502).json({ ok: false, error: error.message });
   }
 });
 
 app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async (req, res) => {
+  const provider = String(req.params.provider || "").toLowerCase();
+  if (!WEBHOOK_PROVIDER_IDS.has(provider)) {
+    return res.status(400).json({ ok: false, error: "Unsupported webhook provider" });
+  }
   const db = readDb();
   let payload = req.body || {};
   if (Buffer.isBuffer(payload)) {
@@ -2267,12 +2289,39 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
     : null;
   let subscription = null;
   if (payment) {
-    if (req.params.provider === "payriff") {
-      const statusPayload = payment.providerReference && isPayriffConfigured()
-        ? await getPayriffPaymentStatus(payment.providerReference).catch(() => payload)
-        : payload;
+    if (payment.provider && payment.provider !== provider) {
+      addPaymentLog(db, provider, "provider_mismatch", payment.id);
+      writeDb(db);
+      return res.status(409).json({ ok: false, error: "Payment provider mismatch" });
+    }
+    if (provider === "payriff") {
+      if (!isPayriffConfigured()) {
+        addPaymentLog(db, provider, "configuration_required", payment.id);
+        writeDb(db);
+        return res.status(503).json({ ok: false, error: "Payriff is not configured. Cannot verify payment status." });
+      }
+      let statusPayload;
+      try {
+        statusPayload = await getPayriffPaymentStatus(payment.providerReference || paymentId);
+      } catch (error) {
+        addPaymentLog(db, provider, "status_check_failed", payment.id);
+        writeDb(db);
+        return res.status(502).json({ ok: false, error: error.message || "Payriff status verification failed" });
+      }
       subscription = applyPayriffStatusToPayment(db, payment, statusPayload);
     } else {
+      const webhookSecret = providerWebhookSecret(provider);
+      const providedSecret = req.get("x-webhook-secret") || req.query.webhookSecret || payload.webhookSecret;
+      if (!webhookSecret) {
+        addPaymentLog(db, provider, "webhook_secret_missing", payment.id);
+        writeDb(db);
+        return res.status(503).json({ ok: false, error: "Webhook provider is not configured" });
+      }
+      if (!timingSafeStringEqual(providedSecret, webhookSecret)) {
+        addPaymentLog(db, provider, "webhook_secret_invalid", payment.id);
+        writeDb(db);
+        return res.status(401).json({ ok: false, error: "Invalid webhook signature" });
+      }
       payment.status = ["paid", "success", "succeeded", "completed", "approved"].includes(status) ? "paid" : status || payment.status;
       payment.providerPayload = payload;
       payment.updatedAt = nowIso();
@@ -2287,13 +2336,7 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
       }
     }
   }
-  db.paymentLogs.unshift({
-    id: `webhook-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`,
-    provider: req.params.provider,
-    status: payment ? `matched:${payment.status}` : "received",
-    paymentId: payment?.id || "",
-    createdAt: nowIso()
-  });
+  addPaymentLog(db, provider, payment ? `matched:${payment.status}` : "received", payment?.id || "");
   writeDb(db);
   res.json({ ok: true, payment: payment || null, subscription });
 });
@@ -2444,7 +2487,7 @@ app.post("/api/auth/login", (req, res) => {
   const identifier = String(req.body?.identifier || req.body?.email || "").trim();
   const password = String(req.body?.password || "");
 
-  if (identifier === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+  if (ADMIN_LOGIN_ENABLED && identifier === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     const token = signToken({
       admin: true,
       username: ADMIN_USERNAME,
@@ -2717,4 +2760,10 @@ scheduleDiscordMembershipSync();
 app.listen(PORT, () => {
   console.log(`Bull & Bear Academy is running on http://localhost:${PORT}`);
   console.log(`Admin login username: ${ADMIN_USERNAME}`);
+  if (!ADMIN_LOGIN_ENABLED) {
+    console.warn("Admin login is disabled because ADMIN_PASSWORD is not configured.");
+  }
+  if (!process.env.ADMIN_SECRET) {
+    console.warn("ADMIN_SECRET is not configured; sessions will be invalid after each restart.");
+  }
 });
