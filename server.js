@@ -8,10 +8,13 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const APP_URL = String(process.env.APP_URL || "").replace(/\/+$/, "");
 const ROOT = __dirname;
-const DATA_DIR = path.join(ROOT, "data");
+const STORAGE_ROOT = process.env.STORAGE_DIR
+  ? path.resolve(process.env.STORAGE_DIR)
+  : ROOT;
+const DATA_DIR = path.join(STORAGE_ROOT, "data");
 const DATA_FILE = path.join(DATA_DIR, "db.json");
-const SEED_FILE = path.join(DATA_DIR, "seed.json");
-const UPLOAD_DIR = path.join(ROOT, "uploads");
+const SEED_FILE = path.join(ROOT, "data", "seed.json");
+const UPLOAD_DIR = path.join(STORAGE_ROOT, "uploads");
 const PUBLIC_DIR = path.join(ROOT, "public");
 
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
@@ -50,6 +53,7 @@ const PAYMENT_PLANS = {
 };
 const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
 const SCANNER_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium"]);
+const EDUCATION_ACCESS_PLAN_IDS = new Set(["education-bundle"]);
 const WEBHOOK_PROVIDER_IDS = new Set(["payriff", "epoint", "crypto", "card"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
 const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
@@ -138,8 +142,28 @@ function safeFileName(file) {
 
 function publicFileUrl(file) {
   if (!file) return "";
-  const rel = path.relative(ROOT, file.path).split(path.sep).join("/");
-  return `/${rel}`;
+  const rel = path.relative(UPLOAD_DIR, file.path).split(path.sep).join("/");
+  return `/uploads/${rel}`;
+}
+
+function resolveUploadFile(publicUrl, folder) {
+  const value = String(publicUrl || "").replace(/^\/+/, "");
+  const expectedPrefix = `uploads/${folder}/`;
+  if (!value.startsWith(expectedPrefix)) return "";
+  const fullPath = path.resolve(STORAGE_ROOT, value);
+  const expectedRoot = path.resolve(UPLOAD_DIR, folder);
+  if (fullPath !== expectedRoot && !fullPath.startsWith(`${expectedRoot}${path.sep}`)) return "";
+  return fullPath;
+}
+
+function removeUploadFile(publicUrl, folder) {
+  const filePath = resolveUploadFile(publicUrl, folder);
+  if (!filePath || !fs.existsSync(filePath)) return;
+  try {
+    fs.unlinkSync(filePath);
+  } catch (error) {
+    console.warn("Could not delete uploaded file:", error.message);
+  }
 }
 
 function normalizeEmail(email) {
@@ -321,6 +345,10 @@ function hasAiAccess(db, auth = {}) {
 
 function hasScannerAccess(db, auth = {}) {
   return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), SCANNER_ACCESS_PLAN_IDS));
+}
+
+function hasEducationAccess(db, auth = {}) {
+  return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), EDUCATION_ACCESS_PLAN_IDS));
 }
 
 function notifySubscriptionActivated(db, payment) {
@@ -624,6 +652,19 @@ function requireScannerAccess(req, res, next) {
       checkoutUrl: "/checkout/arbitrage-only"
     });
   }
+  return next();
+}
+
+function requireEducationAccess(req, res, next) {
+  const db = readDb();
+  if (!hasEducationAccess(db, req.auth)) {
+    return res.status(402).json({
+      error: "Game of Candles requires the Courses + Trading Book purchase.",
+      requiredPlan: "education-bundle",
+      checkoutUrl: "/checkout/education-bundle"
+    });
+  }
+  req.db = db;
   return next();
 }
 
@@ -1949,10 +1990,28 @@ async function generateAiAdvisorResponse(input, context, auth) {
   return normalizeAiResult(parseAiJson(extractResponseText(payload)));
 }
 
-function serializeContent(db) {
+function serializeContent(db, auth = {}) {
   const { users, signals, ...publicDb } = db;
+  const canSeeProtectedMedia = Boolean(auth?.admin);
+  const courses = (publicDb.courses || []).map((course) => {
+    if (canSeeProtectedMedia || course.isFree) return course;
+    return {
+      ...course,
+      videoUrl: "",
+      thumbnailUrl: ""
+    };
+  });
+  const book = publicDb.book
+    ? {
+      ...publicDb.book,
+      pdfUploaded: Boolean(publicDb.book.pdfUrl),
+      pdfUrl: publicDb.book.pdfUrl ? "/api/book/pdf" : ""
+    }
+    : publicDb.book;
   return {
     ...publicDb,
+    courses,
+    book,
     products: [
       {
         id: "course",
@@ -1988,15 +2047,38 @@ function serializeContent(db) {
 ensureProjectFiles();
 
 app.use(express.json({ limit: "2mb" }));
-app.use("/uploads", express.static(UPLOAD_DIR));
+app.use("/uploads/images", express.static(path.join(UPLOAD_DIR, "images")));
+app.use("/uploads/videos", express.static(path.join(UPLOAD_DIR, "videos")));
+app.use("/uploads/books", (_req, res) => {
+  res.status(404).json({ error: "Book files are protected. Please use your account book access." });
+});
 app.use(express.static(PUBLIC_DIR));
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/content", (req, res) => {
-  res.json(serializeContent(readDb()));
+app.get("/api/content", optionalAuth, (req, res) => {
+  res.json(serializeContent(readDb(), req.auth));
+});
+
+app.get("/api/book/pdf", requireAuth, requireEducationAccess, (req, res) => {
+  const book = req.db.book || {};
+  const pdfPath = resolveUploadFile(book.pdfUrl, "books");
+  if (!book.pdfUrl || !pdfPath || !fs.existsSync(pdfPath)) {
+    return res.status(404).json({ error: "Book PDF is not available. Please upload it again from admin." });
+  }
+  const filename = `${slug(book.title || "game-of-candles")}.pdf`;
+  if (String(req.query.download || "") === "1") {
+    return res.download(pdfPath, filename);
+  }
+  res.type("application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+  return res.sendFile(pdfPath);
 });
 
 app.get("/api/plans", (req, res) => {
@@ -2698,13 +2780,17 @@ app.put(
     const db = readDb();
     const course = db.courses.find((item) => item.id === req.params.id);
     if (!course) return res.status(404).json({ error: "Course not found" });
+    const nextVideoUrl = publicFileUrl(req.files?.videoFile?.[0]);
+    const nextThumbnailUrl = publicFileUrl(req.files?.thumbnailFile?.[0]);
+    if (nextVideoUrl) removeUploadFile(course.videoUrl, "videos");
+    if (nextThumbnailUrl) removeUploadFile(course.thumbnailUrl, "images");
     course.title = req.body.title || course.title;
     course.description = req.body.description ?? course.description;
     course.category = req.body.category || course.category;
     course.duration = req.body.duration ?? course.duration;
     course.isFree = req.body.isFree === "true" || req.body.isFree === "on";
-    course.videoUrl = publicFileUrl(req.files?.videoFile?.[0]) || course.videoUrl;
-    course.thumbnailUrl = publicFileUrl(req.files?.thumbnailFile?.[0]) || course.thumbnailUrl;
+    course.videoUrl = nextVideoUrl || course.videoUrl;
+    course.thumbnailUrl = nextThumbnailUrl || course.thumbnailUrl;
     course.updatedAt = new Date().toISOString();
     writeDb(db);
     res.json(course);
@@ -2713,9 +2799,13 @@ app.put(
 
 app.delete("/api/admin/courses/:id", requireAdmin, (req, res) => {
   const db = readDb();
+  const course = db.courses.find((item) => item.id === req.params.id);
+  if (!course) return res.status(404).json({ error: "Course not found" });
   const before = db.courses.length;
   db.courses = db.courses.filter((item) => item.id !== req.params.id);
   if (db.courses.length === before) return res.status(404).json({ error: "Course not found" });
+  removeUploadFile(course.videoUrl, "videos");
+  removeUploadFile(course.thumbnailUrl, "images");
   writeDb(db);
   res.json({ ok: true });
 });
@@ -2729,13 +2819,17 @@ app.post(
   ]),
   (req, res) => {
     const db = readDb();
+    const nextCoverUrl = publicFileUrl(req.files?.coverFile?.[0]);
+    const nextPdfUrl = publicFileUrl(req.files?.bookFile?.[0]);
+    if (nextCoverUrl) removeUploadFile(db.book?.coverUrl, "images");
+    if (nextPdfUrl) removeUploadFile(db.book?.pdfUrl, "books");
     db.book = {
       ...db.book,
       title: req.body.title || db.book?.title || "Bull & Bear Trading Mastery",
       description: req.body.description ?? db.book?.description ?? "",
       price: Number(req.body.price || db.book?.price || 49.9),
-      coverUrl: publicFileUrl(req.files?.coverFile?.[0]) || db.book?.coverUrl || "",
-      pdfUrl: publicFileUrl(req.files?.bookFile?.[0]) || db.book?.pdfUrl || "",
+      coverUrl: nextCoverUrl || db.book?.coverUrl || "",
+      pdfUrl: nextPdfUrl || db.book?.pdfUrl || "",
       updatedAt: new Date().toISOString()
     };
     writeDb(db);

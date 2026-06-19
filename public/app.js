@@ -258,7 +258,7 @@ function applySessionFromUrl() {
 async function api(path, options = {}) {
   const headers = options.headers || {};
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
-  const response = await fetch(path, { ...options, headers });
+  const response = await fetch(path, { ...options, headers, cache: "no-store" });
   const isJson = (response.headers.get("content-type") || "").includes("application/json");
   const body = isJson ? await response.json() : await response.text();
   if (path.startsWith("/api/") && !isJson) {
@@ -269,6 +269,18 @@ async function api(path, options = {}) {
     throw new Error(body?.error || body || "Request failed");
   }
   return body;
+}
+
+async function fetchProtectedFile(path) {
+  const headers = {};
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  const response = await fetch(path, { headers, cache: "no-store" });
+  if (!response.ok) {
+    const isJson = (response.headers.get("content-type") || "").includes("application/json");
+    const body = isJson ? await response.json() : await response.text();
+    throw new Error(body?.error || body || "File access denied");
+  }
+  return response.blob();
 }
 
 async function loadContent() {
@@ -471,7 +483,7 @@ function mountRouteEffects() {
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
     if (hasScannerAccess()) loadScannerData();
   }
-  if (path === "/courses" && state.token && state.user && !isAdmin()) loadUserDashboard();
+  if ((path === "/courses" || path === "/book") && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if ((path === "/profile" || path === "/dashboard") && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (checkoutMatch) {
@@ -904,10 +916,20 @@ function bookCover(book) {
 
 function bookPage() {
   const book = state.content.book;
-  const pdfActions = book.pdfUrl
-    ? `<a href="${esc(media(book.pdfUrl))}" target="_blank" rel="noopener" class="btn primary">Read Online</a>
-       <a href="${esc(media(book.pdfUrl))}" download class="btn secondary">Download PDF</a>`
-    : `<button class="btn secondary" disabled>PDF Coming Soon</button>`;
+  const checkingAccess = state.token && state.user && !isAdmin() && !state.userDashboard;
+  const pdfActions = !book.pdfUrl
+    ? `<button class="btn secondary" type="button" disabled>PDF Coming Soon</button>`
+    : hasEducationAccess()
+      ? `<button class="btn primary" type="button" data-book-pdf="read">Read Online</button>
+         <button class="btn secondary" type="button" data-book-pdf="download">Download PDF</button>`
+      : checkingAccess
+        ? `<button class="btn secondary" type="button" disabled>Checking Access...</button>`
+        : state.user
+          ? checkoutCta("education-bundle", "Unlock PDF", "btn primary")
+          : `<a href="/login" data-link class="btn primary">Log In to Unlock</a>`;
+  const purchaseAction = hasEducationAccess()
+    ? `<a href="/courses" data-link class="btn primary">Open Bundle</a>`
+    : checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy");
   return `
     <section class="section">
       <div class="card pad">
@@ -927,7 +949,7 @@ function bookPage() {
             </ul>
             <div class="price">$49.90 <span>/ courses + book</span></div>
             <div class="hero-actions">
-              ${checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy")}
+              ${purchaseAction}
               <a href="/courses" data-link class="btn secondary">View Bundle</a>
               ${pdfActions}
             </div>
@@ -2181,9 +2203,9 @@ function adminBookPanel() {
         <div class="table-row">
           <div>
             <strong>Current PDF</strong>
-            <div class="faint">${book.pdfUrl ? esc(book.pdfUrl) : "No PDF uploaded yet"}</div>
+            <div class="faint">${book.pdfUrl ? "Protected PDF uploaded" : "No PDF uploaded yet"}</div>
           </div>
-          ${book.pdfUrl ? `<a class="btn secondary small" href="${esc(book.pdfUrl)}" target="_blank" rel="noopener">Open</a>` : ""}
+          ${book.pdfUrl ? `<button class="btn secondary small" type="button" data-book-pdf="read">Open</button>` : ""}
         </div>
       </div>
     </div>
@@ -2390,6 +2412,34 @@ window.submitBook = async function submitBook(event) {
   return false;
 };
 
+async function openBookPdf(download = false) {
+  if (!state.token) {
+    navigate("/login");
+    return;
+  }
+  setMessage(download ? "Preparing PDF download..." : "Opening PDF...");
+  try {
+    const blob = await fetchProtectedFile(`/api/book/pdf${download ? "?download=1" : ""}`);
+    const url = URL.createObjectURL(blob);
+    if (download) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "game-of-candles.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } else {
+      const opened = window.open(url, "_blank", "noopener");
+      if (!opened) window.location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+    setMessage("");
+  } catch (error) {
+    setMessage(error.message, "err");
+  }
+}
+
 window.submitScannerControls = async function submitScannerControls(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -2505,6 +2555,13 @@ function logout(shouldRender = true) {
 }
 
 document.addEventListener("click", async (event) => {
+  const bookPdf = event.target.closest("[data-book-pdf]");
+  if (bookPdf) {
+    event.preventDefault();
+    await openBookPdf(bookPdf.getAttribute("data-book-pdf") === "download");
+    return;
+  }
+
   const link = event.target.closest("a[data-link]");
   if (link) {
     event.preventDefault();
