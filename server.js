@@ -166,6 +166,21 @@ function removeUploadFile(publicUrl, folder) {
   }
 }
 
+function sendBookPdfFile(db, res, download = false) {
+  const book = db.book || {};
+  const pdfPath = resolveUploadFile(book.pdfUrl, "books");
+  if (!book.pdfUrl || !pdfPath || !fs.existsSync(pdfPath)) {
+    return res.status(404).json({ error: "Book PDF is not available. Please upload it again from admin." });
+  }
+  const filename = `${slug(book.title || "game-of-candles")}.pdf`;
+  if (download) {
+    return res.download(pdfPath, filename);
+  }
+  res.type("application/pdf");
+  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+  return res.sendFile(pdfPath);
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -2066,19 +2081,27 @@ app.get("/api/content", optionalAuth, (req, res) => {
   res.json(serializeContent(readDb(), req.auth));
 });
 
+app.get("/api/book/pdf-link", requireAuth, requireEducationAccess, (req, res) => {
+  const token = signToken({
+    bookPdf: true,
+    userId: req.auth.userId || "admin",
+    admin: Boolean(req.auth.admin),
+    exp: Date.now() + 5 * 60 * 1000
+  });
+  const download = String(req.query.download || "") === "1" ? "&download=1" : "";
+  res.json({ url: `/api/book/pdf/open?token=${encodeURIComponent(token)}${download}` });
+});
+
+app.get("/api/book/pdf/open", (req, res) => {
+  const payload = verifyToken(req.query.token);
+  if (!payload?.bookPdf) {
+    return res.status(401).json({ error: "Book link expired. Please open the book from your account again." });
+  }
+  return sendBookPdfFile(readDb(), res, String(req.query.download || "") === "1");
+});
+
 app.get("/api/book/pdf", requireAuth, requireEducationAccess, (req, res) => {
-  const book = req.db.book || {};
-  const pdfPath = resolveUploadFile(book.pdfUrl, "books");
-  if (!book.pdfUrl || !pdfPath || !fs.existsSync(pdfPath)) {
-    return res.status(404).json({ error: "Book PDF is not available. Please upload it again from admin." });
-  }
-  const filename = `${slug(book.title || "game-of-candles")}.pdf`;
-  if (String(req.query.download || "") === "1") {
-    return res.download(pdfPath, filename);
-  }
-  res.type("application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-  return res.sendFile(pdfPath);
+  return sendBookPdfFile(req.db, res, String(req.query.download || "") === "1");
 });
 
 app.get("/api/plans", (req, res) => {

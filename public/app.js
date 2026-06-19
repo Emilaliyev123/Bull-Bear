@@ -2418,9 +2418,12 @@ async function openBookPdf(download = false) {
     return;
   }
   setMessage(download ? "Preparing PDF download..." : "Opening PDF...");
+  const pendingWindow = download ? null : window.open("about:blank", "_blank");
+  if (pendingWindow) pendingWindow.opener = null;
   try {
-    const blob = await fetchProtectedFile(`/api/book/pdf${download ? "?download=1" : ""}`);
-    const url = URL.createObjectURL(blob);
+    const result = await api(`/api/book/pdf-link${download ? "?download=1" : ""}`);
+    const url = result.url || "";
+    if (!url) throw new Error("Book link was not created.");
     if (download) {
       const link = document.createElement("a");
       link.href = url;
@@ -2428,14 +2431,16 @@ async function openBookPdf(download = false) {
       document.body.appendChild(link);
       link.click();
       link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
     } else {
-      const opened = window.open(url, "_blank", "noopener");
-      if (!opened) window.location.href = url;
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      if (pendingWindow) {
+        pendingWindow.location.href = url;
+      } else {
+        window.location.href = url;
+      }
     }
     setMessage("");
   } catch (error) {
+    if (pendingWindow) pendingWindow.close();
     setMessage(error.message, "err");
   }
 }
