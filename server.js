@@ -79,6 +79,36 @@ const uploadFolders = {
   imageFile: "images"
 };
 
+const BUILT_IN_FREE_COURSES = [
+  {
+    id: "course-market-structure",
+    title: "Market Structure Foundations",
+    description: "Learn trend phases, break of structure, liquidity zones, and the core language of price action.",
+    category: "beginner",
+    duration: "4:34",
+    isFree: true,
+    videoUrl: "/assets/videos/market-structure-foundations.mp4",
+    thumbnailUrl: "",
+    createdAt: "2026-03-16T00:00:00.000Z"
+  },
+  {
+    id: "course-risk-system",
+    title: "Risk Management System",
+    description: "Build a rules-based position sizing plan, define invalidation, and protect capital across volatile sessions.",
+    category: "risk-management",
+    duration: "3:37",
+    isFree: true,
+    videoUrl: "/assets/videos/risk-management-system.mp4",
+    thumbnailUrl: "",
+    createdAt: "2026-03-16T00:00:00.000Z"
+  }
+];
+
+function withBuiltInFreeCourses(courses = []) {
+  const rest = courses.filter((course) => !BUILT_IN_FREE_COURSES.some((builtin) => builtin.id === course.id));
+  return [...BUILT_IN_FREE_COURSES, ...rest];
+}
+
 function ensureProjectFiles() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   for (const folder of Object.values(uploadFolders)) {
@@ -2008,7 +2038,7 @@ async function generateAiAdvisorResponse(input, context, auth) {
 function serializeContent(db, auth = {}) {
   const { users, signals, ...publicDb } = db;
   const canSeeProtectedMedia = Boolean(auth?.admin);
-  const courses = (publicDb.courses || []).map((course) => {
+  const courses = withBuiltInFreeCourses(publicDb.courses || []).map((course) => {
     if (canSeeProtectedMedia || course.isFree) return course;
     return {
       ...course,

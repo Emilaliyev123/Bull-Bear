@@ -656,6 +656,8 @@ function scannerPricingCards() {
 function courseCard(course) {
   const image = course.thumbnailUrl
     ? `<img src="${esc(media(course.thumbnailUrl))}" alt="${esc(course.title)}">`
+    : course.videoUrl
+      ? `<video src="${esc(media(course.videoUrl))}" muted preload="metadata" playsinline aria-label="${esc(course.title)} preview"></video>`
     : `<div class="media-placeholder">Video Lesson</div>`;
   return `
     <article class="card course-card" data-course-id="${esc(course.id)}" tabindex="0">

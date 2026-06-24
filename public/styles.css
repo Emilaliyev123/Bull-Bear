@@ -944,6 +944,10 @@ canvas {
   object-fit: cover;
 }
 
+.course-card .media-frame video {
+  pointer-events: none;
+}
+
 .media-placeholder {
   width: 100%;
   height: 100%;
