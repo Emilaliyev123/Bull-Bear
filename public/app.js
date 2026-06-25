@@ -37,6 +37,31 @@ const state = {
       sort: "highest-spread"
     }
   },
+  marketHub: {
+    activeTab: "arbitrage",
+    loading: false,
+    result: null,
+    stockResult: null,
+    forms: {
+      crypto: {
+        asset: "BTC",
+        style: "Day Trading",
+        timeframe: "15m"
+      },
+      forex: {
+        pair: "EUR/USD",
+        style: "Day Trading"
+      },
+      commodities: {
+        asset: "XAU/USD",
+        style: "Day Trading"
+      },
+      stocks: {
+        mode: "Market Summary",
+        selectedOption: "US Market"
+      }
+    }
+  },
   ai: {
     loading: false,
     result: null,
@@ -95,11 +120,11 @@ const productFeatures = {
     "Teaching charts and risk models"
   ],
   arbitrage: [
-    "Crypto opportunity scanner",
-    "Clean table view",
-    "Net spread focus",
-    "Major exchanges",
-    "Fast refresh workflow"
+    "Premium Market Hub dashboard",
+    "Live crypto arbitrage scanner",
+    "Crypto, forex, gold, and stocks analyzers",
+    "Mini-course and risk guide",
+    "Demo analysis ready for live API integration"
   ],
   ai: []
 };
@@ -461,7 +486,7 @@ async function loadUserDashboard(force = false) {
 function mountRouteEffects() {
   const path = state.route.replace(/\/$/, "") || "/";
   const checkoutMatch = path.match(/^\/checkout\/([^/]+)$/);
-  if (path === "/arbitrage" || path === "/scanner") {
+  if (path === "/arbitrage" || path === "/scanner" || path === "/market-hub") {
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
     if (hasScannerAccess()) {
       loadScannerData();
@@ -503,7 +528,7 @@ function header() {
     ["/courses", "Courses"],
     ["/book", "Book"],
     ["/signals", "Discord"],
-    ["/arbitrage", "Scanner"],
+    ["/market-hub", "Market Hub"],
     ["/ai", "AI"],
     ["/support", "Support"]
   ];
@@ -544,7 +569,7 @@ function footer() {
     ["/courses", "Courses + Book"],
     ["/book", "Book"],
     ["/signals", "Discord Signals"],
-    ["/arbitrage", "Scanner"],
+    ["/market-hub", "Market Hub"],
     ["/ai", "Investor AI"]
   ];
   const policyLinks = [
@@ -599,8 +624,8 @@ function ticker() {
 function productCard(product) {
   const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : product.id === "ai" ? "gold" : "red";
   const mark = product.id === "course" ? "2" : product.id === "signals" ? "AI" : product.id === "ai" ? "AI" : "A";
-  const badge = product.id === "signals" ? `<div class="badge">AI + SIGNALS</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">NEW FEATURE</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
-  const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/arbitrage";
+  const badge = product.id === "signals" ? `<div class="badge">AI + SIGNALS</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
+  const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/market-hub";
   const planId = product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
     ? (state.user ? "Buy Now" : "Log In to Buy")
@@ -632,10 +657,10 @@ function scannerPricingCards() {
   const plans = [
     {
       id: "arbitrage-only",
-      name: "Arbitrage Scanner Only",
+      name: "Market Hub Access",
       price: 39.9,
-      badge: "Scanner",
-      features: ["Live exchange scanner", "Advanced filters", "Browser alerts", "Saved opportunities", "Monthly subscription"]
+      badge: "Market Hub",
+      features: ["Live arbitrage scanner", "Crypto, forex, gold, and stocks analyzer UI", "How to Use mini-course", "Risk management guide", "Monthly subscription"]
     }
   ];
   return `
@@ -1012,24 +1037,24 @@ function scannerAccessGate(checking = false) {
   const dashboardError = state.userDashboard?.error || "";
   const action = !state.user
     ? `<a href="/login" data-link class="btn primary">Log In to Subscribe</a>`
-    : checkoutCta("arbitrage-only", "Subscribe to Scanner");
+    : checkoutCta("arbitrage-only", "Subscribe to Market Hub");
   return `
     <section class="section">
       <div class="section-head center">
-        <div class="eyebrow">Paid Scanner Access</div>
-        <h1 class="h2">Arbitrage Scanner Is A Paid Product</h1>
-        <p class="lead">The live scanner is locked for customers with an active Arbitrage Scanner subscription. Admin users can open it for management and testing.</p>
+        <div class="eyebrow">Premium Market Hub</div>
+        <h1 class="h2">Market Hub Is A Paid Product</h1>
+        <p class="lead">The premium dashboard is locked for customers with active Market Hub or Bull & Bear Premium access. Admin users can open it for management and testing.</p>
       </div>
       <div class="scanner-lock-grid">
         <div class="card pad glow-card scanner-lock-card">
-          <div class="badge" style="width:max-content;">SCANNER</div>
-          <h2 class="h3" style="margin-top:18px;">Arbitrage Scanner Only</h2>
+          <div class="badge" style="width:max-content;">MARKET HUB</div>
+          <h2 class="h3" style="margin-top:18px;">Premium Market Hub</h2>
           <div class="price">$39.90 <span>/ monthly</span></div>
           <ul class="feature-list">
-            <li>Live crypto opportunity scanner</li>
-            <li>Advanced filters and sorting</li>
-            <li>Exchange route and spread view</li>
-            <li>Volume, fees, transfer time, and risk indicators</li>
+            <li>Live crypto arbitrage scanner</li>
+            <li>Crypto, forex, gold, commodities, and stock analysis modules</li>
+            <li>Mini-course and risk management education</li>
+            <li>Advanced filters, levels, confidence, and risk views</li>
             <li>Paid member access only</li>
           </ul>
           <div class="hero-actions" style="margin-top:22px;">
@@ -1043,11 +1068,254 @@ function scannerAccessGate(checking = false) {
   `;
 }
 
-function arbitragePage() {
-  if (!state.user) return scannerAccessGate(false);
-  if (!isAdmin() && !state.userDashboard) return scannerAccessGate(true);
-  if (!hasScannerAccess()) return scannerAccessGate(false);
+function marketHubService() {
+  return window.BullBearMarketHub || {};
+}
 
+function hubTabs() {
+  return [
+    ["arbitrage", "Arbitrage", "Live spread scanner"],
+    ["crypto", "Crypto", "BTC, ETH, SOL and more"],
+    ["forex", "Forex", "Majors and crosses"],
+    ["commodities", "Gold & Commodities", "Gold, silver, oil, gas"],
+    ["stocks", "Stocks", "Research and strategy"],
+    ["how-to-use", "How to Use", "Mini course"],
+    ["risk-guide", "Risk Guide", "Capital protection"]
+  ];
+}
+
+function selectedOptionTags(items = [], selected = "") {
+  return items.map((item) => `<option value="${esc(item)}" ${item === selected ? "selected" : ""}>${esc(item)}</option>`).join("");
+}
+
+function meter(value = 0, cls = "") {
+  const safeValue = Math.max(0, Math.min(100, Number(value || 0)));
+  return `<div class="hub-meter ${cls}"><i style="width:${safeValue}%"></i></div>`;
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not updated";
+  try {
+    return new Date(value).toLocaleString();
+  } catch {
+    return String(value);
+  }
+}
+
+function signalClass(status = "") {
+  const value = status.toLowerCase();
+  if (value.includes("long") || value.includes("bull")) return "long";
+  if (value.includes("short") || value.includes("bear")) return "short";
+  if (value.includes("research")) return "research";
+  return "none";
+}
+
+function renderAnalyzerResult(result) {
+  if (!result) {
+    return `
+      <div class="hub-empty-state">
+        <strong>Run an analyzer to build a scenario.</strong>
+        <span>Select market, style, and timeframe. Results are demo analysis until live market data API is connected.</span>
+      </div>
+    `;
+  }
+  const noSignal = result.signalStatus === "No High-Quality Setup";
+  return `
+    <div class="analyzer-result ${noSignal ? "no-signal" : ""}">
+      <div class="result-topline">
+        <div>
+          <span class="demo-label">Demo analysis until live market data API is connected</span>
+          <h3 class="h3">${esc(result.asset || result.selectedOption || "Market")} ${esc(result.marketType || "")}</h3>
+        </div>
+        <div class="signal-badge ${signalClass(result.signalStatus)}">${esc(result.signalStatus || result.bias || "Research View")}</div>
+      </div>
+      ${noSignal ? `<div class="no-signal-panel">No high-quality setup right now. Wait for confirmation near key levels.</div>` : ""}
+      <div class="result-grid">
+        <div class="result-tile"><span>Entry Zone</span><strong>${esc(result.entryZone || result.entryIdea || "Research only")}</strong></div>
+        <div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not active")}</strong></div>
+        <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskRewardRatio || "N/A")}</strong></div>
+        <div class="result-tile"><span>Risk Level</span><strong class="risk-${String(result.riskLevel || "medium").toLowerCase()}">${esc(result.riskLevel || "Medium")}</strong></div>
+      </div>
+      <div class="confidence-card">
+        <div><span>Confidence Score</span><strong>${Number(result.confidenceScore || 0)}%</strong></div>
+        ${meter(result.confidenceScore, result.riskLevel === "High" ? "risk" : "")}
+      </div>
+      ${result.takeProfits?.length ? `
+        <div class="tp-stack">
+          ${result.takeProfits.map((tp) => `<div><span>${esc(tp.label)}</span><strong>${esc(tp.price)}</strong><small>${esc(tp.note)}</small></div>`).join("")}
+        </div>
+      ` : ""}
+      <div class="market-detail-grid">
+        ${result.trend ? `<div><span>Trend</span><p>${esc(result.trend)}</p></div>` : ""}
+        ${result.keyLevels ? `<div><span>Key Levels</span><p>${esc(result.keyLevels)}</p></div>` : ""}
+        ${result.supportResistance ? `<div><span>Support / Resistance</span><p>${esc(result.supportResistance.support)} / ${esc(result.supportResistance.resistance)}</p></div>` : ""}
+        ${result.liquidityZones ? `<div><span>Liquidity Zones</span><p>${result.liquidityZones.map(esc).join("<br>")}</p></div>` : ""}
+        ${result.volumeSummary ? `<div><span>Volume Summary</span><p>${esc(result.volumeSummary)}</p></div>` : ""}
+        ${result.indicatorSummary ? `<div><span>Indicators</span><p>RSI: ${esc(result.indicatorSummary.rsi)}<br>MACD: ${esc(result.indicatorSummary.macd)}<br>EMA: ${esc(result.indicatorSummary.ema)}</p></div>` : ""}
+        ${result.sessionBias ? `<div><span>Session Bias</span><p>${esc(result.sessionBias)}</p></div>` : ""}
+        ${result.dollarStrengthSummary ? `<div><span>Dollar Strength</span><p>${esc(result.dollarStrengthSummary)}</p></div>` : ""}
+        ${result.newsRisk ? `<div><span>News Risk</span><p>${esc(result.newsRisk)}</p></div>` : ""}
+        ${result.macroNewsRisk ? `<div><span>Macro / News Risk</span><p>${esc(result.macroNewsRisk)}</p></div>` : ""}
+      </div>
+      <div class="result-explain">
+        <strong>Explanation</strong>
+        <p>${esc(result.explanation || result.summary?.overall || "Educational research framework. Live API integration can replace the demo result later.")}</p>
+        <strong>Invalidation</strong>
+        <p>${esc(result.invalidationRule || result.invalidation || "If the thesis breaks, stand aside and wait for a new setup.")}</p>
+        <small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small>
+      </div>
+    </div>
+  `;
+}
+
+function renderCryptoAnalyzer() {
+  const service = marketHubService();
+  const form = state.marketHub.forms.crypto;
+  return `
+    <div class="hub-workspace">
+      <form class="hub-control-panel" onsubmit="return submitCryptoAnalyzer(event)">
+        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <h2 class="h3">Crypto Analyzer</h2>
+        <p class="muted">Build a structured educational scenario for top crypto assets. The result is not a live trading signal until a market data API is connected.</p>
+        <div class="form-grid">
+          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
+          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["5m", "15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
+        </div>
+        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
+      </form>
+      ${renderAnalyzerResult(state.marketHub.result)}
+    </div>
+  `;
+}
+
+function renderForexAnalyzer() {
+  const service = marketHubService();
+  const form = state.marketHub.forms.forex;
+  return `
+    <div class="hub-workspace">
+      <form class="hub-control-panel" onsubmit="return submitForexAnalyzer(event)">
+        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <h2 class="h3">Forex Analyzer</h2>
+        <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
+        <div class="form-grid">
+          <div class="field"><label>Pair</label><select name="pair">${selectedOptionTags(service.forexPairs || [], form.pair)}</select></div>
+          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+        </div>
+        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
+      </form>
+      ${renderAnalyzerResult(state.marketHub.result)}
+    </div>
+  `;
+}
+
+function renderCommoditiesAnalyzer() {
+  const service = marketHubService();
+  const form = state.marketHub.forms.commodities;
+  return `
+    <div class="hub-workspace">
+      <form class="hub-control-panel" onsubmit="return submitCommodityAnalyzer(event)">
+        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <h2 class="h3">Gold & Commodities Analyzer</h2>
+        <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
+        <div class="form-grid">
+          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.commodityAssets || [], form.asset)}</select></div>
+          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+        </div>
+        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Commodity"}</button>
+      </form>
+      ${renderAnalyzerResult(state.marketHub.result)}
+    </div>
+  `;
+}
+
+function renderStockAnalyzer() {
+  const service = marketHubService();
+  const form = state.marketHub.forms.stocks;
+  const options = service.stockOptions?.[form.mode] || [];
+  const result = state.marketHub.stockResult;
+  return `
+    <div class="hub-workspace">
+      <form class="hub-control-panel" onsubmit="return submitStockAnalyzer(event)">
+        <span class="demo-label">Demo research until live market data API is connected</span>
+        <h2 class="h3">Stock Market Analyzer</h2>
+        <p class="muted">Research-focused tools for market summaries, investment frameworks, sector views, screeners, and investor styles.</p>
+        <div class="form-grid">
+          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(service.stockModes || [], form.mode)}</select></div>
+          <div class="field"><label>Option</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+        </div>
+        <button class="btn primary" type="submit">${state.marketHub.loading ? "Building research..." : "Build Research View"}</button>
+      </form>
+      <div class="stock-research-panel">
+        ${result ? `
+          <div class="result-topline">
+            <div><span class="demo-label">Demo analysis until live market data API is connected</span><h3 class="h3">${esc(result.mode)} - ${esc(result.selectedOption)}</h3></div>
+            <div class="signal-badge research">Research View</div>
+          </div>
+          <div class="market-detail-grid">
+            ${Object.entries(result.summary || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
+          </div>
+          <div class="market-detail-grid">
+            ${Object.entries(result.strategy || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
+          </div>
+          <div class="sector-grid">
+            ${(result.sectors || []).map(([name, text]) => `<article><strong>${esc(name)}</strong><p>${esc(text)}</p></article>`).join("")}
+          </div>
+          <div class="result-explain"><strong>Investor Style</strong><p>${esc(result.investorStyle)}</p><small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small></div>
+        ` : `<div class="hub-empty-state"><strong>Select a research mode.</strong><span>Market Summary, Long-Term Strategy, Sector Analysis, Stock Screener, and Famous Investor Style are ready as demo frameworks.</span></div>`}
+      </div>
+    </div>
+  `;
+}
+
+function renderEducationHub() {
+  const lessons = marketHubService().educationLessons || [];
+  return `
+    <div class="lesson-grid">
+      ${lessons.map((lesson, index) => `
+        <article class="lesson-card">
+          <span>Lesson ${index + 1}</span>
+          <h3>${esc(lesson.title)}</h3>
+          <p>${esc(lesson.summary)}</p>
+          <div><strong>When to use it</strong><p>${esc(lesson.whenToUse)}</p></div>
+          <div><strong>Risks</strong><p>${esc(lesson.risks)}</p></div>
+          <div><strong>How to use analyzer</strong><p>${esc(lesson.analyzerUse)}</p></div>
+          <ul>${(lesson.mistakes || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderRiskGuide() {
+  const rules = [
+    "This is educational market analysis, not financial advice.",
+    "No signal is guaranteed.",
+    "Always use stop loss.",
+    "Do not risk more than 1-2% per trade.",
+    "Avoid high leverage.",
+    "Do not trade during major news unless you understand the risk.",
+    "Past performance does not guarantee future results."
+  ];
+  return `
+    <div class="risk-command-center">
+      <div class="risk-warning-card">
+        <span>Capital Protection First</span>
+        <h2 class="h2">Professional traders survive before they optimize.</h2>
+        <p>Market Hub is designed for education, planning, and disciplined scenario building. It must never be treated as guaranteed profit or automatic execution.</p>
+      </div>
+      <div class="risk-rule-grid">
+        ${rules.map((rule) => `<div><strong>Risk Rule</strong><p>${esc(rule)}</p></div>`).join("")}
+      </div>
+      <div class="result-explain high-risk-note">
+        <strong>High Risk Warning</strong>
+        <p>When risk is marked high, the professional action can be to wait. Weak setups, low liquidity, and major news windows are valid reasons to stand aside.</p>
+      </div>
+    </div>
+  `;
+}
+
+function renderArbitrageScanner() {
   const scanner = state.scanner;
   const filters = scanner.filters;
   const exchanges = scanner.exchanges.length ? scanner.exchanges : [
@@ -1060,8 +1328,7 @@ function arbitragePage() {
     { id: "bitget", name: "Bitget", status: "loading", pairs: 0 }
   ];
   return `
-    <section class="section">
-      <div class="scanner-shell">
+    <div class="scanner-shell">
         <div class="scanner-hero">
           <div>
             <div class="eyebrow">Bull & Bear Arbitrage Scanner</div>
@@ -1190,10 +1457,57 @@ function arbitragePage() {
 
         <div class="section-head center" style="margin-top:34px;">
           <div class="eyebrow">Pricing</div>
-          <h2 class="h2">Scanner Subscriptions</h2>
-          <p class="lead">Choose scanner-only access from the products page when you are ready to activate the live arbitrage tool.</p>
+          <h2 class="h2">Market Hub Subscription</h2>
+          <p class="lead">Activate premium access for the arbitrage scanner, analysis modules, mini-course, and risk guide.</p>
         </div>
         ${scannerPricingCards()}
+      </div>
+  `;
+}
+
+function renderMarketHubTab() {
+  const activeTab = state.marketHub.activeTab;
+  if (activeTab === "crypto") return renderCryptoAnalyzer();
+  if (activeTab === "forex") return renderForexAnalyzer();
+  if (activeTab === "commodities") return renderCommoditiesAnalyzer();
+  if (activeTab === "stocks") return renderStockAnalyzer();
+  if (activeTab === "how-to-use") return renderEducationHub();
+  if (activeTab === "risk-guide") return renderRiskGuide();
+  return renderArbitrageScanner();
+}
+
+function arbitragePage() {
+  if (!state.user) return scannerAccessGate(false);
+  if (!isAdmin() && !state.userDashboard) return scannerAccessGate(true);
+  if (!hasScannerAccess()) return scannerAccessGate(false);
+
+  const activeTab = state.marketHub.activeTab;
+  const activeMeta = hubTabs().find(([id]) => id === activeTab) || hubTabs()[0];
+  return `
+    <section class="section market-hub-section">
+      <div class="market-hub-shell">
+        <div class="market-hub-hero">
+          <div>
+            <span class="demo-label">Demo analysis until live market data API is connected</span>
+            <h1 class="h2">Bull & Bear Market Hub</h1>
+            <p class="lead">Premium scanner, crypto, forex, gold, commodities, stock research, mini-course, and risk education in one disciplined dashboard.</p>
+          </div>
+          <div class="hub-hero-panel">
+            <span>Premium Area</span>
+            <strong>${esc(activeMeta[1])}</strong>
+            <small>${esc(activeMeta[2])}</small>
+            <small>Educational market analysis, no guaranteed results.</small>
+          </div>
+        </div>
+        <div class="market-hub-tabs" role="tablist" aria-label="Market Hub sections">
+          ${hubTabs().map(([id, label, desc]) => `
+            <button type="button" data-market-tab="${id}" class="${activeTab === id ? "active" : ""}">
+              <strong>${esc(label)}</strong>
+              <span>${esc(desc)}</span>
+            </button>
+          `).join("")}
+        </div>
+        ${renderMarketHubTab()}
       </div>
     </section>
   `;
@@ -2234,7 +2548,7 @@ function page() {
   if (path === "/courses") return coursesPage();
   if (path === "/book") return bookPage();
   if (path === "/signals" || path === "/discord") return signalsPage();
-  if (path === "/arbitrage" || path === "/scanner") return arbitragePage();
+  if (path === "/arbitrage" || path === "/scanner" || path === "/market-hub") return arbitragePage();
   if (path === "/ai") return aiPage();
   if (path === "/support") return supportPage();
   if (path === "/login") return authPage("login");
@@ -2548,6 +2862,131 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   return false;
 };
 
+function unavailableMarketResult(marketType, asset) {
+  return {
+    marketType,
+    asset,
+    demo: true,
+    signalStatus: "No High-Quality Setup",
+    entryZone: "Service unavailable",
+    stopLoss: "Not active",
+    takeProfits: [],
+    riskRewardRatio: "N/A",
+    confidenceScore: 0,
+    trend: "Unavailable",
+    supportResistance: null,
+    liquidityZones: [],
+    volumeSummary: "Analyzer service is not loaded.",
+    indicatorSummary: null,
+    riskLevel: "High",
+    explanation: "Market Hub analyzer service is unavailable. Reload the page or reconnect the service script.",
+    invalidationRule: "Do not use this output as an active setup.",
+    lastUpdated: new Date().toISOString()
+  };
+}
+
+function queueMarketHubAnalysis(assignResult) {
+  state.marketHub.loading = true;
+  render();
+  setTimeout(() => {
+    try {
+      assignResult();
+    } finally {
+      state.marketHub.loading = false;
+      render();
+    }
+  }, 220);
+}
+
+window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const payload = {
+    asset: String(data.get("asset") || "BTC"),
+    style: String(data.get("style") || "Day Trading"),
+    timeframe: String(data.get("timeframe") || "15m")
+  };
+  state.marketHub.activeTab = "crypto";
+  state.marketHub.forms.crypto = payload;
+  state.marketHub.result = null;
+  queueMarketHubAnalysis(() => {
+    const service = marketHubService();
+    state.marketHub.result = service.analyzeCryptoMarket
+      ? service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe)
+      : unavailableMarketResult("Crypto", payload.asset);
+  });
+  return false;
+};
+
+window.submitForexAnalyzer = function submitForexAnalyzer(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const payload = {
+    pair: String(data.get("pair") || "EUR/USD"),
+    style: String(data.get("style") || "Day Trading")
+  };
+  state.marketHub.activeTab = "forex";
+  state.marketHub.forms.forex = payload;
+  state.marketHub.result = null;
+  queueMarketHubAnalysis(() => {
+    const service = marketHubService();
+    state.marketHub.result = service.analyzeForexMarket
+      ? service.analyzeForexMarket(payload.pair, payload.style)
+      : unavailableMarketResult("Forex", payload.pair);
+  });
+  return false;
+};
+
+window.submitCommodityAnalyzer = function submitCommodityAnalyzer(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const payload = {
+    asset: String(data.get("asset") || "XAU/USD"),
+    style: String(data.get("style") || "Day Trading")
+  };
+  state.marketHub.activeTab = "commodities";
+  state.marketHub.forms.commodities = payload;
+  state.marketHub.result = null;
+  queueMarketHubAnalysis(() => {
+    const service = marketHubService();
+    state.marketHub.result = service.analyzeCommodityMarket
+      ? service.analyzeCommodityMarket(payload.asset, payload.style)
+      : unavailableMarketResult("Commodities", payload.asset);
+  });
+  return false;
+};
+
+window.submitStockAnalyzer = function submitStockAnalyzer(event) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  const service = marketHubService();
+  const mode = String(data.get("mode") || "Market Summary");
+  const selectedOption = String(data.get("selectedOption") || service.stockOptions?.[mode]?.[0] || "US Market");
+  const payload = { mode, selectedOption };
+  state.marketHub.activeTab = "stocks";
+  state.marketHub.forms.stocks = payload;
+  state.marketHub.stockResult = null;
+  queueMarketHubAnalysis(() => {
+    state.marketHub.stockResult = service.analyzeStockMarket
+      ? service.analyzeStockMarket(payload.mode, payload.selectedOption)
+      : {
+          marketType: "Stocks",
+          mode: payload.mode,
+          selectedOption: payload.selectedOption,
+          demo: true,
+          signalStatus: "Research View",
+          confidenceScore: 0,
+          riskLevel: "High",
+          lastUpdated: new Date().toISOString(),
+          summary: { overall: "Stock analyzer service is unavailable." },
+          strategy: {},
+          sectors: [],
+          investorStyle: "Reload the page or reconnect the service script."
+        };
+  });
+  return false;
+};
+
 function logout(shouldRender = true) {
   state.token = "";
   state.user = null;
@@ -2573,6 +3012,20 @@ document.addEventListener("click", async (event) => {
   if (link) {
     event.preventDefault();
     navigate(link.getAttribute("href"));
+    return;
+  }
+
+  const marketTab = event.target.closest("[data-market-tab]");
+  if (marketTab) {
+    const nextTab = marketTab.getAttribute("data-market-tab") || "arbitrage";
+    const changedTab = nextTab !== state.marketHub.activeTab;
+    state.marketHub.activeTab = nextTab;
+    state.marketHub.loading = false;
+    if (changedTab) {
+      state.marketHub.result = null;
+      if (state.marketHub.activeTab !== "stocks") state.marketHub.stockResult = null;
+    }
+    render();
     return;
   }
 
@@ -2682,6 +3135,17 @@ document.addEventListener("input", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  const stockMode = event.target.closest("[data-stock-mode]");
+  if (stockMode) {
+    const service = marketHubService();
+    const mode = stockMode.value || "Market Summary";
+    state.marketHub.forms.stocks.mode = mode;
+    state.marketHub.forms.stocks.selectedOption = service.stockOptions?.[mode]?.[0] || "US Market";
+    state.marketHub.stockResult = null;
+    render();
+    return;
+  }
+
   const filter = event.target.closest("[data-scanner-filter]");
   if (!filter) return;
   const key = filter.name;
