@@ -7,6 +7,7 @@ const productPlanIds = {
   signals: "",
   arbitrage: "arbitrage-only"
 };
+const retiredCheckoutPlanIds = new Set(["premium-discord-signals", "investor-trader-ai"]);
 
 const state = {
   content: null,
@@ -335,10 +336,16 @@ function setMessage(message, type = "") {
 }
 
 function checkoutCta(planId, label, className = "btn primary") {
+  if (!planId || retiredCheckoutPlanIds.has(planId)) return "";
   return `<a href="/checkout/${encodeURIComponent(planId)}" class="${className}" data-checkout-plan="${esc(planId)}">${esc(label)}</a>`;
 }
 
 async function startPlanCheckout(planId, button = null) {
+  if (!planId || retiredCheckoutPlanIds.has(planId)) {
+    setMessage("Discord is free now. Please use the Join Free Discord button.", "err");
+    if (button) button.remove();
+    return;
+  }
   if (!state.user) {
     navigate("/login");
     return;
@@ -403,13 +410,17 @@ async function connectDiscordAccount(button = null) {
 
 function bindCheckoutButtons() {
   document.querySelectorAll("[data-checkout-plan]").forEach((button) => {
+    const planId = button.getAttribute("data-checkout-plan");
+    if (!planId || retiredCheckoutPlanIds.has(planId)) {
+      button.remove();
+      return;
+    }
     if (button.dataset.checkoutBound === "true") return;
     if (button.tagName === "BUTTON") button.type = "button";
     button.dataset.checkoutBound = "true";
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const planId = button.getAttribute("data-checkout-plan");
       if (planId) startPlanCheckout(planId, button);
     });
   });
@@ -628,7 +639,7 @@ function productCard(product) {
   const mark = product.id === "course" ? "AI" : product.id === "signals" ? "D" : product.id === "ai" ? "AI" : "M";
   const badge = product.id === "signals" ? `<div class="badge">FREE DISCORD</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
   const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/market-hub";
-  const planId = product.planId || productPlanIds[product.id];
+  const planId = product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
     ? (state.user ? "Buy Now" : "Log In to Buy")
     : (state.user ? "Subscribe Now" : "Log In to Subscribe");
@@ -763,7 +774,7 @@ function homePage() {
       <div class="metric-strip">
         <div><strong>3</strong><span>Core products</span></div>
         <div><strong>${courses.length}</strong><span>Video lessons ready</span></div>
-        <div><strong>Discord</strong><span>Signals and live streams</span></div>
+        <div><strong>Discord</strong><span>Free community access</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
       </div>
     </section>
@@ -792,7 +803,7 @@ function homePage() {
         <div>
           <div class="eyebrow">Method</div>
           <h2 class="h2" style="margin-top:12px;">Built for Repeatable Trading Workflows</h2>
-          <p class="lead">Courses and the trading book are now one bundle. Signals and community activity live inside Discord, where members can follow premium rooms, live streams, and discussions.</p>
+          <p class="lead">Courses, the trading book, and the AI tool are now one bundle. Discord is free for community updates, beginner discussion, and academy announcements.</p>
         </div>
         <div class="process-list">
           <div><strong>01</strong><span>Learn structure and risk rules</span></div>
@@ -2118,8 +2129,8 @@ function profilePage() {
           <h2 class="h3">Discord</h2>
           <p class="muted">${
             dashboard.discord?.connected
-              ? `Connected${dashboard.discord?.username ? ` as ${esc(dashboard.discord.username)}` : ""}. VIP role ${dashboard.discord?.premiumRole ? "is active" : "will activate after payment"}`
-              : "Connect Discord after purchasing premium access to receive the VIP Member role."
+              ? `Connected${dashboard.discord?.username ? ` as ${esc(dashboard.discord.username)}` : ""}. Free Discord stays open to the community.`
+              : "Connect Discord for account linking, community access, and academy updates."
           }</p>
           <div class="hero-actions small-actions">
             <button class="btn primary small" type="button" data-connect-discord>${dashboard.discord?.connected ? "Reconnect Discord" : "Connect Discord"}</button>
@@ -3099,6 +3110,11 @@ document.addEventListener("click", async (event) => {
   if (checkout) {
     event.preventDefault();
     const planId = checkout.getAttribute("data-checkout-plan");
+    if (!planId || retiredCheckoutPlanIds.has(planId)) {
+      checkout.remove();
+      setMessage("Discord is free now. Please use the Join Free Discord button.", "err");
+      return;
+    }
     await startPlanCheckout(planId, checkout);
     return;
   }

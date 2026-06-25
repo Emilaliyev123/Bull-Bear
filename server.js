@@ -2098,7 +2098,13 @@ app.use("/uploads/videos", express.static(path.join(UPLOAD_DIR, "videos")));
 app.use("/uploads/books", (_req, res) => {
   res.status(404).json({ error: "Book files are protected. Please use your account book access." });
 });
-app.use(express.static(PUBLIC_DIR));
+app.use(express.static(PUBLIC_DIR, {
+  setHeaders(res, filePath) {
+    if (/\.(?:html|js|css)$/i.test(filePath)) {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
+  }
+}));
 app.use("/api", (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");
   next();

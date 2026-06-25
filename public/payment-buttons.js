@@ -1,7 +1,8 @@
 (function () {
+  const retiredPlans = new Set(["premium-discord-signals", "investor-trader-ai"]);
   const productPlans = {
     course: "education-bundle",
-    signals: "premium-discord-signals",
+    signals: "",
     arbitrage: "arbitrage-only"
   };
 
@@ -34,6 +35,7 @@
   }
 
   function makeBuyButton(planId) {
+    if (!planId || retiredPlans.has(planId)) return null;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn primary bb-buy-button";
@@ -43,11 +45,12 @@
   }
 
   function addButton(container, planId) {
-    if (!container) return;
+    if (!container || !planId || retiredPlans.has(planId)) return;
     const selector = `[data-bb-checkout-plan="${planId}"], [data-checkout-plan="${planId}"]`;
     if (container.querySelector(selector)) return;
 
     const button = makeBuyButton(planId);
+    if (!button) return;
     const secondary = container.querySelector(".btn.secondary, a[data-link]");
     if (secondary && secondary.parentElement === container) {
       container.insertBefore(button, secondary);
@@ -56,11 +59,21 @@
     }
   }
 
+  function removeRetiredCheckoutButtons() {
+    retiredPlans.forEach((planId) => {
+      document
+        .querySelectorAll(`[data-bb-checkout-plan="${planId}"], [data-checkout-plan="${planId}"], a[href="/checkout/${planId}"]`)
+        .forEach((button) => button.remove());
+    });
+  }
+
   function syncButtonsNow() {
     syncQueued = false;
     if (observer) observer.disconnect();
 
     try {
+      removeRetiredCheckoutButtons();
+
       document.querySelectorAll(".product-card").forEach((card) => {
         const planId = productPlans[card.getAttribute("data-product")];
         if (planId) addButton(card.querySelector(".body") || card, planId);
@@ -72,12 +85,13 @@
       const bookActions = document.querySelector(".book-layout .hero-actions");
       if (bookActions) addButton(bookActions, "education-bundle");
 
-      const signalsActions = document.querySelector(".discord-hero .hero-actions");
-      if (signalsActions) addButton(signalsActions, "premium-discord-signals");
-
       document.querySelectorAll("[data-bb-checkout-plan], [data-checkout-plan]").forEach((button) => {
         const planId = button.getAttribute("data-bb-checkout-plan") || button.getAttribute("data-checkout-plan");
-        if (planId && !button.disabled) setText(button, buttonLabel(planId));
+        if (retiredPlans.has(planId)) {
+          button.remove();
+        } else if (planId && !button.disabled) {
+          setText(button, buttonLabel(planId));
+        }
       });
     } finally {
       const target = document.getElementById("app") || document.body;
