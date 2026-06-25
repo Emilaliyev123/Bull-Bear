@@ -1585,6 +1585,13 @@ canvas {
   overflow-wrap: anywhere;
 }
 
+.result-tile small {
+  color: var(--faint);
+  font-size: 11px;
+  line-height: 1.35;
+  text-transform: uppercase;
+}
+
 .confidence-card {
   display: grid;
   gap: 12px;

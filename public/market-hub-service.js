@@ -2,6 +2,24 @@
   const now = () => new Date().toISOString();
 
   const cryptoAssets = ["BTC", "ETH", "XRP", "SOL", "BNB", "DOGE", "ADA", "AVAX", "LINK", "TON", "TRX", "DOT", "MATIC", "LTC", "BCH", "ATOM"];
+  const cryptoPriceIds = {
+    BTC: "bitcoin",
+    ETH: "ethereum",
+    XRP: "ripple",
+    SOL: "solana",
+    BNB: "binancecoin",
+    DOGE: "dogecoin",
+    ADA: "cardano",
+    AVAX: "avalanche-2",
+    LINK: "chainlink",
+    TON: "the-open-network",
+    TRX: "tron",
+    DOT: "polkadot",
+    MATIC: "matic-network",
+    LTC: "litecoin",
+    BCH: "bitcoin-cash",
+    ATOM: "cosmos"
+  };
   const forexPairs = ["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD", "NZD/USD", "EUR/JPY", "GBP/JPY", "XAU/USD"];
   const commodityAssets = ["XAU/USD", "Silver", "Oil", "Natural Gas"];
   const stockModes = ["Market Summary", "Long-Term Investment Strategy", "Sector Analysis", "Stock Screener", "Famous Investor Style"];
@@ -84,55 +102,110 @@
     return Math.round(value * power) / power;
   }
 
-  function priceBase(asset) {
+  function snapshotPrice(asset) {
     const map = {
-      BTC: 64200,
-      ETH: 3350,
-      XRP: 0.62,
-      SOL: 148,
-      BNB: 590,
-      DOGE: 0.128,
-      ADA: 0.43,
-      AVAX: 28.4,
-      LINK: 15.9,
-      TON: 7.1,
-      "EUR/USD": 1.136,
-      "GBP/USD": 1.274,
-      "USD/JPY": 159.2,
-      "USD/CHF": 0.892,
-      "AUD/USD": 0.667,
-      "USD/CAD": 1.371,
-      "NZD/USD": 0.611,
-      "EUR/JPY": 180.8,
-      "GBP/JPY": 202.9,
-      "XAU/USD": 2338,
-      Silver: 29.6,
-      Oil: 81.4,
-      "Natural Gas": 2.72
+      BTC: 59520,
+      ETH: 1561.9,
+      XRP: 1.033,
+      SOL: 66.34,
+      BNB: 555.98,
+      DOGE: 0.073788,
+      ADA: 0.141842,
+      AVAX: 6.15,
+      LINK: 7.2,
+      TON: 1.56,
+      TRX: 0.286,
+      DOT: 2.37,
+      MATIC: 0.2,
+      LTC: 74.8,
+      BCH: 482,
+      ATOM: 2.68,
+      "EUR/USD": 1.169,
+      "GBP/USD": 1.372,
+      "USD/JPY": 144.6,
+      "USD/CHF": 0.793,
+      "AUD/USD": 0.653,
+      "USD/CAD": 1.366,
+      "NZD/USD": 0.604,
+      "EUR/JPY": 169,
+      "GBP/JPY": 198.3,
+      "XAU/USD": 4026.92,
+      Silver: 47.8,
+      Oil: 68.1,
+      "Natural Gas": 3.43
     };
     return map[asset] || 100;
   }
 
-  function buildMarketResult({ marketType, asset, style, timeframe = "4H" }) {
+  async function getLiveCryptoPrice(asset) {
+    const id = cryptoPriceIds[asset];
+    if (!id || typeof fetch !== "function") {
+      return { price: snapshotPrice(asset), source: "Demo snapshot price", isLivePrice: false };
+    }
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), 3500) : null;
+    try {
+      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd`, {
+        headers: { accept: "application/json" },
+        signal: controller ? controller.signal : undefined
+      });
+      if (!response.ok) throw new Error(`price request ${response.status}`);
+      const json = await response.json();
+      const price = Number(json?.[id]?.usd);
+      if (!Number.isFinite(price) || price <= 0) throw new Error("price unavailable");
+      return { price, source: "CoinGecko live USD price", isLivePrice: true };
+    } catch {
+      return { price: snapshotPrice(asset), source: "Demo snapshot price", isLivePrice: false };
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
+  }
+
+  function timeframeVolatility(marketType, timeframe, style) {
+    const table = {
+      Crypto: { "5m": 0.0032, "15m": 0.005, "1H": 0.0085, "4H": 0.015, "1D": 0.032, "1W": 0.065 },
+      Forex: { "5m": 0.0008, "15m": 0.0012, "1H": 0.0022, "4H": 0.0045, "1D": 0.009, "1W": 0.017 },
+      Commodities: { "5m": 0.0016, "15m": 0.0024, "1H": 0.0045, "4H": 0.0085, "1D": 0.017, "1W": 0.034 }
+    };
+    const base = table[marketType]?.[timeframe] || table[marketType]?.["4H"] || 0.01;
+    if (style === "Scalping") return base * 0.72;
+    if (style === "Swing Trading") return base * 1.35;
+    if (style === "Long-Term Investment" || style === "Long-Term Macro View") return base * 1.8;
+    return base;
+  }
+
+  function decimalPlaces(price) {
+    if (price >= 1000) return 2;
+    if (price >= 100) return 2;
+    if (price >= 1) return 3;
+    return 5;
+  }
+
+  function formatPrice(value, price) {
+    return round(value, decimalPlaces(price));
+  }
+
+  function buildMarketResult({ marketType, asset, style, timeframe = "4H", basePrice, dataSource = "Demo snapshot price", isLivePrice = false }) {
     const seed = hashSeed([marketType, asset, style, timeframe]);
-    const base = priceBase(asset);
+    const base = Number(basePrice || snapshotPrice(asset));
     const direction = seed % 5;
-    const volatility = ((seed % 17) + 6) / 1000;
+    const volatility = timeframeVolatility(marketType, timeframe, style) * (0.86 + (seed % 8) / 50);
     const confidence = direction === 4 ? 42 + (seed % 12) : 58 + (seed % 28);
     const isLong = direction === 0 || direction === 3;
     const isShort = direction === 1 || direction === 2;
     const noSignal = direction === 4 || confidence < 52;
     const riskLevel = confidence >= 76 ? "Low" : confidence >= 62 ? "Medium" : "High";
     const signalStatus = noSignal ? "No High-Quality Setup" : isLong ? "Long" : isShort ? "Short" : "No High-Quality Setup";
-    const entryMid = base * (1 + ((seed % 11) - 5) / 10000);
-    const entryLow = entryMid * (1 - volatility * 0.8);
-    const entryHigh = entryMid * (1 + volatility * 0.8);
-    const stop = isLong ? entryLow * (1 - volatility * 1.7) : entryHigh * (1 + volatility * 1.7);
-    const tp1 = isLong ? entryHigh * (1 + volatility * 1.6) : entryLow * (1 - volatility * 1.6);
-    const tp2 = isLong ? entryHigh * (1 + volatility * 2.8) : entryLow * (1 - volatility * 2.8);
-    const tp3 = isLong ? entryHigh * (1 + volatility * 4.1) : entryLow * (1 - volatility * 4.1);
-    const support = base * (1 - volatility * 3.2);
-    const resistance = base * (1 + volatility * 3.4);
+    const entryMid = base * (1 + ((seed % 9) - 4) / 10000);
+    const entryLow = entryMid * (1 - volatility * 0.35);
+    const entryHigh = entryMid * (1 + volatility * 0.35);
+    const stop = isLong ? entryLow * (1 - volatility * 0.95) : entryHigh * (1 + volatility * 0.95);
+    const tp1 = isLong ? entryHigh * (1 + volatility * 0.8) : entryLow * (1 - volatility * 0.8);
+    const tp2 = isLong ? entryHigh * (1 + volatility * 1.55) : entryLow * (1 - volatility * 1.55);
+    const tp3 = isLong ? entryHigh * (1 + volatility * 2.35) : entryLow * (1 - volatility * 2.35);
+    const support = base * (1 - volatility * 1.6);
+    const resistance = base * (1 + volatility * 1.7);
+    const pricePrecision = decimalPlaces(base);
 
     return {
       marketType,
@@ -140,25 +213,28 @@
       style,
       timeframe,
       demo: true,
+      currentPrice: formatPrice(base, base),
+      dataSource,
+      isLivePrice,
       signalStatus,
       bias: signalStatus,
-      entryZone: noSignal ? "Wait for confirmation near key levels" : `${round(entryLow, base < 10 ? 5 : 2)} - ${round(entryHigh, base < 10 ? 5 : 2)}`,
-      stopLoss: noSignal ? "Not active" : round(stop, base < 10 ? 5 : 2),
+      entryZone: noSignal ? "Wait for confirmation near key levels" : `${round(entryLow, pricePrecision)} - ${round(entryHigh, pricePrecision)}`,
+      stopLoss: noSignal ? "Not active" : round(stop, pricePrecision),
       takeProfits: noSignal ? [] : [
-        { label: "TP1", price: round(tp1, base < 10 ? 5 : 2), note: "First reaction zone" },
-        { label: "TP2", price: round(tp2, base < 10 ? 5 : 2), note: "Structure target" },
-        { label: "TP3", price: round(tp3, base < 10 ? 5 : 2), note: "Extended target" }
+        { label: "TP1", price: round(tp1, pricePrecision), note: "First reaction zone" },
+        { label: "TP2", price: round(tp2, pricePrecision), note: "Structure target" },
+        { label: "TP3", price: round(tp3, pricePrecision), note: "Extended target" }
       ],
       riskRewardRatio: noSignal ? "N/A" : `1:${round(1.5 + (seed % 18) / 10, 1)}`,
       confidenceScore: noSignal ? Math.min(confidence, 51) : confidence,
       trend: isLong ? "Constructive higher-low structure" : isShort ? "Lower-high pressure" : "Range-bound",
       supportResistance: {
-        support: round(support, base < 10 ? 5 : 2),
-        resistance: round(resistance, base < 10 ? 5 : 2)
+        support: round(support, pricePrecision),
+        resistance: round(resistance, pricePrecision)
       },
       liquidityZones: [
-        `${round(support * 0.998, base < 10 ? 5 : 2)} demand liquidity`,
-        `${round(resistance * 1.002, base < 10 ? 5 : 2)} supply liquidity`
+        `${round(support * 0.998, pricePrecision)} demand liquidity`,
+        `${round(resistance * 1.002, pricePrecision)} supply liquidity`
       ],
       volumeSummary: seed % 3 === 0 ? "Volume is expanding near the active range." : seed % 3 === 1 ? "Volume is average; confirmation is still required." : "Volume is thin; reduce confidence until liquidity improves.",
       indicatorSummary: {
@@ -169,18 +245,27 @@
       riskLevel,
       explanation: noSignal
         ? "No high-quality setup right now. Wait for confirmation near key levels."
-        : `${asset} has a ${signalStatus.toLowerCase()} educational scenario for ${style}. The idea needs confirmation around the entry zone and must be invalidated if price breaks the stop region.`,
-      invalidationRule: noSignal ? "A new setup is required after a clean breakout/retest or rejection." : `Invalid if price closes beyond ${round(stop, base < 10 ? 5 : 2)} with momentum.`,
+        : `${asset} is anchored to ${isLivePrice ? "a live USD price" : "the latest demo snapshot price"} near ${round(base, pricePrecision)}. This is an educational ${signalStatus.toLowerCase()} scenario for ${style}; wait for confirmation around the entry zone and invalidate if price breaks the stop region.`,
+      invalidationRule: noSignal ? "A new setup is required after a clean breakout/retest or rejection." : `Invalid if price closes beyond ${round(stop, pricePrecision)} with momentum.`,
       lastUpdated: now()
     };
   }
 
-  function analyzeCryptoMarket(asset, style, timeframe) {
-    return buildMarketResult({ marketType: "Crypto", asset, style, timeframe });
+  async function analyzeCryptoMarket(asset, style, timeframe) {
+    const live = await getLiveCryptoPrice(asset);
+    return buildMarketResult({
+      marketType: "Crypto",
+      asset,
+      style,
+      timeframe,
+      basePrice: live.price,
+      dataSource: live.source,
+      isLivePrice: live.isLivePrice
+    });
   }
 
   function analyzeForexMarket(pair, style) {
-    const result = buildMarketResult({ marketType: "Forex", asset: pair, style, timeframe: style === "Long-Term Macro View" ? "1D" : "4H" });
+    const result = buildMarketResult({ marketType: "Forex", asset: pair, style, timeframe: style === "Long-Term Macro View" ? "1D" : "4H", basePrice: snapshotPrice(pair) });
     return {
       ...result,
       keyLevels: `${result.supportResistance.support} support / ${result.supportResistance.resistance} resistance`,
@@ -193,7 +278,7 @@
   }
 
   function analyzeCommodityMarket(asset, style) {
-    const result = buildMarketResult({ marketType: "Commodities", asset, style, timeframe: style === "Swing Trading" ? "1D" : "4H" });
+    const result = buildMarketResult({ marketType: "Commodities", asset, style, timeframe: style === "Swing Trading" ? "1D" : "4H", basePrice: snapshotPrice(asset) });
     return {
       ...result,
       volatility: result.riskLevel === "High" ? "Elevated" : "Controlled",

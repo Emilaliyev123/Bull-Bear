@@ -27,31 +27,32 @@ const MAX_REASONABLE_SPREAD_PCT = Number(process.env.SCANNER_MAX_SPREAD_PCT || 2
 const MIN_SCANNER_PRICE = Number(process.env.SCANNER_MIN_PRICE || 0.00000001);
 const PAYMENT_PLANS = {
   "education-bundle": {
-    name: "Courses + Trading Book",
+    name: "Courses + Trading Book + AI Tool",
     amount: 49.9,
     cadence: "one-time",
     accessDays: 3650
   },
   "premium-discord-signals": {
-    name: "AI + Premium Discord Signals",
+    name: "Legacy Premium Discord Signals",
     amount: 49.9,
     cadence: "monthly",
     accessDays: 30
   },
   "investor-trader-ai": {
-    name: "Investor & Trader AI",
+    name: "Legacy Investor & Trader AI",
     amount: 19.9,
     cadence: "monthly",
     accessDays: 30
   },
   "arbitrage-only": {
-    name: "Arbitrage Scanner Only",
-    amount: 39.9,
+    name: "Market Hub Pro",
+    amount: 99.9,
     cadence: "monthly",
     accessDays: 30
   }
 };
-const AI_ACCESS_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
+const RETIRED_CHECKOUT_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
+const AI_ACCESS_PLAN_IDS = new Set(["education-bundle", "premium-discord-signals", "investor-trader-ai"]);
 const SCANNER_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium"]);
 const EDUCATION_ACCESS_PLAN_IDS = new Set(["education-bundle"]);
 const WEBHOOK_PROVIDER_IDS = new Set(["payriff", "epoint", "crypto", "card"]);
@@ -692,7 +693,7 @@ function requireScannerAccess(req, res, next) {
   const db = readDb();
   if (!hasScannerAccess(db, req.auth)) {
     return res.status(402).json({
-      error: "Arbitrage Scanner requires an active scanner subscription.",
+      error: "Market Hub Pro requires an active subscription.",
       requiredPlan: "arbitrage-only",
       checkoutUrl: "/checkout/arbitrage-only"
     });
@@ -2061,28 +2062,28 @@ function serializeContent(db, auth = {}) {
       {
         id: "course",
         planId: "education-bundle",
-        title: "Courses + Trading Book",
+        title: "Courses + Trading Book + AI",
         subtitle: "Complete Education Bundle",
-        description: "One bundle with the Game of Candles book, two free website videos, and private Telegram access for the full course video library.",
+        description: "One bundle with the Game of Candles book, Investor & Trader AI, two free website videos, free Discord community access, and private Telegram access for the full course video library.",
         price: 49.9,
         cadence: "one-time"
       },
       {
         id: "signals",
-        planId: "premium-discord-signals",
-        title: "AI + Premium Discord Signals",
-        subtitle: "AI Market Coach + Private Discord",
-        description: "Premium Discord access with signals, live streams, trade discussions, and Investor & Trader AI for crypto, forex, futures, lessons, and risk models.",
-        price: 49.9,
-        cadence: "monthly"
+        planId: "",
+        title: "Free Discord Community",
+        subtitle: "Join Bull & Bear Free",
+        description: "Free Discord access for announcements, beginner discussion, academy updates, and community market talk. The AI tool is included with the education bundle.",
+        price: 0,
+        cadence: "free"
       },
       {
         id: "arbitrage",
         planId: "arbitrage-only",
-        title: "Arbitrage Scanner",
-        subtitle: "Find Price Differences",
-        description: "Scan crypto opportunities across leading exchanges with clean net-spread views.",
-        price: 39.9,
+        title: "Market Hub Pro",
+        subtitle: "Premium Market Analysis Dashboard",
+        description: "Unlock the premium Market Hub with arbitrage scanner, crypto, forex, gold, commodities, stock analyzers, live crypto price anchoring, mini-course, and risk guide.",
+        price: 99.9,
         cadence: "monthly"
       }
     ]
@@ -2138,18 +2139,18 @@ app.get("/api/plans", (req, res) => {
   res.json({
     plans: [
       {
-        id: "premium-discord-signals",
-        name: "AI + Premium Discord Signals",
+        id: "education-bundle",
+        name: "Courses + Trading Book + AI Tool",
         price: 49.9,
-        cadence: "monthly",
-        features: ["Investor & Trader AI", "Crypto and forex analysis", "Premium Discord signals", "Live streams", "Teaching charts", "Risk and lesson builder"]
+        cadence: "one-time",
+        features: ["Game of Candles book", "Investor & Trader AI", "Course videos", "Free Discord community", "Telegram course access"]
       },
       {
         id: "arbitrage-only",
-        name: "Arbitrage Scanner Only",
-        price: 39.9,
+        name: "Market Hub Pro",
+        price: 99.9,
         cadence: "monthly",
-        features: ["Live scanner", "Advanced filters", "Browser alerts", "Saved coins", "Cancel anytime"]
+        features: ["Arbitrage scanner", "Crypto analyzer", "Forex analyzer", "Gold and commodities analyzer", "Stock research", "Risk guide"]
       }
     ]
   });
@@ -2204,9 +2205,9 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     }
     if (!hasAiAccess(db, req.auth)) {
       return res.status(402).json({
-        error: "Investor & Trader AI requires AI + Premium Discord Signals.",
-        requiredPlan: "premium-discord-signals",
-        checkoutUrl: "/checkout/premium-discord-signals"
+        error: "Investor & Trader AI is included with the Courses + Trading Book package.",
+        requiredPlan: "education-bundle",
+        checkoutUrl: "/checkout/education-bundle"
       });
     }
 
@@ -2270,6 +2271,11 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   const { planId, provider = PAYMENT_DEFAULT_PROVIDER } = req.body || {};
   const supported = ["payriff", "epoint", "crypto", "card", "manual"];
   if (!supported.includes(provider)) return res.status(400).json({ error: "Unsupported payment provider" });
+  if (RETIRED_CHECKOUT_PLAN_IDS.has(planId)) {
+    return res.status(400).json({
+      error: "This old checkout is no longer available. Discord is free now, and the AI tool is included with the Courses + Trading Book + AI package."
+    });
+  }
   const plan = PAYMENT_PLANS[planId];
   if (!plan) return res.status(400).json({ error: "Unknown payment plan" });
   const db = readDb();

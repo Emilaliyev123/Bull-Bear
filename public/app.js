@@ -4,7 +4,7 @@ const TELEGRAM_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   course: "education-bundle",
-  signals: "premium-discord-signals",
+  signals: "",
   arbitrage: "arbitrage-only"
 };
 
@@ -107,24 +107,26 @@ const categories = [
 const productFeatures = {
   course: [
     "Game of Candles book",
+    "Investor & Trader AI tool included",
+    "Free Discord community access",
     "2 free videos on website",
     "Full course videos in Telegram",
-    "Private Telegram channel access",
     "Lifetime bundle access"
   ],
   signals: [
-    "Investor & Trader AI included",
-    "Premium Discord signal rooms",
-    "Crypto, forex, and futures analysis",
-    "Live streams and voice sessions",
-    "Teaching charts and risk models"
+    "Free public Discord community",
+    "Academy announcements",
+    "Beginner discussion rooms",
+    "Community market talk",
+    "No subscription required"
   ],
   arbitrage: [
-    "Premium Market Hub dashboard",
+    "Market Hub Pro dashboard",
     "Live crypto arbitrage scanner",
     "Crypto, forex, gold, and stocks analyzers",
+    "Live crypto price anchoring",
     "Mini-course and risk guide",
-    "Demo analysis ready for live API integration"
+    "Advanced risk and confidence models"
   ],
   ai: []
 };
@@ -148,11 +150,11 @@ const legalPolicies = {
     eyebrow: "Terms of Service",
     title: "Terms of Service",
     updated: "May 14, 2026",
-    intro: "These terms govern access to Bull & Bear Trading Academy, including courses, books, Discord memberships, scanner tools, and related digital content.",
+    intro: "These terms govern access to Bull & Bear Trading Academy, including courses, books, free Discord community access, Market Hub tools, AI education tools, and related digital content.",
     sections: [
       ["Educational Purpose", "All content is provided for education and market analysis. It is not financial, investment, legal, or tax advice. Trading involves risk and users are responsible for their own decisions."],
       ["Accounts and Access", "Users must provide accurate account information and keep credentials secure. Access to paid products is personal and may not be resold, shared, copied, or redistributed."],
-      ["Digital Products", "Courses, books, Discord memberships, AI memberships, and scanner subscriptions are delivered digitally. Premium signals are delivered inside Discord, not published publicly on the website."],
+      ["Digital Products", "Courses, books, the AI education tool, and Market Hub Pro subscriptions are delivered digitally. Discord community access is free and no signal is guaranteed."],
       ["Acceptable Use", "Users may not attempt to bypass access controls, scrape protected content, upload harmful files, disrupt the service, or misuse academy materials."],
       ["Intellectual Property", "All academy content, branding, design, text, videos, PDFs, and platform materials belong to Bull & Bear Trading Academy or its licensors unless otherwise stated."],
       ["Limitation of Liability", "The platform is provided on an as-available basis. Bull & Bear Trading Academy is not responsible for trading losses, market outcomes, or indirect damages."]
@@ -165,7 +167,7 @@ const legalPolicies = {
     intro: "This policy explains refund and exchange rules for digital products and subscriptions purchased through Bull & Bear Trading Academy.",
     sections: [
       ["Digital Product Sales", "One-time purchases such as courses and books provide digital access. Because digital products can be accessed immediately, purchases are generally final and non-refundable."],
-      ["Subscription Services", "AI + Premium Discord Signals and scanner subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
+      ["Subscription Services", "Market Hub Pro subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
       ["No Trading Result Refunds", "Refunds are not issued because of trading losses, market outcomes, or dissatisfaction with personal trading results. The products are educational and analytical tools."],
       ["Duplicate or Incorrect Purchases", "If a duplicate charge or accidental purchase occurs, contact support within 24 hours with account and order details so the request can be reviewed."],
       ["Exchange Requests", "Exchanges between different products are not guaranteed. Where appropriate, we may offer account credit or access adjustments at our discretion."],
@@ -180,7 +182,7 @@ const legalPolicies = {
     sections: [
       ["Payment Processing", "Payments are processed through secure third-party payment providers. The website does not store user card numbers or full payment credentials."],
       ["One-Time Purchases", "Courses and books are one-time digital purchases. After payment confirmation, access is granted through the user account or relevant download/view page."],
-      ["Recurring Subscriptions", "AI + Premium Discord Signals and scanner products may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
+      ["Recurring Subscriptions", "Market Hub Pro may be billed monthly. Renewal occurs automatically unless cancelled before the next billing date."],
       ["Cancellation", `Users may request cancellation by contacting ${CONTACT_EMAIL}. Cancellation stops future renewals but does not automatically refund the current active billing period.`],
       ["Failed Payments", "If a recurring payment fails, access may be paused until payment is completed. No penalty fee is charged by the platform for failed payment attempts."],
       ["Price Changes", "Prices may change over time. Existing subscribers should be notified before a material subscription price change takes effect."]
@@ -238,7 +240,7 @@ function activeSubscriptionPlanIds() {
 function hasAiAccess() {
   if (isAdmin()) return true;
   const plans = activeSubscriptionPlanIds();
-  return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai");
+  return plans.includes("education-bundle") || plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai");
 }
 
 function hasScannerAccess() {
@@ -568,7 +570,7 @@ function footer() {
     ["/products", "Products"],
     ["/courses", "Courses + Book"],
     ["/book", "Book"],
-    ["/signals", "Discord Signals"],
+    ["/signals", "Free Discord"],
     ["/market-hub", "Market Hub"],
     ["/ai", "Investor AI"]
   ];
@@ -623,13 +625,21 @@ function ticker() {
 
 function productCard(product) {
   const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : product.id === "ai" ? "gold" : "red";
-  const mark = product.id === "course" ? "2" : product.id === "signals" ? "AI" : product.id === "ai" ? "AI" : "A";
-  const badge = product.id === "signals" ? `<div class="badge">AI + SIGNALS</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
+  const mark = product.id === "course" ? "AI" : product.id === "signals" ? "D" : product.id === "ai" ? "AI" : "M";
+  const badge = product.id === "signals" ? `<div class="badge">FREE DISCORD</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
   const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/market-hub";
   const planId = product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
     ? (state.user ? "Buy Now" : "Log In to Buy")
     : (state.user ? "Subscribe Now" : "Log In to Subscribe");
+  const primaryAction = product.id === "signals"
+    ? `<a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>`
+    : planId
+      ? checkoutCta(planId, primaryLabel)
+      : "";
+  const priceMarkup = Number(product.price || 0) > 0
+    ? `<div class="price">$${money(product.price)} <span>/ ${esc(product.cadence)}</span></div>`
+    : `<div class="price">Free <span>/ community</span></div>`;
 
   return `
     <article class="card product-card" data-product="${esc(product.id)}">
@@ -642,12 +652,12 @@ function productCard(product) {
         <h3 class="h3">${esc(product.title)}</h3>
         <p class="product-subtitle">${esc(product.subtitle)}</p>
         <p class="muted" style="line-height:1.55;margin:0;">${esc(product.description)}</p>
-        <div class="price">$${money(product.price)} <span>/ ${esc(product.cadence)}</span></div>
+        ${priceMarkup}
         <ul class="feature-list">
           ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
         </ul>
-        ${planId ? checkoutCta(planId, primaryLabel) : ""}
-        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View AI + Discord" : "View Product"}</a>
+        ${primaryAction}
+        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Free Discord" : "View Product"}</a>
       </div>
     </article>
   `;
@@ -657,10 +667,10 @@ function scannerPricingCards() {
   const plans = [
     {
       id: "arbitrage-only",
-      name: "Market Hub Access",
-      price: 39.9,
-      badge: "Market Hub",
-      features: ["Live arbitrage scanner", "Crypto, forex, gold, and stocks analyzer UI", "How to Use mini-course", "Risk management guide", "Monthly subscription"]
+      name: "Market Hub Pro",
+      price: 99.9,
+      badge: "Market Hub Pro",
+      features: ["Live arbitrage scanner", "Crypto, forex, gold, and stocks analyzer UI", "Live crypto price anchoring", "How to Use mini-course", "Risk management guide"]
     }
   ];
   return `
@@ -709,12 +719,12 @@ function heroSection() {
         <div class="hero-copy">
           <h1 class="h1">Bull & Bear <span class="gold-text">Market Command</span></h1>
           <p class="lead">
-            A premium trading academy with AI analysis, Discord signals, live streams, the Game of Candles book, and market tools built for disciplined traders.
+            A premium trading academy with AI analysis included in the education bundle, free Discord community access, the Game of Candles book, and market tools built for disciplined traders.
           </p>
           <div class="hero-kpis" aria-label="Platform highlights">
-            <span><strong>AI + Signals</strong><small>$49.90 monthly</small></span>
-            <span><strong>Courses + Book</strong><small>$49.90 one-time</small></span>
-            <span><strong>Scanner</strong><small>Live exchange view</small></span>
+            <span><strong>Courses + AI</strong><small>$49.90 one-time</small></span>
+            <span><strong>Free Discord</strong><small>Community access</small></span>
+            <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
           </div>
           <div class="hero-actions">
             <a href="/products" data-link class="btn primary">Start Learning</a>
@@ -760,9 +770,9 @@ function homePage() {
     <section class="section compact">
       <div class="ai-home-band">
         <div>
-          <div class="eyebrow">New AI Desk</div>
-          <h2 class="h2" style="margin-top:12px;">AI + Premium Discord Signals</h2>
-          <p class="lead">One membership includes the AI desk, premium Discord signal rooms, live streams, crypto and forex analysis, risk rules, lesson paths, and signal-style scenarios.</p>
+          <div class="eyebrow">AI Included</div>
+          <h2 class="h2" style="margin-top:12px;">AI Tool Comes With Courses + Book</h2>
+          <p class="lead">The education bundle includes the AI desk, the Game of Candles book, full course access, crypto and forex analysis support, risk rules, lesson paths, and signal-style scenarios.</p>
         </div>
         <a href="/ai" data-link class="btn primary">Open AI Desk</a>
       </div>
@@ -787,7 +797,7 @@ function homePage() {
         <div class="process-list">
           <div><strong>01</strong><span>Learn structure and risk rules</span></div>
           <div><strong>02</strong><span>Study the included trading book</span></div>
-          <div><strong>03</strong><span>Join Discord for signals and live streams</span></div>
+          <div><strong>03</strong><span>Join the free Discord community</span></div>
         </div>
       </div>
     </section>
@@ -795,17 +805,17 @@ function homePage() {
       <div class="discord-panel">
         <div>
           <div class="eyebrow">Discord Community</div>
-          <h2 class="h2" style="margin-top:12px;">Signals Are Delivered in Discord</h2>
-          <p class="lead">We do not publish private signals on the website. Free members can join the public Discord, while premium members receive access to private signal rooms, live streams, voice sessions, and more.</p>
+          <h2 class="h2" style="margin-top:12px;">Discord Community Is Free</h2>
+          <p class="lead">Join the public Bull & Bear Discord for announcements, beginner discussion, community market talk, and academy updates. No subscription is required for Discord access.</p>
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
-            <a href="/signals" data-link class="btn secondary">View Premium Discord</a>
+            <a href="/signals" data-link class="btn secondary">View Discord Page</a>
           </div>
         </div>
         <div class="process-list">
           <div><strong>Free</strong><span>Community chat and announcements</span></div>
-          <div><strong>Pro</strong><span>Private signals and trade ideas</span></div>
-          <div><strong>Live</strong><span>Streams, voice rooms, and member Q&A</span></div>
+          <div><strong>AI</strong><span>Included with Courses + Book</span></div>
+          <div><strong>Hub</strong><span>Market Hub Pro is separate</span></div>
         </div>
       </div>
     </section>
@@ -844,7 +854,7 @@ function productsPage() {
       <div class="section-head center">
         <div class="eyebrow">Premium Products</div>
         <h1 class="h2">Choose Your <span class="gold-text">Trading Journey</span></h1>
-        <p class="lead">Start with the 2-in-1 academy bundle, join AI + Premium Discord Signals, or use the live arbitrage scanner.</p>
+        <p class="lead">Start with the academy bundle that now includes the AI tool, join the free Discord community, or unlock Market Hub Pro.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="discord-mini">
@@ -867,13 +877,13 @@ function coursesPage() {
     <section class="section">
       <div class="section-head center">
         <div class="eyebrow">2-in-1 Bundle</div>
-        <h1 class="h2">Trading Courses + Book</h1>
-        <p class="lead">One $49.90 product includes the Game of Candles book on this website and the full private course video library inside Telegram.</p>
+        <h1 class="h2">Trading Courses + Book + AI Tool</h1>
+        <p class="lead">One $49.90 product includes the Game of Candles book, the AI market tool, and the full private course video library inside Telegram.</p>
       </div>
       <div class="card pad bundle-callout">
         <div>
           <h2 class="h3">Complete Education Bundle</h2>
-          <p class="muted">A focused trading education package with the Game of Candles PDF, two free website lessons, and paid Telegram access for the complete course video library.</p>
+          <p class="muted">A focused trading education package with the Game of Candles PDF, two free website lessons, Investor & Trader AI, free Discord community access, and paid Telegram access for the complete course video library.</p>
         </div>
         <div>
           <div class="price">$49.90 <span>/ one-time</span></div>
@@ -992,25 +1002,22 @@ function signalsPage() {
     <section class="section">
       <div class="discord-hero">
         <div>
-          <div class="eyebrow">Discord Signals</div>
-          <h1 class="h2" style="margin-top:12px;">Premium Signals Live Inside Discord</h1>
-          <p class="lead">We do not publish private signals on the website. After purchasing AI + Premium Discord Signals, members receive the AI market coach plus private Discord signal rooms, live streams, market discussions, and more.</p>
+          <div class="eyebrow">Free Discord</div>
+          <h1 class="h2" style="margin-top:12px;">Bull & Bear Discord Is Free</h1>
+          <p class="lead">Join the public Discord community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Courses + Trading Book package.</p>
           <div class="hero-actions">
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
-            ${state.user
-              ? checkoutCta("premium-discord-signals", "Purchase AI + Discord")
-              : `<a href="/login" data-link class="btn primary">Log In to Purchase</a>`}
+            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
+            <a href="/courses" data-link class="btn secondary">View Course + AI Bundle</a>
           </div>
         </div>
         <div class="card pad">
-          <div class="price">$49.90 <span>/ monthly</span></div>
+          <div class="price">Free <span>/ community</span></div>
           <ul class="feature-list">
-            <li>Investor & Trader AI included</li>
-            <li>Premium Discord membership after purchase</li>
-            <li>Private signal rooms and trade ideas</li>
-            <li>Live streams and voice sessions</li>
-            <li>Crypto, forex, futures, and gold analysis</li>
-            <li>Teaching charts, lesson plans, and risk rules</li>
+            <li>Free Discord invite</li>
+            <li>Community market discussion</li>
+            <li>Academy announcements</li>
+            <li>Beginner rooms and support direction</li>
+            <li>AI tool included with the course bundle</li>
           </ul>
         </div>
       </div>
@@ -1021,12 +1028,12 @@ function signalsPage() {
           <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small" style="margin-top:14px;">Join Free</a>
         </div>
         <div class="card pad">
-          <h2 class="h3">AI + Premium Signals</h2>
-          <p class="muted">Paid members get the AI desk plus private Discord rooms where signals and trade planning are delivered.</p>
+          <h2 class="h3">AI With Education Bundle</h2>
+          <p class="muted">The AI market tool is included with the Courses + Trading Book package. Discord stays free for the public community.</p>
         </div>
         <div class="card pad">
-          <h2 class="h3">Live Streams</h2>
-          <p class="muted">Premium Discord also includes live streams, voice rooms, Q&A sessions, and more member activity.</p>
+          <h2 class="h3">Community First</h2>
+          <p class="muted">Discord is now free. Paid access is focused on the education bundle and Market Hub Pro.</p>
         </div>
       </div>
     </section>
@@ -1037,19 +1044,19 @@ function scannerAccessGate(checking = false) {
   const dashboardError = state.userDashboard?.error || "";
   const action = !state.user
     ? `<a href="/login" data-link class="btn primary">Log In to Subscribe</a>`
-    : checkoutCta("arbitrage-only", "Subscribe to Market Hub");
+    : checkoutCta("arbitrage-only", "Subscribe to Market Hub Pro");
   return `
     <section class="section">
       <div class="section-head center">
         <div class="eyebrow">Premium Market Hub</div>
-        <h1 class="h2">Market Hub Is A Paid Product</h1>
-        <p class="lead">The premium dashboard is locked for customers with active Market Hub or Bull & Bear Premium access. Admin users can open it for management and testing.</p>
+        <h1 class="h2">Market Hub Pro Is A Paid Product</h1>
+        <p class="lead">The premium dashboard is locked for customers with active Market Hub Pro access. Admin users can open it for management and testing.</p>
       </div>
       <div class="scanner-lock-grid">
         <div class="card pad glow-card scanner-lock-card">
           <div class="badge" style="width:max-content;">MARKET HUB</div>
-          <h2 class="h3" style="margin-top:18px;">Premium Market Hub</h2>
-          <div class="price">$39.90 <span>/ monthly</span></div>
+          <h2 class="h3" style="margin-top:18px;">Market Hub Pro</h2>
+          <div class="price">$99.90 <span>/ monthly</span></div>
           <ul class="feature-list">
             <li>Live crypto arbitrage scanner</li>
             <li>Crypto, forex, gold, commodities, and stock analysis modules</li>
@@ -1131,6 +1138,7 @@ function renderAnalyzerResult(result) {
       </div>
       ${noSignal ? `<div class="no-signal-panel">No high-quality setup right now. Wait for confirmation near key levels.</div>` : ""}
       <div class="result-grid">
+        ${result.currentPrice ? `<div class="result-tile"><span>Current Price</span><strong>${esc(result.currentPrice)}</strong><small>${esc(result.dataSource || "Market snapshot")}</small></div>` : ""}
         <div class="result-tile"><span>Entry Zone</span><strong>${esc(result.entryZone || result.entryIdea || "Research only")}</strong></div>
         <div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not active")}</strong></div>
         <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskRewardRatio || "N/A")}</strong></div>
@@ -1808,17 +1816,17 @@ function aiAccessPanel() {
   return `
     <div class="ai-paywall card pad">
       <div>
-        <div class="eyebrow">${checking ? "Checking Access" : "AI + Discord Subscription"}</div>
-        <h2 class="h2" style="margin-top:12px;">AI + Premium Discord Signals</h2>
+        <div class="eyebrow">${checking ? "Checking Access" : "Included With Education Bundle"}</div>
+        <h2 class="h2" style="margin-top:12px;">Investor & Trader AI Tool</h2>
         <p class="lead">${checking
           ? "Loading your account access..."
-          : "Unlock the paid AI market coach plus premium Discord signal rooms for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
+          : "The AI market coach is included with the Courses + Trading Book package. Use it for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
       </div>
       <div class="ai-plan-card">
-        <span>Monthly Access</span>
+        <span>Bundle Access</span>
         <strong>$49.90</strong>
-        <small>Includes Premium Discord access</small>
-        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("premium-discord-signals", state.user ? "Subscribe to AI + Discord" : "Log In to Subscribe")}
+        <small>Courses + book + AI tool</small>
+        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("education-bundle", state.user ? "Buy Course + AI Bundle" : "Log In to Buy")}
         <a href="/products" data-link class="btn secondary">Compare Plans</a>
       </div>
       <div class="ai-paywall-grid">
@@ -1838,13 +1846,13 @@ function aiPage() {
       <div class="ai-hero">
         <div>
           <div class="eyebrow">Investor & Trader AI</div>
-          <h1 class="h2" style="margin-top:12px;">AI Market Coach + Premium Discord Signals</h1>
-          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. The combined membership builds structured answers, teaching graphics, risk rules, scenarios, lesson paths, and includes premium Discord signal access.</p>
+          <h1 class="h2" style="margin-top:12px;">AI Market Coach Included With Education Bundle</h1>
+          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. The education bundle builds structured answers, teaching graphics, risk rules, scenarios, and lesson paths.</p>
         </div>
         <div class="ai-preview-card">
-          <span>AI + Signals</span>
-          <strong>$49.90/mo</strong>
-          <small>AI market coach, premium Discord signals, crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
+          <span>Courses + Book + AI</span>
+          <strong>$49.90</strong>
+          <small>One-time education bundle with AI market coach, crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
         </div>
       </div>
 
@@ -1945,7 +1953,7 @@ function supportPage() {
         </div>
       </div>
       <div class="grid three" style="margin-top:22px;">
-        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with courses, book PDF access, signals, and scanner subscriptions.</p></div>
+        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with courses, book PDF access, AI bundle access, free Discord, and Market Hub Pro subscriptions.</p></div>
         <div class="card pad"><h2 class="h3">Payments</h2><p class="muted">Questions about checkout, subscription cancellation, and digital purchase records.</p></div>
         <div class="card pad"><h2 class="h3">Account Help</h2><p class="muted">Support for login, access, billing, and member dashboard questions.</p></div>
       </div>
@@ -2811,8 +2819,8 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   event.preventDefault();
   if (!hasAiAccess()) {
     state.ai.error = state.user
-      ? "Investor & Trader AI requires AI + Premium Discord Signals ($49.90/month)."
-      : "Please log in and subscribe to AI + Premium Discord Signals first.";
+      ? "Investor & Trader AI is included with the Courses + Trading Book package ($49.90 one-time)."
+      : "Please log in and buy the Courses + Trading Book package to unlock the AI tool.";
     render();
     return false;
   }
@@ -2888,9 +2896,9 @@ function unavailableMarketResult(marketType, asset) {
 function queueMarketHubAnalysis(assignResult) {
   state.marketHub.loading = true;
   render();
-  setTimeout(() => {
+  setTimeout(async () => {
     try {
-      assignResult();
+      await assignResult();
     } finally {
       state.marketHub.loading = false;
       render();
@@ -2909,10 +2917,10 @@ window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
   state.marketHub.activeTab = "crypto";
   state.marketHub.forms.crypto = payload;
   state.marketHub.result = null;
-  queueMarketHubAnalysis(() => {
+  queueMarketHubAnalysis(async () => {
     const service = marketHubService();
     state.marketHub.result = service.analyzeCryptoMarket
-      ? service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe)
+      ? await service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe)
       : unavailableMarketResult("Crypto", payload.asset);
   });
   return false;

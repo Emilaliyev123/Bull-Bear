@@ -31,6 +31,9 @@ export interface AnalyzerResult {
   style?: TradingStyle | string;
   timeframe?: Timeframe | string;
   demo: boolean;
+  currentPrice?: number | string;
+  dataSource?: string;
+  isLivePrice?: boolean;
   signalStatus: SignalStatus;
   bias?: string;
   entryZone?: string;
@@ -67,7 +70,7 @@ export interface EducationLesson {
 }
 
 export interface MarketHubService {
-  analyzeCryptoMarket(asset: string, style: TradingStyle, timeframe: Timeframe): AnalyzerResult;
+  analyzeCryptoMarket(asset: string, style: TradingStyle, timeframe: Timeframe): AnalyzerResult | Promise<AnalyzerResult>;
   analyzeForexMarket(pair: string, style: TradingStyle): AnalyzerResult;
   analyzeCommodityMarket(asset: string, style: TradingStyle): AnalyzerResult;
   analyzeStockMarket(mode: string, selectedOption: string): AnalyzerResult;
