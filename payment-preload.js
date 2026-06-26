@@ -5,10 +5,10 @@ const path = require("path");
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, "data", "db.json");
 const PAYMENT_PLANS = {
-  "education-bundle": { name: "Courses + Trading Book", amount: 49.9, cadence: "one-time", accessDays: 3650 },
-  "premium-discord-signals": { name: "AI + Premium Discord Signals", amount: 49.9, cadence: "monthly", accessDays: 30 },
-  "investor-trader-ai": { name: "Investor & Trader AI", amount: 19.9, cadence: "monthly", accessDays: 30 },
-  "arbitrage-only": { name: "Arbitrage Scanner Only", amount: 39.9, cadence: "monthly", accessDays: 30 }
+  "education-bundle": { name: "Courses + Trading Book + AI Tool", amount: 49.9, cadence: "one-time", accessDays: 3650 },
+  "premium-discord-signals": { name: "Legacy Premium Discord Signals", amount: 49.9, cadence: "monthly", accessDays: 30 },
+  "investor-trader-ai": { name: "Legacy Investor & Trader AI", amount: 19.9, cadence: "monthly", accessDays: 30 },
+  "arbitrage-only": { name: "Market Hub Pro", amount: 99.9, cadence: "monthly", accessDays: 30 }
 };
 const PAYRIFF_USD_TO_AZN_RATE = Number(process.env.PAYRIFF_USD_TO_AZN_RATE || 1.7);
 
