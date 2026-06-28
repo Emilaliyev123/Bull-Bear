@@ -41,6 +41,8 @@ const state = {
   marketHub: {
     activeTab: "arbitrage",
     loading: false,
+    error: null,
+    requestId: 0,
     result: null,
     stockResult: null,
     forms: {
@@ -51,15 +53,19 @@ const state = {
       },
       forex: {
         pair: "EUR/USD",
-        style: "Day Trading"
+        style: "Day Trading",
+        timeframe: "4H"
       },
       commodities: {
         asset: "XAU/USD",
-        style: "Day Trading"
+        style: "Day Trading",
+        timeframe: "4H"
       },
       stocks: {
+        asset: "SPY",
         mode: "Market Summary",
-        selectedOption: "US Market"
+        selectedOption: "US Market",
+        timeframe: "1D"
       }
     }
   },
@@ -1124,64 +1130,274 @@ function signalClass(status = "") {
   const value = status.toLowerCase();
   if (value.includes("long") || value.includes("bull")) return "long";
   if (value.includes("short") || value.includes("bear")) return "short";
+  if (value.includes("highrisk") || value.includes("high risk")) return "high-risk";
+  if (value.includes("neutral")) return "neutral";
   if (value.includes("research")) return "research";
   return "none";
 }
 
+function humanizeAnalyzerKey(value = "") {
+  return String(value)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function analyzerSignalLabel(status = "neutral") {
+  const labels = {
+    long: "Long",
+    short: "Short",
+    neutral: "Neutral",
+    noSignal: "No Signal",
+    highRisk: "High Risk"
+  };
+  return labels[status] || humanizeAnalyzerKey(status);
+}
+
+function analyzerConfidenceBand(value = 0) {
+  const score = Math.max(0, Math.min(100, Number(value || 0)));
+  if (score <= 39) return { label: "No Setup", detail: "Confluence is too weak for a quality scenario.", className: "no-setup" };
+  if (score <= 59) return { label: "Weak / Wait", detail: "More confirmation is required before planning a trade.", className: "weak" };
+  if (score <= 74) return { label: "Moderate", detail: "A developing setup with meaningful conditions still to verify.", className: "moderate" };
+  if (score <= 89) return { label: "Strong", detail: "Multiple strategy factors align, but risk controls still apply.", className: "strong" };
+  return { label: "Very Strong, Still Risky", detail: "High confluence never removes market risk or guarantees profit.", className: "very-strong" };
+}
+
+function formatAnalyzerEntryZone(entryZone) {
+  if (!entryZone) return "Not issued";
+  if (typeof entryZone === "object") {
+    return `${entryZone.low ?? "-"} - ${entryZone.high ?? "-"}`;
+  }
+  return String(entryZone);
+}
+
+function formatAnalyzerValue(value) {
+  if (value === null || value === undefined || value === "") return "Not available";
+  if (Array.isArray(value)) {
+    return value.map((item) => formatAnalyzerValue(item)).join("; ");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, item]) => `${humanizeAnalyzerKey(key)}: ${formatAnalyzerValue(item)}`)
+      .join("; ");
+  }
+  return String(value);
+}
+
+function strategyTone(name, component = {}) {
+  const explicitTone = String(component.tone || component.signal || "").toLowerCase();
+  if (["bullish", "bearish", "neutral", "risk"].includes(explicitTone)) return explicitTone;
+  const detail = String(component.detail || component.explanation || component.status || "").toLowerCase();
+  if (["newsRisk", "volatility"].includes(name) && Number(component.score || 0) < 5) return "risk";
+  if (/bearish|below|short|unfavorable|lower/.test(detail)) return "bearish";
+  if (/bullish|above|long|supportive|higher/.test(detail)) return "bullish";
+  return "neutral";
+}
+
+function renderStrategyBreakdown(breakdown = {}) {
+  const components = breakdown.components || {};
+  const componentOrder = [
+    "trend",
+    "marketStructure",
+    "supportResistance",
+    "liquidity",
+    "momentum",
+    "volume",
+    "volatility",
+    "newsRisk",
+    "riskReward",
+    "marketSpecific"
+  ];
+  const componentRows = componentOrder
+    .filter((name) => components[name])
+    .map((name) => {
+      const component = components[name];
+      const tone = strategyTone(name, component);
+      return `
+        <div class="strategy-item">
+          <div class="strategy-item-head">
+            <strong>${esc(humanizeAnalyzerKey(name))}</strong>
+            <span class="strategy-status ${tone}">${esc(component.signal || component.status || tone)}</span>
+          </div>
+          <div class="strategy-score"><i style="width:${Math.max(0, Math.min(100, Number(component.score || 0) * 10))}%"></i></div>
+          <div class="strategy-item-copy"><span>${Number(component.score || 0)}/10</span><p>${esc(component.detail || component.explanation || "No additional confirmation")}</p></div>
+        </div>
+      `;
+    }).join("");
+  const researchEntries = Object.entries(breakdown.research || {});
+  const snapshotEntries = Object.entries(breakdown.technicalSnapshot || {});
+  return `
+    <section class="strategy-breakdown" aria-label="Strategy breakdown">
+      <div class="strategy-section-head">
+        <div><span>Strategy breakdown</span><h4>Why This Result?</h4><p>Ten independent checks explain what supports the result and what holds it back.</p></div>
+        <strong>${esc(humanizeAnalyzerKey(breakdown.setupQuality || "research"))}</strong>
+      </div>
+      <div class="strategy-grid">${componentRows}</div>
+      ${(breakdown.strategies || []).length ? `
+        <div class="strategy-checklist">
+          <strong>Models reviewed</strong>
+          <ul>${breakdown.strategies.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
+      ` : ""}
+      ${snapshotEntries.length ? `
+        <div class="market-detail-grid analyzer-snapshot-grid">
+          ${snapshotEntries.map(([key, value]) => `<div><span>${esc(humanizeAnalyzerKey(key))}</span><p>${esc(formatAnalyzerValue(value))}</p></div>`).join("")}
+        </div>
+      ` : ""}
+      ${researchEntries.length ? `
+        <div class="market-detail-grid analyzer-research-grid">
+          ${researchEntries.map(([key, value]) => `<div><span>${esc(humanizeAnalyzerKey(key))}</span><p>${esc(formatAnalyzerValue(value))}</p></div>`).join("")}
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderStockResearchSummary(result) {
+  const research = result.strategyBreakdown?.research || {};
+  const thesis = research.thesis || result.explanation || "A research framework for evaluating quality, valuation, and market regime.";
+  const portfolioRole = research.portfolioRole || `Potential ${humanizeAnalyzerKey(result.mode || "long-term").toLowerCase()} research candidate; position size should reflect diversification and personal risk tolerance.`;
+  const riskFactors = research.riskFactors || result.highRiskWarning || "Company, sector, valuation, rate, and broad-market risks can change the thesis.";
+  const dcaApproach = research.dcaIdea || research.dcaApproach || "Consider staged purchases over time only after independent fundamental research. DCA reduces timing pressure but does not prevent losses.";
+  return `
+    <section class="stock-research-summary" aria-label="Long-term stock research summary">
+      <div class="research-summary-head">
+        <div><span>Investment research</span><h4>Long-Term Research View</h4></div>
+        <strong>Not a day-trade signal</strong>
+      </div>
+      <div class="research-summary-grid">
+        <div><span>Thesis</span><p>${esc(formatAnalyzerValue(thesis))}</p></div>
+        <div><span>Portfolio Role</span><p>${esc(formatAnalyzerValue(portfolioRole))}</p></div>
+        <div><span>Risk Factors</span><p>${esc(formatAnalyzerValue(riskFactors))}</p></div>
+        <div><span>DCA / Long-Term Approach</span><p>${esc(formatAnalyzerValue(dcaApproach))}</p></div>
+      </div>
+    </section>
+  `;
+}
+
+function renderAnalyzerError(error) {
+  const status = Number(error?.status || 0);
+  const messages = {
+    400: "The analyzer could not validate these selections. Review the market, asset, mode, and timeframe.",
+    401: "Your session has expired. Log in again to use protected analysis.",
+    402: "Market Hub Pro access is required for protected analysis.",
+    403: "Your account does not currently have permission to use this analyzer.",
+    500: "The protected analyzer is temporarily unavailable. Please try again shortly."
+  };
+  const action = status === 401
+    ? `<a href="/login" data-link class="btn primary small">Log In</a>`
+    : [402, 403].includes(status)
+      ? `<a href="/products" data-link class="btn primary small">View Market Hub Pro</a>`
+      : "";
+  return `
+    <div class="hub-error-state" role="alert">
+      <span>Analysis unavailable</span>
+      <strong>${esc(messages[status] || "The protected analyzer could not be reached.")}</strong>
+      <p>${esc(error?.message || "Please try again.")}</p>
+      ${action}
+    </div>
+  `;
+}
+
 function renderAnalyzerResult(result) {
+  if (state.marketHub.loading) {
+    return `
+      <div class="hub-loading-state" role="status" aria-live="polite">
+        <i></i>
+        <strong>Running protected analysis</strong>
+        <span>Scoring market structure, liquidity, momentum, volatility, and risk controls.</span>
+      </div>
+    `;
+  }
+  if (state.marketHub.error && !result) return renderAnalyzerError(state.marketHub.error);
   if (!result) {
     return `
       <div class="hub-empty-state">
         <strong>Run an analyzer to build a scenario.</strong>
-        <span>Select market, style, and timeframe. Results are demo analysis until live market data API is connected.</span>
+        <span>Select market, style, and timeframe. Protected Analyzer V2 uses server-side demo data until a live provider is connected.</span>
       </div>
     `;
   }
-  const noSignal = result.signalStatus === "No High-Quality Setup";
+  const status = result.signalStatus || "neutral";
+  const noSignal = status === "noSignal";
+  const highRisk = status === "highRisk";
+  const researchMode = result.market === "stocks" && !["dayTrading", "swingTrading"].includes(result.mode);
+  const source = result._analysisSource || "backend";
+  const dataStatus = result.dataStatus || { status: result.isDemo ? "demo" : "live", message: "Market data status unavailable" };
+  const riskValue = String(result.riskLevel || "medium").toLowerCase();
+  const disclaimer = result.metadata?.educationalDisclaimer || "Educational market analysis only, not financial advice. No result guarantees profit.";
+  const confidence = analyzerConfidenceBand(result.confidenceScore);
+  const tradeLevelsSuppressed = !researchMode && (!result.entryZone || result.stopLoss === null || result.stopLoss === undefined || !result.takeProfits?.length);
   return `
-    <div class="analyzer-result ${noSignal ? "no-signal" : ""}">
+    <div class="analyzer-result ${noSignal ? "no-signal" : ""} ${highRisk ? "high-risk-result" : ""} ${researchMode ? "research-result" : ""}">
       <div class="result-topline">
         <div>
-          <span class="demo-label">Demo analysis until live market data API is connected</span>
-          <h3 class="h3">${esc(result.asset || result.selectedOption || "Market")} ${esc(result.marketType || "")}</h3>
+          <div class="analysis-badge-row">
+            <span class="analysis-source-badge ${source}">${source === "backend" ? "Protected Backend Analysis" : "Browser Fallback Demo"}</span>
+            <span class="data-status-badge ${esc(dataStatus.status || "demo")}">${esc(dataStatus.status || "demo")} data</span>
+          </div>
+          <h3 class="h3">${esc(result.asset || "Market")} ${esc(humanizeAnalyzerKey(result.market || result.marketType || ""))}</h3>
+          <p class="result-context">${esc(humanizeAnalyzerKey(result.mode || "analysis"))} · ${esc(result.timeframe || "Timeframe unavailable")} · Updated ${esc(formatDateTime(result.lastUpdated))}</p>
         </div>
-        <div class="signal-badge ${signalClass(result.signalStatus)}">${esc(result.signalStatus || result.bias || "Research View")}</div>
+        <div class="signal-badge ${signalClass(status)}">${esc(analyzerSignalLabel(status))}</div>
       </div>
-      ${noSignal ? `<div class="no-signal-panel">No high-quality setup right now. Wait for confirmation near key levels.</div>` : ""}
+      ${source === "fallback" ? `<div class="fallback-warning">Protected backend analysis was unavailable. This is a browser-generated fallback demo and must not be treated as a live signal.</div>` : ""}
+      ${noSignal ? `
+        <div class="no-signal-panel">
+          <strong>No high-quality setup right now.</strong>
+          <span>The best trade is sometimes no trade.</span>
+          <div><b>What to wait for</b><p>${esc(result.noSignalReason || "Wait for price to confirm a key level, structure to improve, volume to support the move, and projected risk/reward to reach at least 1:2.")}</p></div>
+        </div>
+      ` : ""}
+      ${highRisk ? `
+        <div class="high-risk-panel">
+          <strong>High-risk market conditions detected.</strong>
+          <span>Avoid impulsive trades and wait for volatility to stabilize.</span>
+          <div><b>Why high risk?</b><p>${esc(result.highRiskWarning || "The volatility or news-risk filter is extreme. That can widen spreads, increase slippage, and invalidate technical levels without warning.")}</p></div>
+        </div>
+      ` : ""}
+      ${result.noSignalReason && !noSignal ? `<div class="analysis-reason"><strong>Model decision</strong><p>${esc(result.noSignalReason)}</p></div>` : ""}
+      ${result.highRiskWarning && !highRisk ? `<div class="analysis-warning"><strong>Risk warning</strong><p>${esc(result.highRiskWarning)}</p></div>` : ""}
       <div class="result-grid">
-        ${result.currentPrice ? `<div class="result-tile"><span>Current Price</span><strong>${esc(result.currentPrice)}</strong><small>${esc(result.dataSource || "Market snapshot")}</small></div>` : ""}
-        <div class="result-tile"><span>Entry Zone</span><strong>${esc(result.entryZone || result.entryIdea || "Research only")}</strong></div>
-        <div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not active")}</strong></div>
-        <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskRewardRatio || "N/A")}</strong></div>
-        <div class="result-tile"><span>Risk Level</span><strong class="risk-${String(result.riskLevel || "medium").toLowerCase()}">${esc(result.riskLevel || "Medium")}</strong></div>
+        <div class="result-tile"><span>Market Bias</span><strong>${esc(humanizeAnalyzerKey(result.marketBias || "neutral"))}</strong></div>
+        ${researchMode ? `<div class="result-tile"><span>Analysis Type</span><strong>Research View</strong><small>No short-term trade levels</small></div>` : `<div class="result-tile"><span>Entry Zone</span><strong>${esc(formatAnalyzerEntryZone(result.entryZone))}</strong></div>`}
+        ${researchMode ? "" : `<div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not issued")}</strong></div>`}
+        <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskReward ?? "Not applicable")}</strong></div>
+        <div class="result-tile"><span>Risk Level</span><strong class="risk-${esc(riskValue)}">${esc(humanizeAnalyzerKey(riskValue))}</strong></div>
       </div>
       <div class="confidence-card">
         <div><span>Confidence Score</span><strong>${Number(result.confidenceScore || 0)}%</strong></div>
-        ${meter(result.confidenceScore, result.riskLevel === "High" ? "risk" : "")}
+        ${meter(result.confidenceScore, ["high", "extreme"].includes(riskValue) ? "risk" : "")}
+        <div class="confidence-band-copy ${confidence.className}"><strong>${esc(confidence.label)}</strong><span>${esc(confidence.detail)}</span></div>
+        <div class="confidence-scale" aria-label="Confidence score bands">
+          <span class="no-setup">0-39<small>No Setup</small></span>
+          <span class="weak">40-59<small>Weak / Wait</small></span>
+          <span class="moderate">60-74<small>Moderate</small></span>
+          <span class="strong">75-89<small>Strong</small></span>
+          <span class="very-strong">90-100<small>Very Strong</small></span>
+        </div>
       </div>
       ${result.takeProfits?.length ? `
         <div class="tp-stack">
-          ${result.takeProfits.map((tp) => `<div><span>${esc(tp.label)}</span><strong>${esc(tp.price)}</strong><small>${esc(tp.note)}</small></div>`).join("")}
+          ${result.takeProfits.map((tp) => `<div><span>${esc(tp.level || tp.label)}</span><strong>${esc(tp.price)}</strong><small>${tp.riskMultiple ? `${esc(tp.riskMultiple)}R target` : esc(tp.note || "Target level")}</small></div>`).join("")}
         </div>
       ` : ""}
-      <div class="market-detail-grid">
-        ${result.trend ? `<div><span>Trend</span><p>${esc(result.trend)}</p></div>` : ""}
-        ${result.keyLevels ? `<div><span>Key Levels</span><p>${esc(result.keyLevels)}</p></div>` : ""}
-        ${result.supportResistance ? `<div><span>Support / Resistance</span><p>${esc(result.supportResistance.support)} / ${esc(result.supportResistance.resistance)}</p></div>` : ""}
-        ${result.liquidityZones ? `<div><span>Liquidity Zones</span><p>${result.liquidityZones.map(esc).join("<br>")}</p></div>` : ""}
-        ${result.volumeSummary ? `<div><span>Volume Summary</span><p>${esc(result.volumeSummary)}</p></div>` : ""}
-        ${result.indicatorSummary ? `<div><span>Indicators</span><p>RSI: ${esc(result.indicatorSummary.rsi)}<br>MACD: ${esc(result.indicatorSummary.macd)}<br>EMA: ${esc(result.indicatorSummary.ema)}</p></div>` : ""}
-        ${result.sessionBias ? `<div><span>Session Bias</span><p>${esc(result.sessionBias)}</p></div>` : ""}
-        ${result.dollarStrengthSummary ? `<div><span>Dollar Strength</span><p>${esc(result.dollarStrengthSummary)}</p></div>` : ""}
-        ${result.newsRisk ? `<div><span>News Risk</span><p>${esc(result.newsRisk)}</p></div>` : ""}
-        ${result.macroNewsRisk ? `<div><span>Macro / News Risk</span><p>${esc(result.macroNewsRisk)}</p></div>` : ""}
-      </div>
+      ${tradeLevelsSuppressed ? `
+        <div class="risk-reward-gate">
+          <div><span>Risk filter</span><strong>Trade levels withheld</strong></div>
+          <p>Market Hub rejects scenarios below the minimum 1:2 risk/reward requirement. Wait for a cleaner entry, a better invalidation level, or stronger confirmation instead of forcing a trade.</p>
+        </div>
+      ` : ""}
+      ${researchMode ? renderStockResearchSummary(result) : ""}
+      ${renderStrategyBreakdown(result.strategyBreakdown || {})}
       <div class="result-explain">
-        <strong>Explanation</strong>
-        <p>${esc(result.explanation || result.summary?.overall || "Educational research framework. Live API integration can replace the demo result later.")}</p>
-        <strong>Invalidation</strong>
-        <p>${esc(result.invalidationRule || result.invalidation || "If the thesis breaks, stand aside and wait for a new setup.")}</p>
-        <small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small>
+        <div class="explanation-copy"><strong>Explanation</strong><p>${esc(result.explanation || "Educational research framework.")}</p></div>
+        <div class="invalidation-card"><span>Invalidation Rule</span><strong>${esc(result.invalidationRule || "If the thesis breaks, stand aside and wait for a new setup.")}</strong><small>A disciplined plan defines what proves the idea wrong before any position is considered.</small></div>
+        <div class="data-status-note">
+          <div><strong>${esc(dataStatus.provider || "Market data provider")}</strong><small>${esc(String(dataStatus.status || "demo").toUpperCase())} STATUS</small></div>
+          <span>${esc(dataStatus.message || "Data status unavailable")} Demo means the interface uses educational market scenarios. Live means a backend provider supplied current market data.</span>
+        </div>
+        <small class="educational-disclaimer">${esc(disclaimer)}</small>
       </div>
     </div>
   `;
@@ -1193,15 +1409,15 @@ function renderCryptoAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCryptoAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Crypto Analyzer</h2>
-        <p class="muted">Build a structured educational scenario for top crypto assets. The result is not a live trading signal until a market data API is connected.</p>
+        <p class="muted">Server-side confluence analysis for top crypto assets. Results remain educational demo scenarios until a live data provider is connected.</p>
         <div class="form-grid">
           <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
           <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["5m", "15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
@@ -1214,14 +1430,15 @@ function renderForexAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitForexAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Forex Analyzer</h2>
         <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
         <div class="form-grid">
           <div class="field"><label>Pair</label><select name="pair">${selectedOptionTags(service.forexPairs || [], form.pair)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
@@ -1234,87 +1451,155 @@ function renderCommoditiesAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCommodityAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Gold & Commodities Analyzer</h2>
         <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
         <div class="form-grid">
           <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.commodityAssets || [], form.asset)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Commodity"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Gold / Commodity"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
   `;
 }
 
+function stockAnalyzerOptionsForMode(mode) {
+  const optionMap = {
+    "Day Trading": ["Relative Strength", "Opening Range", "High Relative Volume"],
+    "Swing Trading": ["Trend Continuation", "Breakout", "Mean Reversion"],
+    "Long-Term Investment": ["Quality", "Value", "Growth", "Dividend", "DCA"],
+    "Market Summary": ["US Market", "Risk-On / Risk-Off", "Macro Watch"],
+    "Sector Analysis": ["Technology", "Energy", "Financials", "Healthcare", "Consumer", "AI-related stocks", "Defensive stocks"]
+  };
+  return optionMap[mode] || optionMap["Market Summary"];
+}
+
 function renderStockAnalyzer() {
-  const service = marketHubService();
   const form = state.marketHub.forms.stocks;
-  const options = service.stockOptions?.[form.mode] || [];
+  const stockModes = ["Day Trading", "Swing Trading", "Long-Term Investment", "Market Summary", "Sector Analysis"];
+  const options = stockAnalyzerOptionsForMode(form.mode);
   const result = state.marketHub.stockResult;
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitStockAnalyzer(event)">
-        <span class="demo-label">Demo research until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Stock Market Analyzer</h2>
-        <p class="muted">Research-focused tools for market summaries, investment frameworks, sector views, screeners, and investor styles.</p>
+        <p class="muted">Trading modes provide structured levels. Investment, market, and sector modes remain research-only without short-term trade targets.</p>
         <div class="form-grid">
-          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(service.stockModes || [], form.mode)}</select></div>
-          <div class="field"><label>Option</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"], form.asset)}</select></div>
+          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(stockModes, form.mode)}</select></div>
+          <div class="field"><label>Research Focus</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Building research..." : "Build Research View"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Stock Market"}</button>
       </form>
-      <div class="stock-research-panel">
-        ${result ? `
-          <div class="result-topline">
-            <div><span class="demo-label">Demo analysis until live market data API is connected</span><h3 class="h3">${esc(result.mode)} - ${esc(result.selectedOption)}</h3></div>
-            <div class="signal-badge research">Research View</div>
-          </div>
-          <div class="market-detail-grid">
-            ${Object.entries(result.summary || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
-          </div>
-          <div class="market-detail-grid">
-            ${Object.entries(result.strategy || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
-          </div>
-          <div class="sector-grid">
-            ${(result.sectors || []).map(([name, text]) => `<article><strong>${esc(name)}</strong><p>${esc(text)}</p></article>`).join("")}
-          </div>
-          <div class="result-explain"><strong>Investor Style</strong><p>${esc(result.investorStyle)}</p><small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small></div>
-        ` : `<div class="hub-empty-state"><strong>Select a research mode.</strong><span>Market Summary, Long-Term Strategy, Sector Analysis, Stock Screener, and Famous Investor Style are ready as demo frameworks.</span></div>`}
-      </div>
+      ${renderAnalyzerResult(result)}
     </div>
   `;
 }
 
 function renderEducationHub() {
-  const lessons = marketHubService().educationLessons || [];
+  const lessons = [
+    {
+      title: "What is Market Hub?",
+      summary: "Market Hub brings the arbitrage scanner and educational analysis for crypto, forex, gold, stocks, and commodities into one protected workspace.",
+      meaning: "It compares several strategy checks, scores their agreement, applies risk filters, and explains the result in plain language.",
+      use: "Choose a market, asset, trading style, and timeframe. Read the data badge first, then review the result and every risk warning.",
+      risks: "A dashboard cannot predict the future. Demo analysis is not current market data, and live data still cannot guarantee an outcome.",
+      points: ["Start with the market and timeframe you understand", "Read the full strategy breakdown", "Treat No Signal as a valid result"]
+    },
+    {
+      title: "What is Arbitrage?",
+      summary: "Arbitrage looks for the same asset trading at different prices on different exchanges: buy at the lower price and sell at the higher price.",
+      meaning: "The visible spread is only the starting point. Fees, withdrawal limits, transfer time, slippage, and available liquidity determine whether an opportunity is practical.",
+      use: "Compare net spread, exchange status, pair liquidity, and execution limits before making any independent decision.",
+      risks: "Prices can converge before a transfer completes. Network delays, frozen withdrawals, low liquidity, and exchange risk can remove the spread.",
+      points: ["Calculate all trading and transfer fees", "Check both order books, not only the last price", "Never assume a displayed spread is guaranteed profit"]
+    },
+    {
+      title: "What is Day Trading?",
+      summary: "Day trading opens and closes short-term positions within the same trading day, often using intraday structure and session momentum.",
+      meaning: "Decisions happen quickly, so a written entry, stop loss, invalidation rule, and maximum risk are essential before considering a trade.",
+      use: "Use 15m or 1H analysis, check session and news risk, and wait for price confirmation near key levels.",
+      risks: "Fast markets create slippage and emotional decisions. Overtrading, high leverage, and moving a stop loss are common beginner mistakes.",
+      points: ["No Signal is normal", "Use a predefined stop loss", "Stop trading after reaching your daily loss limit"]
+    },
+    {
+      title: "What is Swing Trading?",
+      summary: "Swing trading holds a position for several days or weeks to capture a larger move between important market levels.",
+      meaning: "The focus is usually 4H and 1D structure, trend direction, support and resistance, momentum, and room for at least 1:2 risk/reward.",
+      use: "Build the idea from the higher timeframe, then use the lower timeframe only to refine confirmation and invalidation.",
+      risks: "Overnight gaps, weekend moves, funding costs, and unexpected news can change the setup while the market is closed or thin.",
+      points: ["Respect the higher-timeframe trend", "Size for a wider stop", "Do not turn a failed swing trade into a long-term hold"]
+    },
+    {
+      title: "What is Long-Term Investing?",
+      summary: "Long-term investing builds a diversified portfolio around business quality, valuation, risk, and a multi-year time horizon.",
+      meaning: "DCA spreads purchases over time. Diversification reduces dependence on one company or sector, but neither technique removes the possibility of loss.",
+      use: "Use stock research mode for thesis, portfolio role, risk factors, and a possible DCA framework instead of a day-trade entry.",
+      risks: "Weak fundamentals, excessive valuation, concentration, changing rates, and emotional selling can damage long-term results.",
+      points: ["Research the asset independently", "Diversify by sector and risk", "Review the thesis, not every price tick"]
+    },
+    {
+      title: "How to Read Analyzer Signals",
+      summary: "The result is a structured educational scenario, not an instruction to buy or sell.",
+      meaning: "Long and Short describe directional bias. No Signal means quality is insufficient. High Risk means volatility or news conditions override the technical setup.",
+      use: "Start with signal status and risk level, then review confidence, entry zone, stop loss, take profits, invalidation, and every strategy score.",
+      risks: "A high confidence score describes model agreement, not the probability of profit. Ignoring invalidation or risk level defeats the purpose of the analysis.",
+      points: ["Confidence measures confluence, not certainty", "Entry Zone is an area, not an automatic order", "Invalidation explains what proves the idea wrong", "Strategy Breakdown shows bullish, bearish, neutral, and risk factors"]
+    },
+    {
+      title: "How to Use Risk Management",
+      summary: "Risk management decides how much can be lost before thinking about how much might be gained.",
+      meaning: "Risk only 1-2% of account value per trade, use a logical stop loss, avoid excessive leverage, and reject weak risk/reward.",
+      use: "Define position risk, invalidation, and maximum daily loss before considering an entry. Step away after emotional or revenge-trading impulses.",
+      risks: "Leverage magnifies small price moves. Major news can jump over stops, widen spreads, and invalidate an otherwise reasonable setup.",
+      points: ["Never widen a stop to avoid a loss", "Avoid revenge trading", "Respect no-signal and high-risk states", "Do not trade major news you do not understand"]
+    },
+    {
+      title: "Demo Data vs Live Data",
+      summary: "Demo data powers the interface and educational scoring logic until a live market provider is connected for that market.",
+      meaning: "A Demo badge means prices and scenarios are simulated. A Live badge will mean current data came through the protected backend, with its source and update time shown.",
+      use: "Always check the data-status badge and Last Updated time before reading any result. Live providers will be added market by market later.",
+      risks: "Demo values must never be treated as current prices. Even live feeds can be delayed, unavailable, or different from a broker's executable price.",
+      points: ["Demo is for learning and interface testing", "Live data still needs risk controls", "Never compare stale analysis with a current chart"]
+    }
+  ];
   return `
-    <div class="lesson-grid">
-      ${lessons.map((lesson, index) => `
-        <article class="lesson-card">
-          <span>Lesson ${index + 1}</span>
-          <h3>${esc(lesson.title)}</h3>
-          <p>${esc(lesson.summary)}</p>
-          <div><strong>When to use it</strong><p>${esc(lesson.whenToUse)}</p></div>
-          <div><strong>Risks</strong><p>${esc(lesson.risks)}</p></div>
-          <div><strong>How to use analyzer</strong><p>${esc(lesson.analyzerUse)}</p></div>
-          <ul>${(lesson.mistakes || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </article>
-      `).join("")}
+    <div class="education-hub">
+      <header class="education-header">
+        <div><span>Market Hub Mini Course</span><h2>Learn the tools before using the tools.</h2></div>
+        <p>Eight short lessons explain what each analysis mode means, when it can help, and where beginners most often take unnecessary risk.</p>
+      </header>
+      <div class="lesson-grid">
+        ${lessons.map((lesson, index) => `
+          <article class="lesson-card">
+            <div class="lesson-card-head"><span>${String(index + 1).padStart(2, "0")}</span><small>Lesson ${index + 1} of ${lessons.length}</small></div>
+            <h3>${esc(lesson.title)}</h3>
+            <p class="lesson-summary">${esc(lesson.summary)}</p>
+            <div class="lesson-section"><strong>What it means</strong><p>${esc(lesson.meaning)}</p></div>
+            <div class="lesson-section"><strong>How to use it</strong><p>${esc(lesson.use)}</p></div>
+            <div class="lesson-section risk"><strong>Risks to understand</strong><p>${esc(lesson.risks)}</p></div>
+            <div class="lesson-takeaways"><strong>Beginner checklist</strong><ul>${lesson.points.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>
+          </article>
+        `).join("")}
+      </div>
     </div>
   `;
 }
 
 function renderRiskGuide() {
-  const rules = [
-    "This is educational market analysis, not financial advice.",
-    "No signal is guaranteed.",
-    "Always use stop loss.",
-    "Do not risk more than 1-2% per trade.",
-    "Avoid high leverage.",
-    "Do not trade during major news unless you understand the risk.",
-    "Past performance does not guarantee future results."
+  const riskSections = [
+    ["Why no signal can be the best signal", "Standing aside protects capital when structure is unclear, confirmation is missing, or risk/reward is weak. Activity is not the same as opportunity."],
+    ["Why leverage is dangerous", "Leverage magnifies both gains and losses. A small move can trigger liquidation or a loss larger than expected, especially when volatility and spreads expand."],
+    ["Why news events are high risk", "CPI, FOMC, NFP, earnings, and unexpected headlines can create gaps, slippage, and violent reversals. Technical levels may fail without warning."],
+    ["Why risk/reward below 1:2 is rejected", "Risking one unit to make less than two leaves little room for normal losing trades. Market Hub withholds trade levels when the projected reward does not justify the risk."],
+    ["Why crypto, forex, and futures are high risk", "These markets can trade around the clock, use leverage, and move quickly when liquidity changes. Futures and some forex products can create losses beyond a simple spot position."],
+    ["Why the analyzer is not a guarantee", "The score measures agreement between model components. It cannot predict news, execution quality, slippage, or human behavior, and it never promises profit."],
+    ["Why users should journal trades", "Record the setup, screenshot, risk, emotions, result, and whether rules were followed. A journal reveals repeated mistakes more clearly than memory does."]
   ];
   return `
     <div class="risk-command-center">
@@ -1323,12 +1608,18 @@ function renderRiskGuide() {
         <h2 class="h2">Professional traders survive before they optimize.</h2>
         <p>Market Hub is designed for education, planning, and disciplined scenario building. It must never be treated as guaranteed profit or automatic execution.</p>
       </div>
+      <div class="risk-foundation-strip" aria-label="Core risk limits">
+        <div><strong>1-2%</strong><span>Maximum account risk per trade</span></div>
+        <div><strong>1:2</strong><span>Minimum planned risk/reward</span></div>
+        <div><strong>Stop</strong><span>Every trade needs invalidation</span></div>
+        <div><strong>Pause</strong><span>No revenge trading after a loss</span></div>
+      </div>
       <div class="risk-rule-grid">
-        ${rules.map((rule) => `<div><strong>Risk Rule</strong><p>${esc(rule)}</p></div>`).join("")}
+        ${riskSections.map(([title, copy], index) => `<div><span>${String(index + 1).padStart(2, "0")}</span><strong>${esc(title)}</strong><p>${esc(copy)}</p></div>`).join("")}
       </div>
       <div class="result-explain high-risk-note">
-        <strong>High Risk Warning</strong>
-        <p>When risk is marked high, the professional action can be to wait. Weak setups, low liquidity, and major news windows are valid reasons to stand aside.</p>
+        <strong>Non-negotiable risk rules</strong>
+        <p>This is educational market analysis, not financial advice. No signal is guaranteed. Always use a stop loss, avoid high leverage, and do not trade major news unless you understand the risk. Past performance does not guarantee future results.</p>
       </div>
     </div>
   `;
@@ -1509,7 +1800,7 @@ function arbitragePage() {
           <div>
             <span class="demo-label">Demo analysis until live market data API is connected</span>
             <h1 class="h2">Bull & Bear Market Hub</h1>
-            <p class="lead">Premium scanner, crypto, forex, gold, commodities, stock research, mini-course, and risk education in one disciplined dashboard.</p>
+            <p class="lead">Arbitrage scanner, multi-market analyzer, strategy breakdowns, and risk education in one premium dashboard.</p>
           </div>
           <div class="hub-hero-panel">
             <span>Premium Area</span>
@@ -1518,6 +1809,19 @@ function arbitragePage() {
             <small>Educational market analysis, no guaranteed results.</small>
           </div>
         </div>
+        <div class="market-hub-status-grid" aria-label="Market Hub status">
+          <div><span class="status-mark protected">01</span><strong>Protected Backend Analyzer</strong><small>Authentication and Market Hub access required.</small></div>
+          <div><span class="status-mark data">02</span><strong>Demo / Live Data Status</strong><small>Every result identifies its source and update time.</small></div>
+          <div><span class="status-mark risk">03</span><strong>Risk-Managed Signals</strong><small>News, volatility, confidence, and 1:2 filters applied.</small></div>
+          <div><span class="status-mark scanner">04</span><strong>Arbitrage Scanner Active</strong><small>Existing seven-exchange spread scanner remains available.</small></div>
+        </div>
+        <div class="analyzer-workflow" aria-label="How this analyzer works">
+          <div class="workflow-intro"><span>How this analyzer works</span><strong>From market input to a risk-filtered result</strong></div>
+          <ol>
+            ${["Data", "Strategies", "Scoring", "Risk Filters", "Result"].map((step, index) => `<li><span>${index + 1}</span><strong>${step}</strong></li>`).join("")}
+          </ol>
+        </div>
+        <div class="market-hub-disclaimer"><strong>Educational analysis only.</strong><span>Not financial advice. No signal is guaranteed, and Market Hub never places trades.</span></div>
         <div class="market-hub-tabs" role="tablist" aria-label="Market Hub sections">
           ${hubTabs().map(([id, label, desc]) => `
             <button type="button" data-market-tab="${id}" class="${activeTab === id ? "active" : ""}">
@@ -2881,40 +3185,162 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   return false;
 };
 
-function unavailableMarketResult(marketType, asset) {
+function analyzerModeFromLabel(value = "") {
+  const key = String(value).toLowerCase().replace(/[^a-z]/g, "");
+  const modes = {
+    scalping: "scalping",
+    daytrading: "dayTrading",
+    swingtrading: "swingTrading",
+    longterminvestment: "longTermInvestment",
+    longterminvestmentstrategy: "longTermInvestment",
+    longtermmacroview: "longTermInvestment",
+    marketsummary: "marketSummary",
+    sectoranalysis: "sectorAnalysis"
+  };
+  return modes[key] || "marketSummary";
+}
+
+function analyzerTimeframe(value = "4H") {
+  return String(value).trim().toLowerCase();
+}
+
+async function requestProtectedMarketHubAnalysis(payload) {
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  let response;
+  try {
+    response = await fetch("/api/market-hub/analyze", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+  } catch (cause) {
+    const error = new Error("The protected analyzer could not be reached.");
+    error.status = 0;
+    error.cause = cause;
+    throw error;
+  }
+  const isJson = (response.headers.get("content-type") || "").includes("application/json");
+  const body = isJson ? await response.json() : await response.text();
+  if (!response.ok) {
+    if (response.status === 401) logout(false);
+    const error = new Error(body?.error || body || "Protected analysis failed");
+    error.status = response.status;
+    error.details = body?.details || null;
+    throw error;
+  }
+  return { ...body, _analysisSource: "backend" };
+}
+
+function fallbackRiskReward(value) {
+  const match = String(value || "").match(/1\s*:\s*([\d.]+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function normalizeBrowserFallback(legacy = {}, request) {
+  const confidence = Math.max(0, Math.min(100, Number(legacy.confidenceScore || 0)));
+  const componentScore = Math.max(0, Math.min(10, Math.round(confidence / 10)));
+  const legacyStatus = String(legacy.signalStatus || "").toLowerCase();
+  const signalStatus = legacyStatus.includes("long")
+    ? "long"
+    : legacyStatus.includes("short")
+      ? "short"
+      : legacyStatus.includes("research")
+        ? "neutral"
+        : "noSignal";
+  const riskLevel = String(legacy.riskLevel || "high").toLowerCase();
+  const supportResistance = legacy.supportResistance
+    ? `${legacy.supportResistance.support} / ${legacy.supportResistance.resistance}`
+    : "Browser fallback levels only";
+  const component = (detail, score = componentScore) => ({ score, detail });
   return {
-    marketType,
-    asset,
-    demo: true,
-    signalStatus: "No High-Quality Setup",
-    entryZone: "Service unavailable",
-    stopLoss: "Not active",
-    takeProfits: [],
-    riskRewardRatio: "N/A",
-    confidenceScore: 0,
-    trend: "Unavailable",
-    supportResistance: null,
-    liquidityZones: [],
-    volumeSummary: "Analyzer service is not loaded.",
-    indicatorSummary: null,
-    riskLevel: "High",
-    explanation: "Market Hub analyzer service is unavailable. Reload the page or reconnect the service script.",
-    invalidationRule: "Do not use this output as an active setup.",
-    lastUpdated: new Date().toISOString()
+    market: request.market,
+    asset: request.asset,
+    mode: request.mode,
+    timeframe: request.timeframe,
+    signalStatus,
+    confidenceScore: confidence,
+    riskLevel: ["low", "medium", "high", "extreme"].includes(riskLevel) ? riskLevel : "high",
+    marketBias: legacy.bias || legacy.trend || signalStatus,
+    entryZone: legacy.entryZone || legacy.entryIdea || null,
+    stopLoss: legacy.stopLoss === "Not active" ? null : legacy.stopLoss ?? null,
+    takeProfits: (legacy.takeProfits || []).map((target, index) => ({
+      level: target.level || target.label || `TP${index + 1}`,
+      price: target.price,
+      riskMultiple: target.riskMultiple || null
+    })),
+    riskReward: fallbackRiskReward(legacy.riskRewardRatio),
+    strategyBreakdown: {
+      setupQuality: "browser fallback demo",
+      components: {
+        trend: component(legacy.trend || "Fallback trend placeholder"),
+        marketStructure: component("Browser fallback market-structure placeholder"),
+        supportResistance: component(supportResistance),
+        liquidity: component((legacy.liquidityZones || []).join("; ") || "Fallback liquidity placeholder"),
+        momentum: component(legacy.indicatorSummary?.rsi || "Fallback momentum placeholder"),
+        volume: component(legacy.volumeSummary || "Fallback volume placeholder"),
+        volatility: component(legacy.volatility || "Fallback volatility placeholder", riskLevel === "high" ? 3 : componentScore),
+        newsRisk: component(legacy.newsRisk || legacy.macroNewsRisk || "Live news is not connected", 3),
+        riskReward: component(legacy.riskRewardRatio || "Fallback risk/reward unavailable"),
+        marketSpecific: component("Legacy browser analyzer model")
+      },
+      strategies: ["Legacy browser fallback model"],
+      research: legacy.summary || legacy.strategy || legacy.sectors
+        ? { summary: legacy.summary || {}, strategy: legacy.strategy || {}, sectors: legacy.sectors || [] }
+        : undefined
+    },
+    explanation: `${legacy.explanation || legacy.summary?.overall || "Browser fallback educational scenario."} This fallback is not protected backend analysis and is not a live signal.`,
+    invalidationRule: legacy.invalidationRule || legacy.invalidation || "Do not act on fallback output without independent confirmation.",
+    noSignalReason: signalStatus === "noSignal" ? "Protected analysis was unavailable and the fallback found no high-quality setup." : null,
+    highRiskWarning: riskLevel === "high" ? "Browser fallback risk is high. Wait for protected analysis and independent confirmation." : null,
+    dataStatus: {
+      status: "demo",
+      provider: "browserFallback",
+      message: legacy.dataSource || "Legacy browser-generated demo. No live Analyzer V2 provider was used."
+    },
+    isDemo: true,
+    lastUpdated: legacy.lastUpdated || new Date().toISOString(),
+    metadata: {
+      educationalDisclaimer: "Educational browser fallback only, not financial advice. No result guarantees profit.",
+      executionEnabled: false,
+      orderPlacementSupported: false,
+      modelVersion: "legacy-browser-fallback"
+    },
+    _analysisSource: "fallback"
   };
 }
 
-function queueMarketHubAnalysis(assignResult) {
+async function runMarketHubAnalysis({ request, fallback, resultKey = "result" }) {
+  const requestId = state.marketHub.requestId + 1;
+  state.marketHub.requestId = requestId;
   state.marketHub.loading = true;
+  state.marketHub.error = null;
+  state.marketHub[resultKey] = null;
   render();
-  setTimeout(async () => {
-    try {
-      await assignResult();
-    } finally {
+  try {
+    state.marketHub[resultKey] = await requestProtectedMarketHubAnalysis(request);
+  } catch (error) {
+    const fallbackAllowed = !error.status || error.status === 404 || error.status >= 500;
+    if (fallbackAllowed && typeof fallback === "function" && state.user && hasScannerAccess()) {
+      try {
+        const legacyResult = await fallback();
+        state.marketHub[resultKey] = normalizeBrowserFallback(legacyResult, request);
+      } catch (fallbackError) {
+        state.marketHub.error = {
+          status: error.status || 500,
+          message: `${error.message} Browser fallback was also unavailable: ${fallbackError.message}`
+        };
+      }
+    } else {
+      state.marketHub.error = { status: error.status || 500, message: error.message };
+    }
+  } finally {
+    if (state.marketHub.requestId === requestId) {
       state.marketHub.loading = false;
       render();
     }
-  }, 220);
+  }
 }
 
 window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
@@ -2927,12 +3353,19 @@ window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
   };
   state.marketHub.activeTab = "crypto";
   state.marketHub.forms.crypto = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(async () => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeCryptoMarket
-      ? await service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe)
-      : unavailableMarketResult("Crypto", payload.asset);
+  const request = {
+    market: "crypto",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeCryptoMarket) throw new Error("Crypto fallback service is not loaded.");
+      return service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe);
+    }
   });
   return false;
 };
@@ -2942,16 +3375,24 @@ window.submitForexAnalyzer = function submitForexAnalyzer(event) {
   const data = new FormData(event.currentTarget);
   const payload = {
     pair: String(data.get("pair") || "EUR/USD"),
-    style: String(data.get("style") || "Day Trading")
+    style: String(data.get("style") || "Day Trading"),
+    timeframe: String(data.get("timeframe") || "4H")
   };
   state.marketHub.activeTab = "forex";
   state.marketHub.forms.forex = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(() => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeForexMarket
-      ? service.analyzeForexMarket(payload.pair, payload.style)
-      : unavailableMarketResult("Forex", payload.pair);
+  const request = {
+    market: payload.pair === "XAU/USD" ? "gold" : "forex",
+    asset: payload.pair,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeForexMarket) throw new Error("Forex fallback service is not loaded.");
+      return service.analyzeForexMarket(payload.pair, payload.style);
+    }
   });
   return false;
 };
@@ -2961,16 +3402,24 @@ window.submitCommodityAnalyzer = function submitCommodityAnalyzer(event) {
   const data = new FormData(event.currentTarget);
   const payload = {
     asset: String(data.get("asset") || "XAU/USD"),
-    style: String(data.get("style") || "Day Trading")
+    style: String(data.get("style") || "Day Trading"),
+    timeframe: String(data.get("timeframe") || "4H")
   };
   state.marketHub.activeTab = "commodities";
   state.marketHub.forms.commodities = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(() => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeCommodityMarket
-      ? service.analyzeCommodityMarket(payload.asset, payload.style)
-      : unavailableMarketResult("Commodities", payload.asset);
+  const request = {
+    market: payload.asset === "XAU/USD" ? "gold" : "commodities",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeCommodityMarket) throw new Error("Commodity fallback service is not loaded.");
+      return service.analyzeCommodityMarket(payload.asset, payload.style);
+    }
   });
   return false;
 };
@@ -2978,30 +3427,30 @@ window.submitCommodityAnalyzer = function submitCommodityAnalyzer(event) {
 window.submitStockAnalyzer = function submitStockAnalyzer(event) {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const service = marketHubService();
   const mode = String(data.get("mode") || "Market Summary");
-  const selectedOption = String(data.get("selectedOption") || service.stockOptions?.[mode]?.[0] || "US Market");
-  const payload = { mode, selectedOption };
+  const selectedOption = String(data.get("selectedOption") || "US Market");
+  const payload = {
+    asset: String(data.get("asset") || "SPY"),
+    mode,
+    selectedOption,
+    timeframe: String(data.get("timeframe") || "1D")
+  };
   state.marketHub.activeTab = "stocks";
   state.marketHub.forms.stocks = payload;
-  state.marketHub.stockResult = null;
-  queueMarketHubAnalysis(() => {
-    state.marketHub.stockResult = service.analyzeStockMarket
-      ? service.analyzeStockMarket(payload.mode, payload.selectedOption)
-      : {
-          marketType: "Stocks",
-          mode: payload.mode,
-          selectedOption: payload.selectedOption,
-          demo: true,
-          signalStatus: "Research View",
-          confidenceScore: 0,
-          riskLevel: "High",
-          lastUpdated: new Date().toISOString(),
-          summary: { overall: "Stock analyzer service is unavailable." },
-          strategy: {},
-          sectors: [],
-          investorStyle: "Reload the page or reconnect the service script."
-        };
+  const request = {
+    market: "stocks",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.mode),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    resultKey: "stockResult",
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeStockMarket) throw new Error("Stock fallback service is not loaded.");
+      return service.analyzeStockMarket(payload.mode, payload.selectedOption);
+    }
   });
   return false;
 };
@@ -3040,6 +3489,8 @@ document.addEventListener("click", async (event) => {
     const changedTab = nextTab !== state.marketHub.activeTab;
     state.marketHub.activeTab = nextTab;
     state.marketHub.loading = false;
+    state.marketHub.error = null;
+    state.marketHub.requestId += 1;
     if (changedTab) {
       state.marketHub.result = null;
       if (state.marketHub.activeTab !== "stocks") state.marketHub.stockResult = null;
@@ -3161,10 +3612,16 @@ document.addEventListener("input", (event) => {
 document.addEventListener("change", (event) => {
   const stockMode = event.target.closest("[data-stock-mode]");
   if (stockMode) {
-    const service = marketHubService();
     const mode = stockMode.value || "Market Summary";
     state.marketHub.forms.stocks.mode = mode;
-    state.marketHub.forms.stocks.selectedOption = service.stockOptions?.[mode]?.[0] || "US Market";
+    state.marketHub.forms.stocks.selectedOption = stockAnalyzerOptionsForMode(mode)[0];
+    state.marketHub.forms.stocks.timeframe = mode === "Day Trading"
+      ? "1H"
+      : mode === "Swing Trading"
+        ? "4H"
+        : mode === "Long-Term Investment"
+          ? "1W"
+          : "1D";
     state.marketHub.stockResult = null;
     render();
     return;

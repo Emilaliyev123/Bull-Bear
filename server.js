@@ -3,6 +3,10 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
+const {
+  AnalyzerValidationError,
+  analyzeMarketHubWithLiveData
+} = require("./services/marketHubAnalyzer");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -2200,6 +2204,21 @@ app.get("/api/scanner/stream", requireAuth, requireScannerAccess, (req, res) => 
   send();
   const timer = setInterval(send, SCANNER_REFRESH_MS);
   req.on("close", () => clearInterval(timer));
+});
+
+app.post("/api/market-hub/analyze", requireAuth, requireScannerAccess, async (req, res) => {
+  try {
+    return res.json(await analyzeMarketHubWithLiveData(req.body));
+  } catch (error) {
+    if (error instanceof AnalyzerValidationError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        details: error.details
+      });
+    }
+    console.error("Market Hub Analyzer V2 failed:", error);
+    return res.status(500).json({ error: "Market analysis could not be completed." });
+  }
 });
 
 app.post("/api/ai/advisor", requireAuth, async (req, res) => {
