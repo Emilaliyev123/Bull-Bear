@@ -2,14 +2,21 @@ services:
   - type: web
     name: bull-bear-staging
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /api/health
+    disk:
+      name: bull-bear-staging-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: APP_URL
         value: https://staging.bullandbear.az
       - key: PORT
         value: 10000
+      - key: STORAGE_DIR
+        value: /var/data
       - key: ADMIN_USERNAME
         value: admin
       - key: ADMIN_PASSWORD

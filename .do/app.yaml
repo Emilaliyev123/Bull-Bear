@@ -21,13 +21,7 @@ services:
         value: "3000"
       - key: ADMIN_USERNAME
         value: admin
-      - key: ADMIN_PASSWORD
-        scope: RUN_TIME
-        type: SECRET
-        value: BullBearAdmin#2026!Q7
-      - key: ADMIN_SECRET
-        scope: RUN_TIME
-        type: SECRET
-        value: change-this-long-random-secret-before-deploy
+      # Configure ADMIN_PASSWORD and ADMIN_SECRET as encrypted RUN_TIME
+      # environment variables in the DigitalOcean dashboard.
       - key: DISCORD_FREE_INVITE
         value: https://discord.gg/zcXkSV34H
