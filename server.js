@@ -67,6 +67,7 @@ const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:or
 const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "AZN";
 const PAYRIFF_USD_TO_AZN_RATE = Number(process.env.PAYRIFF_USD_TO_AZN_RATE || 1.7);
 const PAYRIFF_LANGUAGE = process.env.PAYRIFF_LANGUAGE || "EN";
+const PAYRIFF_REQUEST_TIMEOUT_MS = 15000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
@@ -516,6 +517,42 @@ function payriffMessage(payload = {}, fallback = "Payriff request failed") {
     || fallback;
 }
 
+function payriffSafeMessage(payload = {}, fallback = "Payriff request failed") {
+  const value = payriffMessage(payload, fallback);
+  return ["string", "number"].includes(typeof value)
+    ? String(value).trim().slice(0, 300) || fallback
+    : fallback;
+}
+
+function payriffSupportTicket(payload = {}, message = "") {
+  const explicitTicket = payload?.supportTicket
+    || payload?.support_ticket
+    || payload?.ticket
+    || payload?.payload?.supportTicket
+    || payload?.payload?.support_ticket
+    || payload?.payload?.ticket;
+  if (explicitTicket) return String(explicitTicket).trim().slice(0, 80);
+  const match = String(message).match(/(?:support\s+ticket|ticket)\s*[:#-]?\s*([a-z0-9-]+)/i);
+  return match ? match[1] : "";
+}
+
+function payriffPublicMessage(payload = {}, fallback = "Payriff request failed") {
+  const message = payriffSafeMessage(payload, fallback);
+  if (!/application\s+not\s+found/i.test(message)) return message;
+  const ticket = payriffSupportTicket(payload, message);
+  return ticket
+    ? `Payment provider returned: Application not found. Please contact support with ticket ${ticket}.`
+    : "Payment provider returned: Application not found. Please contact support.";
+}
+
+function safeUrlHostname(value) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return "invalid-url";
+  }
+}
+
 function payriffReference(payload = {}) {
   return String(
     payload?.payload?.orderId
@@ -572,6 +609,7 @@ async function callPayriff(method, pathname, body = null) {
     throw new Error("Payriff is not configured. Add PAYRIFF_SECRET_KEY in Render environment variables.");
   }
   const targetUrl = `${config.baseUrl}${pathname}`;
+  const endpointHostname = safeUrlHostname(targetUrl);
   let response;
   try {
     response = await fetch(targetUrl, {
@@ -582,12 +620,22 @@ async function callPayriff(method, pathname, body = null) {
         "Authorization": config.secretKey
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(PAYRIFF_REQUEST_TIMEOUT_MS)
     });
   } catch (error) {
     const detail = error.cause?.code || error.cause?.message || error.name || "network_error";
-    console.warn("Payriff network request failed:", { targetUrl, detail });
-    throw new Error(`Payriff network error: ${detail}`);
+    const timedOut = error.name === "TimeoutError"
+      || error.name === "AbortError"
+      || ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(error.cause?.code);
+    console.warn("Payriff network request failed:", {
+      endpointHostname,
+      endpoint: pathname,
+      category: timedOut ? "timeout" : "network_error",
+      detail
+    });
+    throw new Error(timedOut
+      ? "Payriff is temporarily unavailable because the secure checkout request timed out. Please try again in a few minutes."
+      : "Payriff is temporarily unavailable. Please try again shortly.");
   }
   const text = await response.text();
   let payload;
@@ -596,11 +644,22 @@ async function callPayriff(method, pathname, body = null) {
   } catch {
     payload = { raw: text };
   }
+  const providerCode = String(payload?.code || "");
+  const providerRejected = Boolean(providerCode)
+    && !["00000", "0", "success", "SUCCESS"].includes(providerCode);
+  const responseErrorMessage = !response.ok || providerRejected
+    ? payriffSafeMessage(payload, `Payriff returned ${response.status}`)
+    : null;
+  console.info("Payriff API response:", {
+    endpointHostname,
+    status: response.status,
+    errorMessage: responseErrorMessage
+  });
   if (!response.ok) {
-    throw new Error(payriffMessage(payload, `Payriff returned ${response.status}`));
+    throw new Error(payriffPublicMessage(payload, `Payriff returned ${response.status}`));
   }
-  if (payload?.code && !["00000", "0", "success", "SUCCESS"].includes(String(payload.code))) {
-    throw new Error(payriffMessage(payload));
+  if (providerRejected) {
+    throw new Error(payriffPublicMessage(payload));
   }
   return payload;
 }
@@ -615,6 +674,14 @@ async function createPayriffCheckout(req, payment, plan, planId) {
   payment.providerAmount = checkoutAmount;
   payment.providerCurrency = config.currency;
   payment.exchangeRate = config.currency === "AZN" ? payriffUsdToAznRate() : null;
+  console.info("Payriff create order request:", {
+    endpointHostname: safeUrlHostname(`${config.baseUrl}${config.createPath}`),
+    amount: checkoutAmount,
+    currency: config.currency,
+    productId: planId,
+    secretExists: Boolean(config.secretKey),
+    callbackUrlHost: safeUrlHostname(callbackUrl)
+  });
   const payload = await callPayriff("POST", config.createPath, {
     amount: checkoutAmount,
     currency: config.currency,

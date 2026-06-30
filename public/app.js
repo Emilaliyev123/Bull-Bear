@@ -873,6 +873,7 @@ function productsPage() {
         <h1 class="h2">Choose Your <span class="gold-text">Trading Journey</span></h1>
         <p class="lead">Start with the academy bundle that now includes the AI tool, join the free Discord community, or unlock Market Hub Pro.</p>
       </div>
+      <div data-status aria-live="polite">${state.message}</div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="discord-mini">
         <span>Free Discord community is open to everyone.</span>
@@ -1314,7 +1315,7 @@ function renderAnalyzerResult(result) {
     return `
       <div class="hub-empty-state">
         <strong>Run an analyzer to build a scenario.</strong>
-        <span>Select market, style, and timeframe. Protected Analyzer V2 uses server-side demo data until a live provider is connected.</span>
+        <span>Select market, style, and timeframe. Crypto uses live Binance public data when available; other markets remain demo/research.</span>
       </div>
     `;
   }
@@ -1409,9 +1410,9 @@ function renderCryptoAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCryptoAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2 · Live Crypto Data</span>
         <h2 class="h3">Crypto Analyzer</h2>
-        <p class="muted">Server-side confluence analysis for top crypto assets. Results remain educational demo scenarios until a live data provider is connected.</p>
+        <p class="muted">Server-side confluence analysis using Binance public candles when available, with a clearly labeled fallback-demo result if live data cannot be reached.</p>
         <div class="form-grid">
           <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
@@ -1430,7 +1431,7 @@ function renderForexAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitForexAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo / Research</span>
         <h2 class="h3">Forex Analyzer</h2>
         <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
         <div class="form-grid">
@@ -1451,7 +1452,7 @@ function renderCommoditiesAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCommodityAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo / Research</span>
         <h2 class="h3">Gold & Commodities Analyzer</h2>
         <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
         <div class="form-grid">
@@ -1485,7 +1486,7 @@ function renderStockAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitStockAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo / Research</span>
         <h2 class="h3">Stock Market Analyzer</h2>
         <p class="muted">Trading modes provide structured levels. Investment, market, and sector modes remain research-only without short-term trade targets.</p>
         <div class="form-grid">
@@ -1798,7 +1799,7 @@ function arbitragePage() {
       <div class="market-hub-shell">
         <div class="market-hub-hero">
           <div>
-            <span class="demo-label">Demo analysis until live market data API is connected</span>
+            <span class="demo-label">Live crypto data enabled. Forex, gold, stocks, and commodities remain demo/research until their APIs are connected.</span>
             <h1 class="h2">Bull & Bear Market Hub</h1>
             <p class="lead">Arbitrage scanner, multi-market analyzer, strategy breakdowns, and risk education in one premium dashboard.</p>
           </div>

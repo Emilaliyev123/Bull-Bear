@@ -166,11 +166,25 @@ test("no-signal, high-risk, and stock research states give appropriate guidance"
 test("premium shell and arbitrage scanner remain present", () => {
   const frontend = loadFrontend();
   const scanner = frontend.evaluate("renderArbitrageScanner()");
+  const crypto = frontend.evaluate("renderCryptoAnalyzer()");
+  const forex = frontend.evaluate("renderForexAnalyzer()");
+  const commodities = frontend.evaluate("renderCommoditiesAnalyzer()");
+  const stocks = frontend.evaluate("renderStockAnalyzer()");
 
   assert.match(frontend.source, /Protected Backend Analyzer/);
   assert.match(frontend.source, /Demo \/ Live Data Status/);
+  assert.match(frontend.source, /Live crypto data enabled\. Forex, gold, stocks, and commodities remain demo\/research until their APIs are connected\./);
   assert.match(frontend.source, /Data", "Strategies", "Scoring", "Risk Filters", "Result/);
   assert.match(frontend.source, /fetch\("\/api\/market-hub\/analyze"/);
+  assert.match(crypto, /Protected Analyzer V2 · Live Crypto Data/);
+  assert.match(forex, /Protected Analyzer V2 · Demo \/ Research/);
+  assert.match(commodities, /Protected Analyzer V2 · Demo \/ Research/);
+  assert.match(stocks, /Protected Analyzer V2 · Demo \/ Research/);
   assert.match(scanner, /Real-Time Crypto Arbitrage Scanner/);
   assert.match(scanner, /data-refresh-scanner/);
+});
+
+test("products page provides inline checkout status feedback", () => {
+  const frontend = loadFrontend();
+  assert.match(frontend.source, /<div data-status aria-live="polite">\$\{state\.message\}<\/div>/);
 });
