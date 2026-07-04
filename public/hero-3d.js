@@ -39,7 +39,7 @@ function buildParticleField() {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const material = new THREE.PointsMaterial({
-    color: 0xfacc15,
+    color: 0x00f0ff,
     size: 0.018,
     transparent: true,
     opacity: 0.72,
@@ -84,13 +84,13 @@ function buildCandles() {
 function buildRings() {
   const group = new THREE.Group();
   const gold = new THREE.MeshStandardMaterial({
-    color: 0xf2b23b,
+    color: 0x12d18e,
     emissive: 0x5a3605,
     metalness: 0.88,
     roughness: 0.18
   });
   const darkGold = new THREE.MeshStandardMaterial({
-    color: 0x8c6420,
+    color: 0x0f9b6a,
     emissive: 0x2d1b02,
     metalness: 0.92,
     roughness: 0.23,
@@ -111,7 +111,7 @@ function buildRings() {
 function buildScannerPlanes() {
   const group = new THREE.Group();
   const materials = [
-    new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.14, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.14, side: THREE.DoubleSide }),
     new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.12, side: THREE.DoubleSide }),
     new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.09, side: THREE.DoubleSide })
   ];
@@ -154,7 +154,7 @@ function initHero3D() {
   camera.lookAt(0, 0, 0);
 
   scene.add(new THREE.AmbientLight(0xf8e7b0, 0.45));
-  const key = new THREE.PointLight(0xfacc15, 2.8, 14);
+  const key = new THREE.PointLight(0x00f0ff, 2.8, 14);
   key.position.set(2.2, 2.4, 3.6);
   scene.add(key);
   const greenLight = new THREE.PointLight(0x10b981, 1.1, 9);
@@ -199,9 +199,9 @@ function initHero3D() {
     const t = time * 0.001;
     rig.rotation.y = Math.sin(t * 0.22) * 0.11 + pointer.x * 0.055;
     rig.rotation.x = -0.035 + pointer.y * -0.025;
-    rings.rotation.y = t * 0.32;
+    rings.rotation.y = t * 0.8;
     rings.rotation.z = Math.sin(t * 0.4) * 0.12;
-    particles.rotation.y = t * 0.045;
+    particles.rotation.y = t * 0.15;
     candles.children.forEach((child) => {
       if (child.userData.phase !== undefined) {
         child.scale.y = 1 + Math.sin(t * 1.8 + child.userData.phase) * 0.028;

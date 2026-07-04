@@ -1,6 +1,6 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
 const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
-const TELEGRAM_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
+const DISCORD_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   course: "education-bundle",
@@ -41,6 +41,8 @@ const state = {
   marketHub: {
     activeTab: "arbitrage",
     loading: false,
+    error: null,
+    requestId: 0,
     result: null,
     stockResult: null,
     forms: {
@@ -51,15 +53,19 @@ const state = {
       },
       forex: {
         pair: "EUR/USD",
-        style: "Day Trading"
+        style: "Day Trading",
+        timeframe: "4H"
       },
       commodities: {
         asset: "XAU/USD",
-        style: "Day Trading"
+        style: "Day Trading",
+        timeframe: "4H"
       },
       stocks: {
+        asset: "SPY",
         mode: "Market Summary",
-        selectedOption: "US Market"
+        selectedOption: "US Market",
+        timeframe: "1D"
       }
     }
   },
@@ -106,27 +112,20 @@ const categories = [
 ];
 
 const productFeatures = {
-  course: [
-    "Game of Candles book",
-    "Investor & Trader AI tool included",
-    "Free Discord community access",
-    "2 free videos on website",
-    "Full course videos in Telegram",
-    "Lifetime bundle access"
-  ],
-  signals: [
+  discord: [
     "Free public Discord community",
     "Academy announcements",
     "Beginner discussion rooms",
     "Community market talk",
     "No subscription required"
   ],
-  arbitrage: [
+  "market-hub": [
+    "AI Market Scanner & Risk Engine",
+    "Calculated Entry Zones",
     "Market Hub Pro dashboard",
     "Live crypto arbitrage scanner",
     "Crypto, forex, gold, and stocks analyzers",
-    "Live crypto price anchoring",
-    "Mini-course and risk guide",
+    "How to Use crash course",
     "Advanced risk and confidence models"
   ],
   ai: []
@@ -140,7 +139,7 @@ const legalPolicies = {
     intro: "This policy explains how Bull & Bear Trading Academy collects, uses, and protects information when visitors use the website, create an account, purchase digital products, or contact support.",
     sections: [
       ["Information We Collect", "We may collect account details, contact information, payment confirmation data, support messages, technical usage data, and product access records. Card details are handled by payment processors and are not stored by this website."],
-      ["How We Use Information", "Information is used to provide course, book, Discord membership, and scanner access; process purchases; improve the platform; respond to support requests; protect accounts; and comply with legal obligations."],
+      ["How We Use Information", "Information is used to provide Discord membership, and scanner access; process purchases; improve the platform; respond to support requests; protect accounts; and comply with legal obligations."],
       ["Files and Digital Content", "Videos, thumbnails, book covers, and PDF files are stored for the purpose of displaying and delivering academy content on the platform."],
       ["Data Sharing", "We do not sell personal information. Limited information may be shared with trusted service providers such as hosting, analytics, support, and payment partners when required to operate the service."],
       ["Security", "We use reasonable technical and administrative safeguards to protect data. No internet service is perfectly secure, so users should keep account credentials confidential."],
@@ -151,7 +150,7 @@ const legalPolicies = {
     eyebrow: "Terms of Service",
     title: "Terms of Service",
     updated: "May 14, 2026",
-    intro: "These terms govern access to Bull & Bear Trading Academy, including courses, books, free Discord community access, Market Hub tools, AI education tools, and related digital content.",
+    intro: "These terms govern access to Bull & Bear Trading Academy, including free Discord community access, Market Hub tools, AI education tools, and related digital content.",
     sections: [
       ["Educational Purpose", "All content is provided for education and market analysis. It is not financial, investment, legal, or tax advice. Trading involves risk and users are responsible for their own decisions."],
       ["Accounts and Access", "Users must provide accurate account information and keep credentials secure. Access to paid products is personal and may not be resold, shared, copied, or redistributed."],
@@ -167,7 +166,7 @@ const legalPolicies = {
     updated: "May 14, 2026",
     intro: "This policy explains refund and exchange rules for digital products and subscriptions purchased through Bull & Bear Trading Academy.",
     sections: [
-      ["Digital Product Sales", "One-time purchases such as courses and books provide digital access. Because digital products can be accessed immediately, purchases are generally final and non-refundable."],
+      ["Digital Product Sales", "One-time purchases provide digital access. Because digital products can be accessed immediately, purchases are generally final and non-refundable."],
       ["Subscription Services", "Market Hub Pro subscriptions may be cancelled before the next billing cycle. Access continues until the end of the current paid period."],
       ["No Trading Result Refunds", "Refunds are not issued because of trading losses, market outcomes, or dissatisfaction with personal trading results. The products are educational and analytical tools."],
       ["Duplicate or Incorrect Purchases", "If a duplicate charge or accidental purchase occurs, contact support within 24 hours with account and order details so the request can be reviewed."],
@@ -521,7 +520,7 @@ function mountRouteEffects() {
     if (state.token && state.user && !isAdmin()) loadUserDashboard();
     if (hasScannerAccess()) loadScannerData();
   }
-  if ((path === "/courses" || path === "/book") && state.token && state.user && !isAdmin()) loadUserDashboard();
+  
   if (path === "/admin" && state.token && isAdmin()) loadAdminPlatform();
   if ((path === "/profile" || path === "/dashboard") && state.token && state.user && !isAdmin()) loadUserDashboard();
   if (checkoutMatch) {
@@ -538,8 +537,7 @@ function mountRouteEffects() {
 function header() {
   const links = [
     ["/products", "Products"],
-    ["/courses", "Courses"],
-    ["/book", "Book"],
+    ["/how-to-use", "How to Use"],
     ["/signals", "Discord"],
     ["/market-hub", "Market Hub"],
     ["/ai", "AI"],
@@ -579,8 +577,8 @@ function header() {
 function footer() {
   const productLinks = [
     ["/products", "Products"],
-    ["/courses", "Courses + Book"],
-    ["/book", "Book"],
+    
+    
     ["/signals", "Free Discord"],
     ["/market-hub", "Market Hub"],
     ["/ai", "Investor AI"]
@@ -635,16 +633,16 @@ function ticker() {
 }
 
 function productCard(product) {
-  const cls = product.id === "course" ? "blue" : product.id === "signals" ? "gold" : product.id === "arbitrage" ? "green" : product.id === "ai" ? "gold" : "red";
-  const mark = product.id === "course" ? "AI" : product.id === "signals" ? "D" : product.id === "ai" ? "AI" : "M";
-  const badge = product.id === "signals" ? `<div class="badge">FREE DISCORD</div>` : product.id === "arbitrage" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : product.id === "ai" ? `<div class="badge">AI PRO</div>` : "";
-  const href = product.id === "course" ? "/courses" : product.id === "signals" ? "/signals" : product.id === "ai" ? "/ai" : "/market-hub";
-  const planId = product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
+  const cls = product.id === "analyzer" ? "blue" : product.id === "discord" ? "gold" : product.id === "market-hub" ? "green" : "red";
+  const mark = product.id === "analyzer" ? "AI" : product.id === "discord" ? "T" : "M";
+  const badge = product.id === "discord" ? `<div class="badge">FREE DISCORD</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
+  const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" ? "/signals" : "/market-hub";
+  const planId = product.id === "discord" ? "" : product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
     ? (state.user ? "Buy Now" : "Log In to Buy")
     : (state.user ? "Subscribe Now" : "Log In to Subscribe");
-  const primaryAction = product.id === "signals"
-    ? `<a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>`
+  const primaryAction = product.id === "discord"
+    ? `<a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn">Join Free Discord</a>`
     : planId
       ? checkoutCta(planId, primaryLabel)
       : "";
@@ -730,16 +728,16 @@ function heroSection() {
         <div class="hero-copy">
           <h1 class="h1">Bull & Bear <span class="gold-text">Market Command</span></h1>
           <p class="lead">
-            A premium trading academy with AI analysis included in the education bundle, free Discord community access, the Game of Candles book, and market tools built for disciplined traders.
+            The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our Free Discord community today.
           </p>
           <div class="hero-kpis" aria-label="Platform highlights">
-            <span><strong>Courses + AI</strong><small>$49.90 one-time</small></span>
-            <span><strong>Free Discord</strong><small>Community access</small></span>
+            <span><strong>AI Market Scanner</strong><small>Institutional Risk Engine</small></span>
+            <span><strong>Free Discord</strong><small>Trading Community</small></span>
             <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
           </div>
           <div class="hero-actions">
-            <a href="/products" data-link class="btn primary">Start Learning</a>
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Discord</a>
+            <a href="/products" data-link class="btn primary glowing-btn">Unlock Market Hub</a>
+            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Discord</a>
           </div>
         </div>
         <aside class="hero-console" aria-label="Bull and Bear platform preview">
@@ -766,14 +764,59 @@ function heroSection() {
   `;
 }
 
+function howToUsePage() {
+  document.title = "How to Use - Bull & Bear Trading Academy";
+  return `
+    <div class="pad layout-center">
+      <div class="glass-card pad" style="max-width: 900px; width: 100%; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 40px rgba(16, 185, 129, 0.1);">
+        <div class="text-center">
+          <h1 class="h2 neon-text">How to Use the Analyzer Pro</h1>
+          <p class="lead muted">Master the AI Market Scanner in 4 Simple Steps.</p>
+        </div>
+        
+        <div class="spacer"></div>
+        
+        <div class="grid-2">
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--blue);">1. Choose Your Market</h3>
+            <p class="muted">Select from Crypto, Forex, Gold, Stocks, or Commodities. Our live nodes connect to real-world financial data in milliseconds.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--blue);">2. Read the Risk Engine</h3>
+            <p class="muted">The AI scans global economic calendars (FOMC, NFP) to determine real-time volatility. If risk is <strong style="color: var(--red);">EXTREME</strong>, do not trade.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--green);">3. Analyze the Signal</h3>
+            <p class="muted">Review the calculated Entry Zones and Stop Losses. We calculate optimal risk/reward ratios based on structural liquidity.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--green);">4. Follow the Invalidation</h3>
+            <p class="muted">If a candle closes beyond the Stop Loss, the setup is dead. The market structure has shifted. <strong>Do not hold onto hope.</strong></p>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        
+        <div class="card pad" style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--green);">
+          <h3 class="h3 neon-text-green text-center">Ready to Dominate?</h3>
+          <p class="lead text-center">Stop trading on emotion. Use the data.</p>
+          <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+            <a href="/analyzer" data-link class="btn primary glowing-btn">Open Analyzer</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function homePage() {
-  const { products, courses, book } = state.content;
+  const { products } = state.content;
   return `
     ${heroSection()}
     <section class="section compact">
       <div class="metric-strip">
-        <div><strong>3</strong><span>Core products</span></div>
-        <div><strong>${courses.length}</strong><span>Video lessons ready</span></div>
+        <div><strong>2</strong><span>Core products</span></div>
+        <div><strong>Live</strong><span>Market Analyzer</span></div>
         <div><strong>Discord</strong><span>Free community access</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
       </div>
@@ -782,8 +825,8 @@ function homePage() {
       <div class="ai-home-band">
         <div>
           <div class="eyebrow">AI Included</div>
-          <h2 class="h2" style="margin-top:12px;">AI Tool Comes With Courses + Book</h2>
-          <p class="lead">The education bundle includes the AI desk, the Game of Candles book, full course access, crypto and forex analysis support, risk rules, lesson paths, and signal-style scenarios.</p>
+          <h2 class="h2" style="margin-top:12px;">AI Trading Desk</h2>
+          <p class="lead">The platform includes the AI desk, full crypto and forex analysis support, risk rules, and signal-style scenarios.</p>
         </div>
         <a href="/ai" data-link class="btn primary">Open AI Desk</a>
       </div>
@@ -803,11 +846,15 @@ function homePage() {
         <div>
           <div class="eyebrow">Method</div>
           <h2 class="h2" style="margin-top:12px;">Built for Repeatable Trading Workflows</h2>
-          <p class="lead">Courses, the trading book, and the AI tool are now one bundle. Discord is free for community updates, beginner discussion, and academy announcements.</p>
+          <p class="lead">The AI tool and Market Hub are now one bundle. Discord is free for community updates, beginner discussion, and academy announcements.</p>
+        </div>
+        <div class="academy-stats">
+          <div class="stat"><span class="h3">5+</span><span class="muted">Live Markets</span></div>
+          <div class="stat"><span class="h3">AI</span><span class="muted">Risk Engine</span></div>
         </div>
         <div class="process-list">
           <div><strong>01</strong><span>Learn structure and risk rules</span></div>
-          <div><strong>02</strong><span>Study the included trading book</span></div>
+          <div><strong>02</strong><span>Practice with the AI Desk</span></div>
           <div><strong>03</strong><span>Join the free Discord community</span></div>
         </div>
       </div>
@@ -825,37 +872,12 @@ function homePage() {
         </div>
         <div class="process-list">
           <div><strong>Free</strong><span>Community chat and announcements</span></div>
-          <div><strong>AI</strong><span>Included with Courses + Book</span></div>
+          <div><strong>AI</strong><span>Included in Market Hub</span></div>
           <div><strong>Hub</strong><span>Market Hub Pro is separate</span></div>
         </div>
       </div>
     </section>
-    <section class="section compact">
-      <div class="card pad">
-        <div class="book-layout">
-          <div class="book-cover">${bookCover(book)}</div>
-          <div>
-            <div class="eyebrow">Included in Bundle</div>
-            <h2 class="h2" style="margin-top:12px;">Courses + ${esc(book.title)}</h2>
-            <p class="lead">${esc(book.description)}</p>
-            <div class="hero-actions">
-              <a href="/courses" data-link class="btn primary">View $49.90 Bundle</a>
-              <a href="/book" data-link class="btn secondary">View Book</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-    <section class="section compact">
-      <div class="section-head">
-        <div>
-          <div class="eyebrow">Education Library</div>
-          <h2 class="h2" style="margin-top:12px;">Featured Lessons</h2>
-        </div>
-        <a href="/courses" data-link class="btn secondary small">All Courses</a>
-      </div>
-      <div class="grid three">${courses.slice(0, 3).map(courseCard).join("")}</div>
-    </section>
+
   `;
 }
 
@@ -863,71 +885,15 @@ function productsPage() {
   return `
     <section class="section">
       <div class="section-head center">
-        <div class="eyebrow">Premium Products</div>
-        <h1 class="h2">Choose Your <span class="gold-text">Trading Journey</span></h1>
-        <p class="lead">Start with the academy bundle that now includes the AI tool, join the free Discord community, or unlock Market Hub Pro.</p>
+        <div class="eyebrow">Analyzer Access</div>
+        <h1 class="h2">Choose Your <span class="neon-text-green">Trading Arsenal</span></h1>
+        <p class="lead">Unlock the AI Market Scanner, join our free Discord community, or upgrade to Market Hub Pro.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="discord-mini">
         <span>Free Discord community is open to everyone.</span>
         <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Join Free Discord</a>
       </div>
-    </section>
-  `;
-}
-
-function coursesPage() {
-  const freeCourses = state.content.courses
-    .filter((course) => course.isFree)
-    .slice(0, 2);
-  const filtered = state.selectedCategory === "all"
-    ? freeCourses
-    : freeCourses.filter((course) => course.category === state.selectedCategory);
-  const checkingAccess = state.token && state.user && !isAdmin() && !state.userDashboard;
-  return `
-    <section class="section">
-      <div class="section-head center">
-        <div class="eyebrow">2-in-1 Bundle</div>
-        <h1 class="h2">Trading Courses + Book + AI Tool</h1>
-        <p class="lead">One $49.90 product includes the Game of Candles book, the AI market tool, and the full private course video library inside Telegram.</p>
-      </div>
-      <div class="card pad bundle-callout">
-        <div>
-          <h2 class="h3">Complete Education Bundle</h2>
-          <p class="muted">A focused trading education package with the Game of Candles PDF, two free website lessons, Investor & Trader AI, free Discord community access, and paid Telegram access for the complete course video library.</p>
-        </div>
-        <div>
-          <div class="price">$49.90 <span>/ one-time</span></div>
-          ${checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy")}
-        </div>
-      </div>
-      <div class="card pad" style="margin-top:24px;">
-        <div class="telegram-access-row">
-          <div>
-            <div class="eyebrow">Course Video Access</div>
-            <h2 class="h3" style="margin-top:10px;">Premium lessons are delivered in Telegram</h2>
-            <p class="muted">The website keeps the book and two free sample videos here. After buying the bundle, open the private Telegram course channel for the full video library.</p>
-          </div>
-          <div class="hero-actions">
-            ${hasEducationAccess()
-              ? `<a href="${TELEGRAM_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Telegram Course Channel</a>`
-              : checkingAccess
-                ? `<button class="btn primary" type="button" disabled>Checking access...</button>`
-                : state.user
-                  ? checkoutCta("education-bundle", "Buy Bundle to Unlock")
-                  : `<a href="/login" data-link class="btn primary">Log In to Unlock</a>`}
-          </div>
-        </div>
-      </div>
-      <div class="pill-row">
-        ${categories.map(([id, label]) => `<button class="pill ${state.selectedCategory === id ? "active" : ""}" data-category="${id}">${label}</button>`).join("")}
-      </div>
-      <div class="section-head center" style="margin-top:14px;">
-        <div class="eyebrow">Free Website Lessons</div>
-        <p class="lead">These two sample videos stay public on the website. All other course videos are published inside the Telegram channel.</p>
-      </div>
-      ${filtered.length ? `<div class="grid three">${filtered.map(courseCard).join("")}</div>` : `<div class="empty">No lessons in this category yet.</div>`}
-      ${courseModal()}
     </section>
   `;
 }
@@ -957,56 +923,6 @@ function courseModal() {
   `;
 }
 
-function bookCover(book) {
-  if (book?.coverUrl) return `<img src="${esc(media(book.coverUrl))}" alt="${esc(book.title)} cover">`;
-  return `<div class="book-cover-fallback"><strong>Bull & Bear</strong><span>Trading Mastery</span></div>`;
-}
-
-function bookPage() {
-  const book = state.content.book;
-  const checkingAccess = state.token && state.user && !isAdmin() && !state.userDashboard;
-  const pdfActions = !book.pdfUrl
-    ? `<button class="btn secondary" type="button" disabled>PDF Coming Soon</button>`
-    : hasEducationAccess()
-      ? `<button class="btn primary" type="button" data-book-pdf="read">Read Online</button>
-         <button class="btn secondary" type="button" data-book-pdf="download">Download PDF</button>`
-      : checkingAccess
-        ? `<button class="btn secondary" type="button" disabled>Checking Access...</button>`
-        : state.user
-          ? checkoutCta("education-bundle", "Unlock PDF", "btn primary")
-          : `<a href="/login" data-link class="btn primary">Log In to Unlock</a>`;
-  const purchaseAction = hasEducationAccess()
-    ? `<a href="/courses" data-link class="btn primary">Open Bundle</a>`
-    : checkoutCta("education-bundle", state.user ? "Buy Bundle" : "Log In to Buy");
-  return `
-    <section class="section">
-      <div class="card pad">
-        <div class="book-layout">
-          <div class="book-cover">${bookCover(book)}</div>
-          <div>
-            <div class="eyebrow">Included in Academy Bundle</div>
-            <h1 class="h2" style="margin-top:12px;">${esc(book.title)}</h1>
-            <p class="lead">${esc(book.description)} This book is included together with all trading courses in the $49.90 education bundle.</p>
-            <ul class="feature-list">
-              <li>Included with all trading courses</li>
-              <li>Complete trading methodology</li>
-              <li>Risk management frameworks</li>
-              <li>Trading psychology mastery</li>
-              <li>Real chart examples</li>
-              <li>Lifetime updates</li>
-            </ul>
-            <div class="price">$49.90 <span>/ courses + book</span></div>
-            <div class="hero-actions">
-              ${purchaseAction}
-              <a href="/courses" data-link class="btn secondary">View Bundle</a>
-              ${pdfActions}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  `;
-}
 
 function signalsPage() {
   return `
@@ -1015,7 +931,7 @@ function signalsPage() {
         <div>
           <div class="eyebrow">Free Discord</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Discord Is Free</h1>
-          <p class="lead">Join the public Discord community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Courses + Trading Book package.</p>
+          <p class="lead">Join the public Discord community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Market Hub Pro package.</p>
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
             <a href="/courses" data-link class="btn secondary">View Course + AI Bundle</a>
@@ -1040,7 +956,7 @@ function signalsPage() {
         </div>
         <div class="card pad">
           <h2 class="h3">AI With Education Bundle</h2>
-          <p class="muted">The AI market tool is included with the Courses + Trading Book package. Discord stays free for the public community.</p>
+          <p class="muted">The AI market tool is included with Market Hub Pro. Discord stays free for the public community.</p>
         </div>
         <div class="card pad">
           <h2 class="h3">Community First</h2>
@@ -1093,6 +1009,7 @@ function marketHubService() {
 function hubTabs() {
   return [
     ["arbitrage", "Arbitrage", "Live spread scanner"],
+    ["ai", "AI Manager", "Complete Financial AI"],
     ["crypto", "Crypto", "BTC, ETH, SOL and more"],
     ["forex", "Forex", "Majors and crosses"],
     ["commodities", "Gold & Commodities", "Gold, silver, oil, gas"],
@@ -1124,64 +1041,303 @@ function signalClass(status = "") {
   const value = status.toLowerCase();
   if (value.includes("long") || value.includes("bull")) return "long";
   if (value.includes("short") || value.includes("bear")) return "short";
+  if (value.includes("highrisk") || value.includes("high risk")) return "high-risk";
+  if (value.includes("neutral")) return "neutral";
   if (value.includes("research")) return "research";
   return "none";
 }
 
+function humanizeAnalyzerKey(value = "") {
+  return String(value)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function analyzerSignalLabel(status = "neutral") {
+  const labels = {
+    long: "Long",
+    short: "Short",
+    neutral: "Neutral",
+    noSignal: "No Signal",
+    highRisk: "High Risk"
+  };
+  return labels[status] || humanizeAnalyzerKey(status);
+}
+
+function analyzerConfidenceBand(value = 0) {
+  const score = Math.max(0, Math.min(100, Number(value || 0)));
+  if (score <= 39) return { label: "No Setup", detail: "Confluence is too weak for a quality scenario.", className: "no-setup" };
+  if (score <= 59) return { label: "Weak / Wait", detail: "More confirmation is required before planning a trade.", className: "weak" };
+  if (score <= 74) return { label: "Moderate", detail: "A developing setup with meaningful conditions still to verify.", className: "moderate" };
+  if (score <= 89) return { label: "Strong", detail: "Multiple strategy factors align, but risk controls still apply.", className: "strong" };
+  return { label: "Very Strong, Still Risky", detail: "High confluence never removes market risk or guarantees profit.", className: "very-strong" };
+}
+
+function formatAnalyzerEntryZone(entryZone) {
+  if (!entryZone) return "Not issued";
+  if (typeof entryZone === "object") {
+    return `${entryZone.low ?? "-"} - ${entryZone.high ?? "-"}`;
+  }
+  return String(entryZone);
+}
+
+function formatAnalyzerValue(value) {
+  if (value === null || value === undefined || value === "") return "Not available";
+  if (Array.isArray(value)) {
+    return value.map((item) => formatAnalyzerValue(item)).join("; ");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, item]) => `${humanizeAnalyzerKey(key)}: ${formatAnalyzerValue(item)}`)
+      .join("; ");
+  }
+  return String(value);
+}
+
+function strategyTone(name, component = {}) {
+  const explicitTone = String(component.tone || component.signal || "").toLowerCase();
+  if (["bullish", "bearish", "neutral", "risk"].includes(explicitTone)) return explicitTone;
+  const detail = String(component.detail || component.explanation || component.status || "").toLowerCase();
+  if (["newsRisk", "volatility"].includes(name) && Number(component.score || 0) < 5) return "risk";
+  if (/bearish|below|short|unfavorable|lower/.test(detail)) return "bearish";
+  if (/bullish|above|long|supportive|higher/.test(detail)) return "bullish";
+  return "neutral";
+}
+
+function renderStrategyBreakdown(breakdown = {}) {
+  const components = breakdown.components || {};
+  const componentOrder = [
+    "trend",
+    "marketStructure",
+    "supportResistance",
+    "liquidity",
+    "momentum",
+    "volume",
+    "volatility",
+    "newsRisk",
+    "riskReward",
+    "marketSpecific"
+  ];
+  const componentRows = componentOrder
+    .filter((name) => components[name])
+    .map((name) => {
+      const component = components[name];
+      const tone = strategyTone(name, component);
+      return `
+        <div class="strategy-item">
+          <div class="strategy-item-head">
+            <strong>${esc(humanizeAnalyzerKey(name))}</strong>
+            <span class="strategy-status ${tone}">${esc(component.signal || component.status || tone)}</span>
+          </div>
+          <div class="strategy-score"><i style="width:${Math.max(0, Math.min(100, Number(component.score || 0) * 10))}%"></i></div>
+          <div class="strategy-item-copy"><span>${Number(component.score || 0)}/10</span><p>${esc(component.detail || component.explanation || "No additional confirmation")}</p></div>
+        </div>
+      `;
+    }).join("");
+  const researchEntries = Object.entries(breakdown.research || {});
+  const snapshotEntries = Object.entries(breakdown.technicalSnapshot || {});
+  return `
+    <section class="strategy-breakdown" aria-label="Strategy breakdown">
+      <div class="strategy-section-head">
+        <div><span>Strategy breakdown</span><h4>Why This Result?</h4><p>Ten independent checks explain what supports the result and what holds it back.</p></div>
+        <strong>${esc(humanizeAnalyzerKey(breakdown.setupQuality || "research"))}</strong>
+      </div>
+      <div class="strategy-grid">${componentRows}</div>
+      ${breakdown.newsCalendar ? `
+        <div class="strategy-news-calendar">
+          <div class="news-calendar-header">
+            <strong>Calendar & Events</strong>
+            ${breakdown.newsCalendar.dataStatus === 'static-calendar' ? '<span class="status-badge warning">Static Mock Data</span>' : '<span class="status-badge live">Live Calendar Data</span>'}
+          </div>
+          <p>${esc(breakdown.newsCalendar.explanation)}</p>
+          ${breakdown.newsCalendar.activeEvents?.length ? `
+            <div class="event-group active">
+              <h5>Active Risk Window</h5>
+              <ul>
+                ${breakdown.newsCalendar.activeEvents.map(ev => `<li><strong>${esc(ev.title)}</strong> <span class="event-importance ${esc(ev.importance)}">${esc(ev.importance)}</span><br><small>${esc(ev.relevanceReason)}</small></li>`).join("")}
+              </ul>
+            </div>
+          ` : ''}
+          ${breakdown.newsCalendar.upcomingEvents?.length ? `
+            <div class="event-group upcoming">
+              <h5>Upcoming (24h)</h5>
+              <ul>
+                ${breakdown.newsCalendar.upcomingEvents.map(ev => `<li><strong>${esc(ev.title)}</strong> <span class="event-importance ${esc(ev.importance)}">${esc(ev.importance)}</span><br><small>${esc(ev.relevanceReason)}</small></li>`).join("")}
+              </ul>
+            </div>
+          ` : ''}
+        </div>
+      ` : ""}
+      ${(breakdown.strategies || []).length ? `
+        <div class="strategy-checklist">
+          <strong>Models reviewed</strong>
+          <ul>${breakdown.strategies.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+        </div>
+      ` : ""}
+      ${snapshotEntries.length ? `
+        <div class="market-detail-grid analyzer-snapshot-grid">
+          ${snapshotEntries.map(([key, value]) => `<div><span>${esc(humanizeAnalyzerKey(key))}</span><p>${esc(formatAnalyzerValue(value))}</p></div>`).join("")}
+        </div>
+      ` : ""}
+      ${researchEntries.length ? `
+        <div class="market-detail-grid analyzer-research-grid">
+          ${researchEntries.map(([key, value]) => `<div><span>${esc(humanizeAnalyzerKey(key))}</span><p>${esc(formatAnalyzerValue(value))}</p></div>`).join("")}
+        </div>
+      ` : ""}
+    </section>
+  `;
+}
+
+function renderStockResearchSummary(result) {
+  const research = result.strategyBreakdown?.research || {};
+  const thesis = research.thesis || result.explanation || "A research framework for evaluating quality, valuation, and market regime.";
+  const portfolioRole = research.portfolioRole || `Potential ${humanizeAnalyzerKey(result.mode || "long-term").toLowerCase()} research candidate; position size should reflect diversification and personal risk tolerance.`;
+  const riskFactors = research.riskFactors || result.highRiskWarning || "Company, sector, valuation, rate, and broad-market risks can change the thesis.";
+  const dcaApproach = research.dcaIdea || research.dcaApproach || "Consider staged purchases over time only after independent fundamental research. DCA reduces timing pressure but does not prevent losses.";
+  return `
+    <section class="stock-research-summary" aria-label="Long-term stock research summary">
+      <div class="research-summary-head">
+        <div><span>Investment research</span><h4>Long-Term Research View</h4></div>
+        <strong>Not a day-trade signal</strong>
+      </div>
+      <div class="research-summary-grid">
+        <div><span>Thesis</span><p>${esc(formatAnalyzerValue(thesis))}</p></div>
+        <div><span>Portfolio Role</span><p>${esc(formatAnalyzerValue(portfolioRole))}</p></div>
+        <div><span>Risk Factors</span><p>${esc(formatAnalyzerValue(riskFactors))}</p></div>
+        <div><span>DCA / Long-Term Approach</span><p>${esc(formatAnalyzerValue(dcaApproach))}</p></div>
+      </div>
+    </section>
+  `;
+}
+
+function renderAnalyzerError(error) {
+  const status = Number(error?.status || 0);
+  const messages = {
+    400: "The analyzer could not validate these selections. Review the market, asset, mode, and timeframe.",
+    401: "Your session has expired. Log in again to use protected analysis.",
+    402: "Market Hub Pro access is required for protected analysis.",
+    403: "Your account does not currently have permission to use this analyzer.",
+    500: "The protected analyzer is temporarily unavailable. Please try again shortly."
+  };
+  const action = status === 401
+    ? `<a href="/login" data-link class="btn primary small">Log In</a>`
+    : [402, 403].includes(status)
+      ? `<a href="/products" data-link class="btn primary small">View Market Hub Pro</a>`
+      : "";
+  return `
+    <div class="hub-error-state" role="alert">
+      <span>Analysis unavailable</span>
+      <strong>${esc(messages[status] || "The protected analyzer could not be reached.")}</strong>
+      <p>${esc(error?.message || "Please try again.")}</p>
+      ${action}
+    </div>
+  `;
+}
+
 function renderAnalyzerResult(result) {
+  if (state.marketHub.loading) {
+    return `
+      <div class="hub-loading-state" role="status" aria-live="polite">
+        <i></i>
+        <strong>Running protected analysis</strong>
+        <span>Scoring market structure, liquidity, momentum, volatility, and risk controls.</span>
+      </div>
+    `;
+  }
+  if (state.marketHub.error && !result) return renderAnalyzerError(state.marketHub.error);
   if (!result) {
     return `
       <div class="hub-empty-state">
         <strong>Run an analyzer to build a scenario.</strong>
-        <span>Select market, style, and timeframe. Results are demo analysis until live market data API is connected.</span>
+        <span>Select market, style, and timeframe. Protected Analyzer V2 uses server-side demo data until a live provider is connected.</span>
       </div>
     `;
   }
-  const noSignal = result.signalStatus === "No High-Quality Setup";
+  const status = result.signalStatus || "neutral";
+  const noSignal = status === "noSignal";
+  const highRisk = status === "highRisk";
+  const researchMode = result.market === "stocks" && !["dayTrading", "swingTrading"].includes(result.mode);
+  const source = result._analysisSource || "backend";
+  const dataStatus = result.dataStatus || { status: result.isDemo ? "demo" : "live", message: "Market data status unavailable" };
+  const riskValue = String(result.riskLevel || "medium").toLowerCase();
+  const disclaimer = result.metadata?.educationalDisclaimer || "Educational market analysis only, not financial advice. No result guarantees profit.";
+  const confidence = analyzerConfidenceBand(result.confidenceScore);
+  const tradeLevelsSuppressed = !researchMode && (!result.entryZone || result.stopLoss === null || result.stopLoss === undefined || !result.takeProfits?.length);
   return `
-    <div class="analyzer-result ${noSignal ? "no-signal" : ""}">
+    <div class="analyzer-result ${noSignal ? "no-signal" : ""} ${highRisk ? "high-risk-result" : ""} ${researchMode ? "research-result" : ""}">
       <div class="result-topline">
         <div>
-          <span class="demo-label">Demo analysis until live market data API is connected</span>
-          <h3 class="h3">${esc(result.asset || result.selectedOption || "Market")} ${esc(result.marketType || "")}</h3>
+          <div class="analysis-badge-row">
+            <span class="analysis-source-badge ${source}">${source === "backend" ? "Protected Backend Analysis" : "Browser Fallback Demo"}</span>
+            <span class="data-status-badge ${esc(dataStatus.status || "demo")}">${esc(dataStatus.status || "demo")} data</span>
+          </div>
+          <h3 class="h3">${esc(result.asset || "Market")} ${esc(humanizeAnalyzerKey(result.market || result.marketType || ""))}</h3>
+          <p class="result-context">${esc(humanizeAnalyzerKey(result.mode || "analysis"))} · ${esc(result.timeframe || "Timeframe unavailable")} · Updated ${esc(formatDateTime(result.lastUpdated))}</p>
         </div>
-        <div class="signal-badge ${signalClass(result.signalStatus)}">${esc(result.signalStatus || result.bias || "Research View")}</div>
+        <div class="hero-actions small-actions">
+          <button class="btn secondary small" onclick="addToWatchlist('${esc(result.asset)}', '${esc(result.market)}')">Watch</button>
+          <div class="signal-badge ${signalClass(status)}">${esc(analyzerSignalLabel(status))}</div>
+        </div>
       </div>
-      ${noSignal ? `<div class="no-signal-panel">No high-quality setup right now. Wait for confirmation near key levels.</div>` : ""}
+      ${result.chartData ? renderAiChart(result.chartData) : ""}
+      ${source === "fallback" ? `<div class="fallback-warning">Protected backend analysis was unavailable. This is a browser-generated fallback demo and must not be treated as a live signal.</div>` : ""}
+      ${noSignal ? `
+        <div class="no-signal-panel">
+          <strong>No high-quality setup right now.</strong>
+          <span>The best trade is sometimes no trade.</span>
+          <div><b>What to wait for</b><p>${esc(result.noSignalReason || "Wait for price to confirm a key level, structure to improve, volume to support the move, and projected risk/reward to reach at least 1:2.")}</p></div>
+        </div>
+      ` : ""}
+      ${highRisk ? `
+        <div class="high-risk-panel">
+          <strong>High-risk market conditions detected.</strong>
+          <span>Avoid impulsive trades and wait for volatility to stabilize.</span>
+          <div><b>Why high risk?</b><p>${esc(result.highRiskWarning || "The volatility or news-risk filter is extreme. That can widen spreads, increase slippage, and invalidate technical levels without warning.")}</p></div>
+        </div>
+      ` : ""}
+      ${result.noSignalReason && !noSignal ? `<div class="analysis-reason"><strong>Model decision</strong><p>${esc(result.noSignalReason)}</p></div>` : ""}
+      ${result.highRiskWarning && !highRisk ? `<div class="analysis-warning"><strong>Risk warning</strong><p>${esc(result.highRiskWarning)}</p></div>` : ""}
       <div class="result-grid">
-        ${result.currentPrice ? `<div class="result-tile"><span>Current Price</span><strong>${esc(result.currentPrice)}</strong><small>${esc(result.dataSource || "Market snapshot")}</small></div>` : ""}
-        <div class="result-tile"><span>Entry Zone</span><strong>${esc(result.entryZone || result.entryIdea || "Research only")}</strong></div>
-        <div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not active")}</strong></div>
-        <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskRewardRatio || "N/A")}</strong></div>
-        <div class="result-tile"><span>Risk Level</span><strong class="risk-${String(result.riskLevel || "medium").toLowerCase()}">${esc(result.riskLevel || "Medium")}</strong></div>
+        <div class="result-tile"><span>Market Bias</span><strong>${esc(humanizeAnalyzerKey(result.marketBias || "neutral"))}</strong></div>
+        ${researchMode ? `<div class="result-tile"><span>Analysis Type</span><strong>Research View</strong><small>No short-term trade levels</small></div>` : `<div class="result-tile"><span>Entry Zone</span><strong>${esc(formatAnalyzerEntryZone(result.entryZone))}</strong></div>`}
+        ${researchMode ? "" : `<div class="result-tile"><span>Stop Loss</span><strong>${esc(result.stopLoss ?? "Not issued")}</strong></div>`}
+        <div class="result-tile"><span>Risk / Reward</span><strong>${esc(result.riskReward ?? "Not applicable")}</strong></div>
+        <div class="result-tile"><span>Risk Level</span><strong class="risk-${esc(riskValue)}">${esc(humanizeAnalyzerKey(riskValue))}</strong></div>
       </div>
       <div class="confidence-card">
         <div><span>Confidence Score</span><strong>${Number(result.confidenceScore || 0)}%</strong></div>
-        ${meter(result.confidenceScore, result.riskLevel === "High" ? "risk" : "")}
+        ${meter(result.confidenceScore, ["high", "extreme"].includes(riskValue) ? "risk" : "")}
+        <div class="confidence-band-copy ${confidence.className}"><strong>${esc(confidence.label)}</strong><span>${esc(confidence.detail)}</span></div>
+        <div class="confidence-scale" aria-label="Confidence score bands">
+          <span class="no-setup">0-39<small>No Setup</small></span>
+          <span class="weak">40-59<small>Weak / Wait</small></span>
+          <span class="moderate">60-74<small>Moderate</small></span>
+          <span class="strong">75-89<small>Strong</small></span>
+          <span class="very-strong">90-100<small>Very Strong</small></span>
+        </div>
       </div>
       ${result.takeProfits?.length ? `
         <div class="tp-stack">
-          ${result.takeProfits.map((tp) => `<div><span>${esc(tp.label)}</span><strong>${esc(tp.price)}</strong><small>${esc(tp.note)}</small></div>`).join("")}
+          ${result.takeProfits.map((tp) => `<div><span>${esc(tp.level || tp.label)}</span><strong>${esc(tp.price)}</strong><small>${tp.riskMultiple ? `${esc(tp.riskMultiple)}R target` : esc(tp.note || "Target level")}</small></div>`).join("")}
         </div>
       ` : ""}
-      <div class="market-detail-grid">
-        ${result.trend ? `<div><span>Trend</span><p>${esc(result.trend)}</p></div>` : ""}
-        ${result.keyLevels ? `<div><span>Key Levels</span><p>${esc(result.keyLevels)}</p></div>` : ""}
-        ${result.supportResistance ? `<div><span>Support / Resistance</span><p>${esc(result.supportResistance.support)} / ${esc(result.supportResistance.resistance)}</p></div>` : ""}
-        ${result.liquidityZones ? `<div><span>Liquidity Zones</span><p>${result.liquidityZones.map(esc).join("<br>")}</p></div>` : ""}
-        ${result.volumeSummary ? `<div><span>Volume Summary</span><p>${esc(result.volumeSummary)}</p></div>` : ""}
-        ${result.indicatorSummary ? `<div><span>Indicators</span><p>RSI: ${esc(result.indicatorSummary.rsi)}<br>MACD: ${esc(result.indicatorSummary.macd)}<br>EMA: ${esc(result.indicatorSummary.ema)}</p></div>` : ""}
-        ${result.sessionBias ? `<div><span>Session Bias</span><p>${esc(result.sessionBias)}</p></div>` : ""}
-        ${result.dollarStrengthSummary ? `<div><span>Dollar Strength</span><p>${esc(result.dollarStrengthSummary)}</p></div>` : ""}
-        ${result.newsRisk ? `<div><span>News Risk</span><p>${esc(result.newsRisk)}</p></div>` : ""}
-        ${result.macroNewsRisk ? `<div><span>Macro / News Risk</span><p>${esc(result.macroNewsRisk)}</p></div>` : ""}
-      </div>
+      ${tradeLevelsSuppressed ? `
+        <div class="risk-reward-gate">
+          <div><span>Risk filter</span><strong>Trade levels withheld</strong></div>
+          <p>Market Hub rejects scenarios below the minimum 1:2 risk/reward requirement. Wait for a cleaner entry, a better invalidation level, or stronger confirmation instead of forcing a trade.</p>
+        </div>
+      ` : ""}
+      ${researchMode ? renderStockResearchSummary(result) : ""}
+      ${renderStrategyBreakdown(result.strategyBreakdown || {})}
       <div class="result-explain">
-        <strong>Explanation</strong>
-        <p>${esc(result.explanation || result.summary?.overall || "Educational research framework. Live API integration can replace the demo result later.")}</p>
-        <strong>Invalidation</strong>
-        <p>${esc(result.invalidationRule || result.invalidation || "If the thesis breaks, stand aside and wait for a new setup.")}</p>
-        <small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small>
+        <div class="explanation-copy"><strong>Explanation</strong><p>${esc(result.explanation || "Educational research framework.")}</p></div>
+        <div class="invalidation-card"><span>Invalidation Rule</span><strong>${esc(result.invalidationRule || "If the thesis breaks, stand aside and wait for a new setup.")}</strong><small>A disciplined plan defines what proves the idea wrong before any position is considered.</small></div>
+        <div class="data-status-note">
+          <div><strong>${esc(dataStatus.provider || "Market data provider")}</strong><small>${esc(String(dataStatus.status || "demo").toUpperCase())} STATUS</small></div>
+          <span>${esc(dataStatus.message || "Data status unavailable")} Demo means the interface uses educational market scenarios. Live means a backend provider supplied current market data.</span>
+        </div>
+        <small class="educational-disclaimer">${esc(disclaimer)}</small>
       </div>
     </div>
   `;
@@ -1193,15 +1349,15 @@ function renderCryptoAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCryptoAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Crypto Analyzer</h2>
-        <p class="muted">Build a structured educational scenario for top crypto assets. The result is not a live trading signal until a market data API is connected.</p>
+        <p class="muted">Server-side confluence analysis for top crypto assets. Results remain educational demo scenarios until a live data provider is connected.</p>
         <div class="form-grid">
           <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
           <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["5m", "15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
@@ -1214,14 +1370,15 @@ function renderForexAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitForexAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Forex Analyzer</h2>
         <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
         <div class="form-grid">
           <div class="field"><label>Pair</label><select name="pair">${selectedOptionTags(service.forexPairs || [], form.pair)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
@@ -1234,87 +1391,155 @@ function renderCommoditiesAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCommodityAnalyzer(event)">
-        <span class="demo-label">Demo analysis until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Gold & Commodities Analyzer</h2>
         <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
         <div class="form-grid">
           <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.commodityAssets || [], form.asset)}</select></div>
           <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Analyzing..." : "Analyze Commodity"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Gold / Commodity"}</button>
       </form>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
   `;
 }
 
+function stockAnalyzerOptionsForMode(mode) {
+  const optionMap = {
+    "Day Trading": ["Relative Strength", "Opening Range", "High Relative Volume"],
+    "Swing Trading": ["Trend Continuation", "Breakout", "Mean Reversion"],
+    "Long-Term Investment": ["Quality", "Value", "Growth", "Dividend", "DCA"],
+    "Market Summary": ["US Market", "Risk-On / Risk-Off", "Macro Watch"],
+    "Sector Analysis": ["Technology", "Energy", "Financials", "Healthcare", "Consumer", "AI-related stocks", "Defensive stocks"]
+  };
+  return optionMap[mode] || optionMap["Market Summary"];
+}
+
 function renderStockAnalyzer() {
-  const service = marketHubService();
   const form = state.marketHub.forms.stocks;
-  const options = service.stockOptions?.[form.mode] || [];
+  const stockModes = ["Day Trading", "Swing Trading", "Long-Term Investment", "Market Summary", "Sector Analysis"];
+  const options = stockAnalyzerOptionsForMode(form.mode);
   const result = state.marketHub.stockResult;
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitStockAnalyzer(event)">
-        <span class="demo-label">Demo research until live market data API is connected</span>
+        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
         <h2 class="h3">Stock Market Analyzer</h2>
-        <p class="muted">Research-focused tools for market summaries, investment frameworks, sector views, screeners, and investor styles.</p>
+        <p class="muted">Trading modes provide structured levels. Investment, market, and sector modes remain research-only without short-term trade targets.</p>
         <div class="form-grid">
-          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(service.stockModes || [], form.mode)}</select></div>
-          <div class="field"><label>Option</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"], form.asset)}</select></div>
+          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(stockModes, form.mode)}</select></div>
+          <div class="field"><label>Research Focus</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
-        <button class="btn primary" type="submit">${state.marketHub.loading ? "Building research..." : "Build Research View"}</button>
+        <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Stock Market"}</button>
       </form>
-      <div class="stock-research-panel">
-        ${result ? `
-          <div class="result-topline">
-            <div><span class="demo-label">Demo analysis until live market data API is connected</span><h3 class="h3">${esc(result.mode)} - ${esc(result.selectedOption)}</h3></div>
-            <div class="signal-badge research">Research View</div>
-          </div>
-          <div class="market-detail-grid">
-            ${Object.entries(result.summary || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
-          </div>
-          <div class="market-detail-grid">
-            ${Object.entries(result.strategy || {}).map(([key, value]) => `<div><span>${esc(key.replace(/([A-Z])/g, " $1"))}</span><p>${esc(value)}</p></div>`).join("")}
-          </div>
-          <div class="sector-grid">
-            ${(result.sectors || []).map(([name, text]) => `<article><strong>${esc(name)}</strong><p>${esc(text)}</p></article>`).join("")}
-          </div>
-          <div class="result-explain"><strong>Investor Style</strong><p>${esc(result.investorStyle)}</p><small>Last updated: ${esc(formatDateTime(result.lastUpdated))}</small></div>
-        ` : `<div class="hub-empty-state"><strong>Select a research mode.</strong><span>Market Summary, Long-Term Strategy, Sector Analysis, Stock Screener, and Famous Investor Style are ready as demo frameworks.</span></div>`}
-      </div>
+      ${renderAnalyzerResult(result)}
     </div>
   `;
 }
 
 function renderEducationHub() {
-  const lessons = marketHubService().educationLessons || [];
+  const lessons = [
+    {
+      title: "What is Market Hub?",
+      summary: "Market Hub brings the arbitrage scanner and educational analysis for crypto, forex, gold, stocks, and commodities into one protected workspace.",
+      meaning: "It compares several strategy checks, scores their agreement, applies risk filters, and explains the result in plain language.",
+      use: "Choose a market, asset, trading style, and timeframe. Read the data badge first, then review the result and every risk warning.",
+      risks: "A dashboard cannot predict the future. Demo analysis is not current market data, and live data still cannot guarantee an outcome.",
+      points: ["Start with the market and timeframe you understand", "Read the full strategy breakdown", "Treat No Signal as a valid result"]
+    },
+    {
+      title: "What is Arbitrage?",
+      summary: "Arbitrage looks for the same asset trading at different prices on different exchanges: buy at the lower price and sell at the higher price.",
+      meaning: "The visible spread is only the starting point. Fees, withdrawal limits, transfer time, slippage, and available liquidity determine whether an opportunity is practical.",
+      use: "Compare net spread, exchange status, pair liquidity, and execution limits before making any independent decision.",
+      risks: "Prices can converge before a transfer completes. Network delays, frozen withdrawals, low liquidity, and exchange risk can remove the spread.",
+      points: ["Calculate all trading and transfer fees", "Check both order books, not only the last price", "Never assume a displayed spread is guaranteed profit"]
+    },
+    {
+      title: "What is Day Trading?",
+      summary: "Day trading opens and closes short-term positions within the same trading day, often using intraday structure and session momentum.",
+      meaning: "Decisions happen quickly, so a written entry, stop loss, invalidation rule, and maximum risk are essential before considering a trade.",
+      use: "Use 15m or 1H analysis, check session and news risk, and wait for price confirmation near key levels.",
+      risks: "Fast markets create slippage and emotional decisions. Overtrading, high leverage, and moving a stop loss are common beginner mistakes.",
+      points: ["No Signal is normal", "Use a predefined stop loss", "Stop trading after reaching your daily loss limit"]
+    },
+    {
+      title: "What is Swing Trading?",
+      summary: "Swing trading holds a position for several days or weeks to capture a larger move between important market levels.",
+      meaning: "The focus is usually 4H and 1D structure, trend direction, support and resistance, momentum, and room for at least 1:2 risk/reward.",
+      use: "Build the idea from the higher timeframe, then use the lower timeframe only to refine confirmation and invalidation.",
+      risks: "Overnight gaps, weekend moves, funding costs, and unexpected news can change the setup while the market is closed or thin.",
+      points: ["Respect the higher-timeframe trend", "Size for a wider stop", "Do not turn a failed swing trade into a long-term hold"]
+    },
+    {
+      title: "What is Long-Term Investing?",
+      summary: "Long-term investing builds a diversified portfolio around business quality, valuation, risk, and a multi-year time horizon.",
+      meaning: "DCA spreads purchases over time. Diversification reduces dependence on one company or sector, but neither technique removes the possibility of loss.",
+      use: "Use stock research mode for thesis, portfolio role, risk factors, and a possible DCA framework instead of a day-trade entry.",
+      risks: "Weak fundamentals, excessive valuation, concentration, changing rates, and emotional selling can damage long-term results.",
+      points: ["Research the asset independently", "Diversify by sector and risk", "Review the thesis, not every price tick"]
+    },
+    {
+      title: "How to Read Analyzer Signals",
+      summary: "The result is a structured educational scenario, not an instruction to buy or sell.",
+      meaning: "Long and Short describe directional bias. No Signal means quality is insufficient. High Risk means volatility or news conditions override the technical setup.",
+      use: "Start with signal status and risk level, then review confidence, entry zone, stop loss, take profits, invalidation, and every strategy score.",
+      risks: "A high confidence score describes model agreement, not the probability of profit. Ignoring invalidation or risk level defeats the purpose of the analysis.",
+      points: ["Confidence measures confluence, not certainty", "Entry Zone is an area, not an automatic order", "Invalidation explains what proves the idea wrong", "Strategy Breakdown shows bullish, bearish, neutral, and risk factors"]
+    },
+    {
+      title: "How to Use Risk Management",
+      summary: "Risk management decides how much can be lost before thinking about how much might be gained.",
+      meaning: "Risk only 1-2% of account value per trade, use a logical stop loss, avoid excessive leverage, and reject weak risk/reward.",
+      use: "Define position risk, invalidation, and maximum daily loss before considering an entry. Step away after emotional or revenge-trading impulses.",
+      risks: "Leverage magnifies small price moves. Major news can jump over stops, widen spreads, and invalidate an otherwise reasonable setup.",
+      points: ["Never widen a stop to avoid a loss", "Avoid revenge trading", "Respect no-signal and high-risk states", "Do not trade major news you do not understand"]
+    },
+    {
+      title: "Demo Data vs Live Data",
+      summary: "Demo data powers the interface and educational scoring logic until a live market provider is connected for that market.",
+      meaning: "A Demo badge means prices and scenarios are simulated. A Live badge will mean current data came through the protected backend, with its source and update time shown.",
+      use: "Always check the data-status badge and Last Updated time before reading any result. Live providers will be added market by market later.",
+      risks: "Demo values must never be treated as current prices. Even live feeds can be delayed, unavailable, or different from a broker's executable price.",
+      points: ["Demo is for learning and interface testing", "Live data still needs risk controls", "Never compare stale analysis with a current chart"]
+    }
+  ];
   return `
-    <div class="lesson-grid">
-      ${lessons.map((lesson, index) => `
-        <article class="lesson-card">
-          <span>Lesson ${index + 1}</span>
-          <h3>${esc(lesson.title)}</h3>
-          <p>${esc(lesson.summary)}</p>
-          <div><strong>When to use it</strong><p>${esc(lesson.whenToUse)}</p></div>
-          <div><strong>Risks</strong><p>${esc(lesson.risks)}</p></div>
-          <div><strong>How to use analyzer</strong><p>${esc(lesson.analyzerUse)}</p></div>
-          <ul>${(lesson.mistakes || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </article>
-      `).join("")}
+    <div class="education-hub">
+      <header class="education-header">
+        <div><span>Market Hub Mini Course</span><h2>Learn the tools before using the tools.</h2></div>
+        <p>Eight short lessons explain what each analysis mode means, when it can help, and where beginners most often take unnecessary risk.</p>
+      </header>
+      <div class="lesson-grid">
+        ${lessons.map((lesson, index) => `
+          <article class="lesson-card">
+            <div class="lesson-card-head"><span>${String(index + 1).padStart(2, "0")}</span><small>Lesson ${index + 1} of ${lessons.length}</small></div>
+            <h3>${esc(lesson.title)}</h3>
+            <p class="lesson-summary">${esc(lesson.summary)}</p>
+            <div class="lesson-section"><strong>What it means</strong><p>${esc(lesson.meaning)}</p></div>
+            <div class="lesson-section"><strong>How to use it</strong><p>${esc(lesson.use)}</p></div>
+            <div class="lesson-section risk"><strong>Risks to understand</strong><p>${esc(lesson.risks)}</p></div>
+            <div class="lesson-takeaways"><strong>Beginner checklist</strong><ul>${lesson.points.map((item) => `<li>${esc(item)}</li>`).join("")}</ul></div>
+          </article>
+        `).join("")}
+      </div>
     </div>
   `;
 }
 
 function renderRiskGuide() {
-  const rules = [
-    "This is educational market analysis, not financial advice.",
-    "No signal is guaranteed.",
-    "Always use stop loss.",
-    "Do not risk more than 1-2% per trade.",
-    "Avoid high leverage.",
-    "Do not trade during major news unless you understand the risk.",
-    "Past performance does not guarantee future results."
+  const riskSections = [
+    ["Why no signal can be the best signal", "Standing aside protects capital when structure is unclear, confirmation is missing, or risk/reward is weak. Activity is not the same as opportunity."],
+    ["Why leverage is dangerous", "Leverage magnifies both gains and losses. A small move can trigger liquidation or a loss larger than expected, especially when volatility and spreads expand."],
+    ["Why news events are high risk", "CPI, FOMC, NFP, earnings, and unexpected headlines can create gaps, slippage, and violent reversals. Technical levels may fail without warning."],
+    ["Why risk/reward below 1:2 is rejected", "Risking one unit to make less than two leaves little room for normal losing trades. Market Hub withholds trade levels when the projected reward does not justify the risk."],
+    ["Why crypto, forex, and futures are high risk", "These markets can trade around the clock, use leverage, and move quickly when liquidity changes. Futures and some forex products can create losses beyond a simple spot position."],
+    ["Why the analyzer is not a guarantee", "The score measures agreement between model components. It cannot predict news, execution quality, slippage, or human behavior, and it never promises profit."],
+    ["Why users should journal trades", "Record the setup, screenshot, risk, emotions, result, and whether rules were followed. A journal reveals repeated mistakes more clearly than memory does."]
   ];
   return `
     <div class="risk-command-center">
@@ -1323,12 +1548,18 @@ function renderRiskGuide() {
         <h2 class="h2">Professional traders survive before they optimize.</h2>
         <p>Market Hub is designed for education, planning, and disciplined scenario building. It must never be treated as guaranteed profit or automatic execution.</p>
       </div>
+      <div class="risk-foundation-strip" aria-label="Core risk limits">
+        <div><strong>1-2%</strong><span>Maximum account risk per trade</span></div>
+        <div><strong>1:2</strong><span>Minimum planned risk/reward</span></div>
+        <div><strong>Stop</strong><span>Every trade needs invalidation</span></div>
+        <div><strong>Pause</strong><span>No revenge trading after a loss</span></div>
+      </div>
       <div class="risk-rule-grid">
-        ${rules.map((rule) => `<div><strong>Risk Rule</strong><p>${esc(rule)}</p></div>`).join("")}
+        ${riskSections.map(([title, copy], index) => `<div><span>${String(index + 1).padStart(2, "0")}</span><strong>${esc(title)}</strong><p>${esc(copy)}</p></div>`).join("")}
       </div>
       <div class="result-explain high-risk-note">
-        <strong>High Risk Warning</strong>
-        <p>When risk is marked high, the professional action can be to wait. Weak setups, low liquidity, and major news windows are valid reasons to stand aside.</p>
+        <strong>Non-negotiable risk rules</strong>
+        <p>This is educational market analysis, not financial advice. No signal is guaranteed. Always use a stop loss, avoid high leverage, and do not trade major news unless you understand the risk. Past performance does not guarantee future results.</p>
       </div>
     </div>
   `;
@@ -1470,7 +1701,7 @@ function renderArbitrageScanner() {
           </div>
           <div class="card pad">
             <h2 class="h3">Alerts</h2>
-            <p class="muted">The platform is ready for browser, email, Telegram, and Discord alerts when high-spread opportunities or membership events appear.</p>
+            <p class="muted">The platform is ready for browser, email, Discord, and Discord alerts when high-spread opportunities or membership events appear.</p>
           </div>
         </div>
 
@@ -1486,6 +1717,7 @@ function renderArbitrageScanner() {
 
 function renderMarketHubTab() {
   const activeTab = state.marketHub.activeTab;
+  if (activeTab === "ai") return renderAiManager();
   if (activeTab === "crypto") return renderCryptoAnalyzer();
   if (activeTab === "forex") return renderForexAnalyzer();
   if (activeTab === "commodities") return renderCommoditiesAnalyzer();
@@ -1509,7 +1741,7 @@ function arbitragePage() {
           <div>
             <span class="demo-label">Demo analysis until live market data API is connected</span>
             <h1 class="h2">Bull & Bear Market Hub</h1>
-            <p class="lead">Premium scanner, crypto, forex, gold, commodities, stock research, mini-course, and risk education in one disciplined dashboard.</p>
+            <p class="lead">Arbitrage scanner, multi-market analyzer, strategy breakdowns, and risk education in one premium dashboard.</p>
           </div>
           <div class="hub-hero-panel">
             <span>Premium Area</span>
@@ -1518,6 +1750,19 @@ function arbitragePage() {
             <small>Educational market analysis, no guaranteed results.</small>
           </div>
         </div>
+        <div class="market-hub-status-grid" aria-label="Market Hub status">
+          <div><span class="status-mark protected">01</span><strong>Protected Backend Analyzer</strong><small>Authentication and Market Hub access required.</small></div>
+          <div><span class="status-mark data">02</span><strong>Demo / Live Data Status</strong><small>Every result identifies its source and update time.</small></div>
+          <div><span class="status-mark risk">03</span><strong>Risk-Managed Signals</strong><small>News, volatility, confidence, and 1:2 filters applied.</small></div>
+          <div><span class="status-mark scanner">04</span><strong>Arbitrage Scanner Active</strong><small>Existing seven-exchange spread scanner remains available.</small></div>
+        </div>
+        <div class="analyzer-workflow" aria-label="How this analyzer works">
+          <div class="workflow-intro"><span>How this analyzer works</span><strong>From market input to a risk-filtered result</strong></div>
+          <ol>
+            ${["Data", "Strategies", "Scoring", "Risk Filters", "Result"].map((step, index) => `<li><span>${index + 1}</span><strong>${step}</strong></li>`).join("")}
+          </ol>
+        </div>
+        <div class="market-hub-disclaimer"><strong>Educational analysis only.</strong><span>Not financial advice. No signal is guaranteed, and Market Hub never places trades.</span></div>
         <div class="market-hub-tabs" role="tablist" aria-label="Market Hub sections">
           ${hubTabs().map(([id, label, desc]) => `
             <button type="button" data-market-tab="${id}" class="${activeTab === id ? "active" : ""}">
@@ -1658,8 +1903,10 @@ function renderAiMarketSnapshot(items = []) {
   `;
 }
 
+window._tvChartsToInit = [];
+
 function renderAiChart(chartData) {
-  const candles = Array.isArray(chartData?.candles) ? chartData.candles.slice(-42) : [];
+  const candles = Array.isArray(chartData?.candles) ? chartData.candles.slice(-80) : [];
   if (!candles.length) {
     return `
       <div class="card pad ai-chart-card">
@@ -1668,60 +1915,122 @@ function renderAiChart(chartData) {
       </div>
     `;
   }
-  const width = 720;
-  const height = 320;
-  const pad = 28;
-  const lows = candles.map((item) => Number(item.low));
-  const highs = candles.map((item) => Number(item.high));
-  const min = Math.min(...lows, Number(chartData.support || Infinity));
-  const max = Math.max(...highs, Number(chartData.resistance || -Infinity));
-  const range = Math.max(1, max - min);
-  const xStep = (width - pad * 2) / Math.max(1, candles.length - 1);
-  const y = (value) => pad + ((max - Number(value)) / range) * (height - pad * 2);
-  const candleWidth = Math.max(5, Math.min(12, xStep * 0.54));
-  const supportY = y(chartData.support || min);
-  const resistanceY = y(chartData.resistance || max);
-  const closeLine = candles.map((item, index) => `${pad + index * xStep},${y(item.close).toFixed(2)}`).join(" ");
+
+  const containerId = "tv-chart-" + Math.random().toString(36).substr(2, 9);
+  
+  window._tvChartsToInit.push({
+    id: containerId,
+    data: chartData
+  });
+
   return `
     <div class="card pad ai-chart-card">
       <div class="ai-chart-head">
         <div>
           <h3 class="h3">${esc(chartData.symbol || "Market")} Teaching Chart</h3>
-          <p class="muted">${esc(chartData.interval || "live")} candles with support, resistance, and close path.</p>
+          <p class="muted">${esc(chartData.interval || "live")} candles with support & resistance.</p>
         </div>
         <span>${esc(chartData.source || "Teaching context")}</span>
       </div>
-      <svg class="ai-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(chartData.symbol || "Market")} teaching chart">
-        <defs>
-          <linearGradient id="aiChartGold" x1="0" x2="1">
-            <stop offset="0" stop-color="#f59e0b" stop-opacity="0.2"/>
-            <stop offset="1" stop-color="#facc15" stop-opacity="0.9"/>
-          </linearGradient>
-        </defs>
-        ${Array.from({ length: 6 }, (_, index) => {
-          const yy = pad + index * ((height - pad * 2) / 5);
-          return `<line x1="${pad}" y1="${yy}" x2="${width - pad}" y2="${yy}" stroke="rgba(255,255,255,0.06)"/>`;
-        }).join("")}
-        <line x1="${pad}" y1="${resistanceY.toFixed(2)}" x2="${width - pad}" y2="${resistanceY.toFixed(2)}" stroke="#ef4444" stroke-dasharray="6 6"/>
-        <line x1="${pad}" y1="${supportY.toFixed(2)}" x2="${width - pad}" y2="${supportY.toFixed(2)}" stroke="#10b981" stroke-dasharray="6 6"/>
-        ${candles.map((item, index) => {
-          const x = pad + index * xStep;
-          const up = Number(item.close) >= Number(item.open);
-          const bodyTop = y(Math.max(item.open, item.close));
-          const bodyBottom = y(Math.min(item.open, item.close));
-          const color = up ? "#10b981" : "#ef4444";
-          return `
-            <line x1="${x.toFixed(2)}" y1="${y(item.high).toFixed(2)}" x2="${x.toFixed(2)}" y2="${y(item.low).toFixed(2)}" stroke="${color}" stroke-opacity="0.78"/>
-            <rect x="${(x - candleWidth / 2).toFixed(2)}" y="${bodyTop.toFixed(2)}" width="${candleWidth.toFixed(2)}" height="${Math.max(3, bodyBottom - bodyTop).toFixed(2)}" rx="1" fill="${color}" opacity="0.86"/>
-          `;
-        }).join("")}
-        <polyline points="${closeLine}" fill="none" stroke="url(#aiChartGold)" stroke-width="2.4"/>
-        <text x="${pad + 8}" y="${Math.max(16, resistanceY - 8).toFixed(2)}" fill="#ef4444" font-size="12" font-weight="800">Resistance ${esc(chartData.resistance || "")}</text>
-        <text x="${pad + 8}" y="${Math.min(height - 8, supportY + 18).toFixed(2)}" fill="#10b981" font-size="12" font-weight="800">Support ${esc(chartData.support || "")}</text>
-      </svg>
+      <div id="${containerId}" class="bb-chart-container" style="height: 320px; width: 100%; border-radius: 8px; overflow: hidden; background: #050505;"></div>
     </div>
   `;
 }
+
+window.initTradingViewCharts = function() {
+  if (!window._tvChartsToInit || !window._tvChartsToInit.length) return;
+  if (!window.LightweightCharts) {
+    console.warn("TradingView Lightweight Charts script not loaded yet.");
+    return;
+  }
+
+  const pending = window._tvChartsToInit;
+  window._tvChartsToInit = []; // clear queue
+
+  for (const item of pending) {
+    const container = document.getElementById(item.id);
+    if (!container) continue; // might have been unmounted
+    try {
+      const data = item.data;
+    const candles = Array.isArray(data.candles) ? data.candles.map(c => ({
+      time: Math.floor(new Date(c.time || c.timestamp).getTime() / 1000), // TV expects Unix seconds
+      open: Number(c.open),
+      high: Number(c.high),
+      low: Number(c.low),
+      close: Number(c.close)
+    })).sort((a, b) => a.time - b.time) : [];
+
+    const chart = LightweightCharts.createChart(container, {
+      width: container.clientWidth,
+      height: 320,
+      layout: {
+        background: { type: 'solid', color: 'transparent' },
+        textColor: '#9ca3af',
+      },
+      grid: {
+        vertLines: { color: 'rgba(255, 255, 255, 0.04)' },
+        horzLines: { color: 'rgba(255, 255, 255, 0.04)' },
+      },
+      crosshair: {
+        mode: 0,
+      },
+      rightPriceScale: {
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+      },
+      timeScale: {
+        borderColor: 'rgba(255, 255, 255, 0.08)',
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
+
+    const series = chart.addCandlestickSeries({
+      upColor: '#10b981',
+      downColor: '#ef4444',
+      borderVisible: false,
+      wickUpColor: '#10b981',
+      wickDownColor: '#ef4444',
+    });
+
+    series.setData(candles);
+
+    if (data.support) {
+      series.createPriceLine({
+        price: Number(data.support),
+        color: '#10b981',
+        lineWidth: 2,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: 'Support',
+      });
+    }
+
+    if (data.resistance) {
+      series.createPriceLine({
+        price: Number(data.resistance),
+        color: '#ef4444',
+        lineWidth: 2,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: 'Resistance',
+      });
+    }
+
+    chart.timeScale().fitContent();
+    
+    // Handle resize
+    const ro = new ResizeObserver(entries => {
+      if (entries.length === 0 || entries[0].target !== container) { return; }
+      const newRect = entries[0].contentRect;
+      chart.applyOptions({ width: newRect.width, height: newRect.height });
+    });
+    ro.observe(container);
+    } catch (e) {
+      container.innerHTML = `<div style="color: #ef4444; padding: 20px; font-family: monospace;"><b>Chart Error:</b> ${e.message}<br>${e.stack}</div>`;
+      console.error("TV Chart Error:", e);
+    }
+  }
+};
 
 function renderAiTeachingGraphics(items = []) {
   if (!items.length) return "";
@@ -1758,69 +2067,7 @@ function renderAiRiskCalculator(calculator) {
   `;
 }
 
-function renderAiResult() {
-  const result = state.ai.result;
-  if (!result) {
-    return `
-      ${renderAiChat()}
-      <div class="card pad ai-empty-panel">
-        <h2 class="h3">Ready for professional analysis</h2>
-        <p class="muted">Ask for crypto, forex, futures, market structure, investing models, signal-style scenarios, portfolio education, risk rules, or lesson paths. The AI can build teaching charts and risk frameworks for professional study.</p>
-      </div>
-    `;
-  }
-  return `
-    <div class="ai-output">
-      ${renderAiChat()}
-      <div class="card pad ai-summary-card">
-        <div class="eyebrow">AI Analysis</div>
-        <h2 class="h3" style="margin-top:12px;">${esc(result.title)}</h2>
-        <p class="muted">${esc(result.chatAnswer || result.summary)}</p>
-        <div class="ai-meta">
-          <span>Model: ${esc(state.ai.meta?.model || "OpenAI")}</span>
-          <span>Market: ${esc(state.ai.meta?.marketSource || "Academy model")}</span>
-          <span>${state.ai.meta?.generatedAt ? new Date(state.ai.meta.generatedAt).toLocaleString() : "Generated now"}</span>
-        </div>
-      </div>
-      ${renderAiMarketSnapshot(result.marketSnapshot)}
-      ${renderAiChart(result.chartData)}
-      ${renderAiTeachingGraphics(result.teachingGraphics)}
-      <div class="grid two">
-        ${renderAiSection("Market Models", result.marketModel, "No market model returned yet.")}
-        ${renderAiSection("Watchlist", result.watchlist, "No watchlist returned yet.")}
-      </div>
-      <div class="grid two">
-        ${renderAiSection("Signal-Style Scenarios", result.signalScenarios, "No signal scenarios returned yet.")}
-        ${renderAiSection("Lesson Plan", result.lessonPlan, "No lesson plan returned yet.")}
-      </div>
-      <div class="grid two">
-        ${renderAiSection("Strategy Playbook", result.strategyPlaybook, "No strategy playbook returned yet.")}
-        ${renderAiRiskCalculator(result.riskCalculator)}
-      </div>
-      <div class="grid two">
-        <div class="card pad ai-result-card">
-          <h3 class="h3">Macro Checklist</h3>
-          <ul class="feature-list">${(result.macroChecklist || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </div>
-        <div class="card pad ai-result-card">
-          <h3 class="h3">Journal Checklist</h3>
-          <ul class="feature-list">${(result.journalChecklist || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </div>
-      </div>
-      <div class="grid two">
-        <div class="card pad ai-result-card">
-          <h3 class="h3">Risk Rules</h3>
-          <ul class="feature-list">${(result.riskRules || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </div>
-        <div class="card pad ai-result-card">
-          <h3 class="h3">Next Steps</h3>
-          <ul class="feature-list">${(result.nextSteps || []).map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
-        </div>
-      </div>
-      <p class="ai-disclaimer">${esc(result.disclaimer)}</p>
-    </div>
-  `;
-}
+function renderAiResult() { return ""; }
 
 function aiAccessPanel() {
   const checking = state.user && !isAdmin() && !state.userDashboard;
@@ -1831,7 +2078,7 @@ function aiAccessPanel() {
         <h2 class="h2" style="margin-top:12px;">Investor & Trader AI Tool</h2>
         <p class="lead">${checking
           ? "Loading your account access..."
-          : "The AI market coach is included with the Courses + Trading Book package. Use it for crypto, forex, futures, signal-style scenarios, lesson plans, teaching charts, risk rules, and journal frameworks."}</p>
+          : "The AI market coach is included with Market Hub Pro. Use it for crypto, forex, futures, signal-style scenarios, teaching charts, and risk rules."}</p>
       </div>
       <div class="ai-plan-card">
         <span>Bundle Access</span>
@@ -1849,100 +2096,103 @@ function aiAccessPanel() {
     </div>
   `;
 }
+// Render basic markdown: **bold**, ## headers, - bullets, newlines
+function renderMarkdown(text) {
+  if (!text) return "";
+  return String(text)
+    // Escape HTML first (only the raw characters, not our later tags)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    // Headers: ## Heading → <h3>
+    .replace(/^###\s+(.+)$/gm, "<h4 class=\"ai-h4\">$1</h4>")
+    .replace(/^##\s+(.+)$/gm, "<h3 class=\"ai-h3\">$1</h3>")
+    .replace(/^#\s+(.+)$/gm, "<h2 class=\"ai-h2\">$1</h2>")
+    // Bold: **text**
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    // Italic: *text*
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    // Bullet lists: - item
+    .replace(/^[\-*]\s+(.+)$/gm, "<li>$1</li>")
+    // Wrap consecutive <li> elements in a <ul>
+    .replace(/(<li>.*<\/li>\n?)+/g, m => "<ul>" + m + "</ul>")
+    // Horizontal rule
+    .replace(/^---+$/gm, "<hr/>")
+    // Inline code: `code`
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    // Convert double newlines to paragraph breaks
+    .replace(/\n\n/g, "</p><p>")
+    // Convert single newlines to <br>
+    .replace(/\n/g, "<br/>")
+    // Wrap everything in a paragraph
+    .replace(/^(.+)$/, "<p>$1</p>");
+}
 
-function aiPage() {
-  const allowed = hasAiAccess();
+function renderAiManager() {
+  const messages = state.ai.messages || [];
+  const hasChat = messages.length > 1 || state.ai.loading; // exclude initial greeting
+
   return `
-    <section class="section">
-      <div class="ai-hero">
-        <div>
-          <div class="eyebrow">Investor & Trader AI</div>
-          <h1 class="h2" style="margin-top:12px;">AI Market Coach Included With Education Bundle</h1>
-          <p class="lead">Ask trading and investing questions across crypto, forex, futures, and market education. The education bundle builds structured answers, teaching graphics, risk rules, scenarios, and lesson paths.</p>
-        </div>
-        <div class="ai-preview-card">
-          <span>Courses + Book + AI</span>
-          <strong>$49.90</strong>
-          <small>One-time education bundle with AI market coach, crypto, forex, futures, charts, scenarios, risk tools, and academy lessons.</small>
-        </div>
-      </div>
-
-      ${allowed ? "" : aiAccessPanel()}
-      ${allowed ? `
-      <div class="ai-layout">
-        <div class="card pad">
-          <h2 class="h3">Ask Anything</h2>
-          <div class="ai-template-row">
-            ${aiTemplates().map((template) => `
-              <button class="pill" type="button" data-ai-template="${esc(template.mode)}" data-ai-question="${esc(template.question)}">${esc(template.label)}</button>
-            `).join("")}
+    <div class="bb-ai-layout">
+      <div class="bb-ai-messages" id="gemini-messages">
+        ${!hasChat && messages.length === 0 ? `
+          <div class="bb-ai-welcome">
+            <div class="bb-ai-logo">
+              <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+                <circle cx="28" cy="28" r="28" fill="url(#aigrad)"/>
+                <path d="M28 14 L32 24 L42 24 L34 30 L37 40 L28 34 L19 40 L22 30 L14 24 L24 24 Z" fill="white" opacity="0.9"/>
+                <defs><radialGradient id="aigrad" cx="30%" cy="30%"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c47c00"/></radialGradient></defs>
+              </svg>
+            </div>
+            <h1 class="bb-ai-greeting">Bull &amp; Bear AI Pro</h1>
+            <p class="bb-ai-sub">Your elite financial manager. Ask me anything about crypto, forex, stocks, commodities, and macroeconomics.</p>
+            <div class="bb-ai-chips">
+              <button type="button" class="bb-chip" onclick="document.querySelector('.bb-ai-input').value='Analyze BTC market structure and give me a trading plan'; document.querySelector('.bb-ai-input').focus()">📊 Analyze BTC</button>
+              <button type="button" class="bb-chip" onclick="document.querySelector('.bb-ai-input').value='What is the best forex strategy for beginners?'; document.querySelector('.bb-ai-input').focus()">💱 Forex Strategy</button>
+              <button type="button" class="bb-chip" onclick="document.querySelector('.bb-ai-input').value='Explain risk management and position sizing'; document.querySelector('.bb-ai-input').focus()">🛡️ Risk Management</button>
+              <button type="button" class="bb-chip" onclick="document.querySelector('.bb-ai-input').value='What is happening with gold and the US dollar?'; document.querySelector('.bb-ai-input').focus()">🥇 Gold &amp; DXY</button>
+            </div>
           </div>
-          <form class="form-grid" onsubmit="return submitAiAdvisor(event)">
-            <div class="form-grid two">
-              <div class="field">
-                <label>Mode</label>
-                <select name="mode">
-                  ${[
-                    ["trader", "Trader"],
-                    ["investor", "Investor"],
-                    ["forex", "Forex Analyst"],
-                    ["futures", "Futures Risk"],
-                    ["signal", "Signal Scenarios"],
-                    ["lesson", "Lesson Coach"],
-                    ["portfolio", "Portfolio Education"],
-                    ["risk", "Risk Manager"]
-                  ].map(([value, label]) => `<option value="${value}" ${state.ai.form.mode === value ? "selected" : ""}>${label}</option>`).join("")}
-                </select>
-              </div>
-              <div class="field">
-                <label>Market</label>
-                <input name="market" value="${aiFieldValue("market")}" placeholder="Crypto, forex, futures, stocks">
-              </div>
+        ` : messages.map(m => `
+          <div class="bb-ai-msg ${m.role === 'user' ? 'user' : 'assistant'}">
+            ${m.role === 'assistant' ? `<div class="bb-ai-avatar">
+              <svg width="22" height="22" viewBox="0 0 56 56" fill="none"><circle cx="28" cy="28" r="28" fill="url(#ag2)"/><path d="M28 14 L32 24 L42 24 L34 30 L37 40 L28 34 L19 40 L22 30 L14 24 L24 24 Z" fill="white" opacity="0.9"/><defs><radialGradient id="ag2" cx="30%" cy="30%"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c47c00"/></radialGradient></defs></svg>
+            </div>` : ""}
+            <div class="bb-bubble">
+              ${m.role === 'assistant' ? renderMarkdown(m.text) : esc(m.text)}
+              ${m.chartData ? renderAiChart(m.chartData) : ""}
             </div>
-            <div class="form-grid two">
-              <div class="field">
-                <label>Assets</label>
-                <input name="asset" value="${aiFieldValue("asset")}" placeholder="BTC, ETH, EURUSD, XAUUSD">
-              </div>
-              <div class="field">
-                <label>Timeframe</label>
-                <select name="timeframe">
-                  ${["intraday", "swing", "weekly", "long-term"].map((value) => `<option value="${value}" ${state.ai.form.timeframe === value ? "selected" : ""}>${value}</option>`).join("")}
-                </select>
-              </div>
+          </div>
+        `).join("")}
+        ${state.ai.loading ? `
+          <div class="bb-ai-msg assistant">
+            <div class="bb-ai-avatar">
+              <svg width="22" height="22" viewBox="0 0 56 56" fill="none"><circle cx="28" cy="28" r="28" fill="url(#ag3)"/><path d="M28 14 L32 24 L42 24 L34 30 L37 40 L28 34 L19 40 L22 30 L14 24 L24 24 Z" fill="white" opacity="0.9"/><defs><radialGradient id="ag3" cx="30%" cy="30%"><stop offset="0%" stop-color="#f5a623"/><stop offset="100%" stop-color="#c47c00"/></radialGradient></defs></svg>
             </div>
-            <div class="form-grid two">
-              <div class="field">
-                <label>Risk Profile</label>
-                <select name="riskProfile">
-                  ${["conservative", "balanced", "aggressive"].map((value) => `<option value="${value}" ${state.ai.form.riskProfile === value ? "selected" : ""}>${value}</option>`).join("")}
-                </select>
-              </div>
-              <div class="field">
-                <label>Experience</label>
-                <select name="experienceLevel">
-                  ${["beginner", "intermediate", "advanced"].map((value) => `<option value="${value}" ${state.ai.form.experienceLevel === value ? "selected" : ""}>${value}</option>`).join("")}
-                </select>
-              </div>
+            <div class="bb-bubble typing">
+              <span class="dot"></span><span class="dot"></span><span class="dot"></span>
             </div>
-            <div class="field">
-              <label>Capital Range</label>
-              <input name="capitalRange" value="${aiFieldValue("capitalRange")}" placeholder="$500 - $2,000">
-            </div>
-            <div class="field">
-              <label>Your Message</label>
-              <textarea name="question" rows="6" required>${aiFieldValue("question")}</textarea>
-            </div>
-            <button class="btn primary" type="submit">${state.ai.loading ? "Thinking..." : "Ask Bull & Bear AI"}</button>
-            <div data-ai-status>${state.ai.error ? `<div class="status err">${esc(state.ai.error)}</div>` : state.ai.loading ? `<div class="status">Analyzing market context...</div>` : ""}</div>
-          </form>
-        </div>
-        <div>
-          ${renderAiResult()}
-        </div>
+          </div>
+        ` : ""}
+        ${state.ai.error ? `
+          <div class="bb-ai-msg assistant">
+            <div class="bb-bubble error">${esc(state.ai.error)}</div>
+          </div>
+        ` : ""}
       </div>
-      ` : ""}
-    </section>
+      <div class="bb-ai-input-wrap">
+        <form class="bb-ai-bar" onsubmit="return submitAiAdvisor(event)">
+          <button type="button" class="bb-bar-icon" title="Clear chat" onclick="state.ai.messages=[]; state.ai.error=''; render(); return false;">
+            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+          </button>
+          <input class="bb-ai-input" type="text" name="question" placeholder="Ask Bull &amp; Bear AI Pro about markets, trading, or finance..." required autocomplete="off" ${state.ai.loading ? "disabled" : ""} />
+          <button type="submit" class="bb-send-btn" ${state.ai.loading ? "disabled" : ""} title="Send">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </form>
+        <p class="bb-ai-disclaimer">Bull &amp; Bear AI Pro &bull; For education only &bull; Not financial advice</p>
+      </div>
+    </div>
   `;
 }
 
@@ -1953,7 +2203,7 @@ function supportPage() {
         <div>
           <div class="eyebrow">Support</div>
           <h1 class="h2" style="margin-top:12px;">Contact Support</h1>
-          <p class="lead">For product access, payments, course videos, book downloads, or account support, use the contact details here.</p>
+          <p class="lead">For product access, payments, or account support, use the contact details here.</p>
         </div>
         <div class="card pad contact-card">
           <div class="kv">
@@ -1964,7 +2214,7 @@ function supportPage() {
         </div>
       </div>
       <div class="grid three" style="margin-top:22px;">
-        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with courses, book PDF access, AI bundle access, free Discord, and Market Hub Pro subscriptions.</p></div>
+        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with AI bundle access, free Discord, and Market Hub Pro subscriptions.</p></div>
         <div class="card pad"><h2 class="h3">Payments</h2><p class="muted">Questions about checkout, subscription cancellation, and digital purchase records.</p></div>
         <div class="card pad"><h2 class="h3">Account Help</h2><p class="muted">Support for login, access, billing, and member dashboard questions.</p></div>
       </div>
@@ -2108,6 +2358,8 @@ function profilePage() {
   const activeUntil = activeSubscription?.paid_until || activeSubscription?.paidUntil || activeSubscription?.expiresAt;
   const payments = dashboard.payments || [];
   const recent = dashboard.recentOpportunities || state.scanner.opportunities.slice(0, 5);
+  const watchlist = dashboard.watchlist || [];
+  const courseProgress = dashboard.courseProgress || [];
   return `
     <section class="section">
       <div class="section-head">
@@ -2145,20 +2397,32 @@ function profilePage() {
       </div>
       ${hasEducationAccess() ? `
         <div class="card pad" style="margin-top:24px;">
-          <div class="telegram-access-row">
+          <div class="discord-access-row">
             <div>
               <div class="eyebrow">Education Bundle</div>
-              <h2 class="h3" style="margin-top:10px;">Your Telegram course channel is unlocked</h2>
-              <p class="muted">Use Telegram for premium course videos. The Game of Candles book remains available on the website.</p>
+              <h2 class="h3" style="margin-top:10px;">Your Discord channel is unlocked</h2>
+              <p class="muted">Use Discord for premium discussion and VIP market updates.</p>
             </div>
             <div class="hero-actions">
-              <a href="${TELEGRAM_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Telegram Course Channel</a>
+              <a href="${DISCORD_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Discord Course Channel</a>
               <a href="/book" data-link class="btn secondary">Open Book</a>
             </div>
           </div>
         </div>
       ` : ""}
       <div class="grid two" style="margin-top:24px;">
+        <div class="card pad">
+          <h2 class="h3">Your Watchlist</h2>
+          <div class="table-list">
+            ${watchlist.length ? watchlist.map(w => `
+              <div class="table-row">
+                <div><strong>${esc(w.symbol)}</strong><div class="faint">${esc(w.market)} ${w.note ? `- ${esc(w.note)}` : ''}</div></div>
+                <button class="btn small icon" onclick="removeWatchlist('${esc(w.symbol)}')">✕</button>
+              </div>
+            `).join("") : `<div class="empty compact-empty">Your watchlist is empty. Add assets from the scanner or analyzer.</div>`}
+          </div>
+        </div>
+
         <div class="card pad">
           <h2 class="h3">Recent Opportunities</h2>
           <div class="table-list">
@@ -2217,7 +2481,7 @@ function adminPage() {
           ${adminTabButton("scanner", "Scanner")}
           ${adminTabButton("announcements", "Announcements")}
           ${adminTabButton("courses", "Videos")}
-          ${adminTabButton("book", "Book")}
+          
         </aside>
         <div>
           ${adminActivePanel()}
@@ -2237,8 +2501,8 @@ function adminActivePanel() {
   if (state.adminTab === "payments") return adminPaymentsPanel();
   if (state.adminTab === "scanner") return adminScannerPanel();
   if (state.adminTab === "announcements") return adminAnnouncementsPanel();
-  if (state.adminTab === "courses") return adminCoursesPanel();
-  if (state.adminTab === "book") return adminBookPanel();
+  
+  
   return adminDashboardPanel();
 }
 
@@ -2435,118 +2699,6 @@ function adminAnnouncementsPanel() {
   `;
 }
 
-function adminCoursesPanel() {
-  return `
-    <div class="grid">
-      <div class="card pad">
-        <h2 class="h3">Upload Video Lesson</h2>
-        <form class="form-grid" onsubmit="return submitCourse(event)" enctype="multipart/form-data">
-          <div class="form-grid two">
-            <div class="field">
-              <label>Lesson Title</label>
-              <input name="title" required placeholder="Market Structure Foundations">
-            </div>
-            <div class="field">
-              <label>Category</label>
-              <select name="category">
-                ${categories.filter(([id]) => id !== "all").map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}
-              </select>
-            </div>
-          </div>
-          <div class="field">
-            <label>Description</label>
-            <textarea name="description" required placeholder="Describe what this lesson teaches"></textarea>
-          </div>
-          <div class="form-grid two">
-            <div class="field">
-              <label>Duration</label>
-              <input name="duration" placeholder="42 min">
-            </div>
-            <label class="checkbox-row" style="align-self:end;margin-bottom:10px;">
-              <input type="checkbox" name="isFree">
-              Free preview lesson
-            </label>
-          </div>
-          <div class="form-grid two">
-            <div class="field">
-              <label>Video File</label>
-              <input type="file" name="videoFile" accept="video/*" required>
-            </div>
-            <div class="field">
-              <label>Thumbnail Image</label>
-              <input type="file" name="thumbnailFile" accept="image/*">
-            </div>
-          </div>
-          <button class="btn primary" type="submit">Upload Video Lesson</button>
-          <div data-status>${state.message}</div>
-        </form>
-      </div>
-      <div class="card pad">
-        <h2 class="h3">Existing Lessons</h2>
-        <div class="table-list" style="margin-top:14px;">
-          ${state.content.courses.map((course) => `
-            <div class="table-row">
-              <div>
-                <strong>${esc(course.title)}</strong>
-                <div class="faint">${esc(course.category)} ${course.videoUrl ? " / video uploaded" : " / no video yet"}</div>
-              </div>
-              <button class="btn danger small" data-delete-course="${esc(course.id)}">Delete</button>
-            </div>
-          `).join("")}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function adminBookPanel() {
-  const book = state.content.book;
-  return `
-    <div class="card pad">
-      <h2 class="h3">Upload Trading Book</h2>
-      <form class="form-grid" onsubmit="return submitBook(event)" enctype="multipart/form-data">
-        <div class="form-grid two">
-          <div class="field">
-            <label>Book Title</label>
-            <input name="title" required value="${esc(book.title)}">
-          </div>
-          <div class="field">
-            <label>Bundle Price</label>
-            <input name="price" type="number" step="0.01" min="0" value="${esc(book.price)}">
-          </div>
-        </div>
-        <div class="field">
-          <label>Description</label>
-          <textarea name="description" required>${esc(book.description)}</textarea>
-        </div>
-        <div class="form-grid two">
-          <div class="field">
-            <label>PDF File</label>
-            <input type="file" name="bookFile" accept="application/pdf,.pdf">
-            <small class="faint">Upload a PDF file. Existing PDF stays active if you only edit text or cover.</small>
-          </div>
-          <div class="field">
-            <label>Cover Image</label>
-            <input type="file" name="coverFile" accept="image/*">
-            <small class="faint">Optional JPG, PNG, or WebP cover.</small>
-          </div>
-        </div>
-        <button class="btn primary" type="submit">Save Book</button>
-        <div data-status>${state.message}</div>
-      </form>
-      <div class="table-list" style="margin-top:18px;">
-        <div class="table-row">
-          <div>
-            <strong>Current PDF</strong>
-            <div class="faint">${book.pdfUrl ? "Protected PDF uploaded" : "No PDF uploaded yet"}</div>
-          </div>
-          ${book.pdfUrl ? `<button class="btn secondary small" type="button" data-book-pdf="read">Open</button>` : ""}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
 function notFoundPage() {
   return `
     <section class="section">
@@ -2564,11 +2716,13 @@ function page() {
   const legalPath = legalPolicyAliases[path] || path;
   if (path === "/") return homePage();
   if (path === "/products") return productsPage();
-  if (path === "/courses") return coursesPage();
-  if (path === "/book") return bookPage();
+  if (path === "/how-to-use") return howToUsePage();
   if (path === "/signals" || path === "/discord") return signalsPage();
   if (path === "/arbitrage" || path === "/scanner" || path === "/market-hub") return arbitragePage();
-  if (path === "/ai") return aiPage();
+  if (path === "/ai") {
+    state.marketHub.activeTab = "ai";
+    return arbitragePage();
+  }
   if (path === "/support") return supportPage();
   if (path === "/login") return authPage("login");
   if (path === "/register") return authPage("register");
@@ -2591,6 +2745,7 @@ function render() {
   bindCheckoutButtons();
   initMarketCanvas();
   mountRouteEffects();
+  if (typeof initTradingViewCharts === "function") initTradingViewCharts();
 }
 
 function initMarketCanvas() {
@@ -2713,72 +2868,44 @@ window.handleRegister = async function handleRegister(event) {
     });
     setSession(res.token, res.user);
     state.message = "";
-    navigate("/profile");
+    navigate(isAdmin() ? "/admin" : "/profile");
   } catch (error) {
     setMessage(error.message, "err");
   }
   return false;
 };
 
-window.submitCourse = async function submitCourse(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  data.set("isFree", form.elements.isFree.checked ? "true" : "false");
-  setMessage("Uploading video lesson...");
+window.removeWatchlist = async function removeWatchlist(symbol) {
+  if (!confirm(`Remove ${symbol} from your watchlist?`)) return;
   try {
-    await api("/api/admin/courses", { method: "POST", body: data });
-    await refreshAfterAdmin("Video lesson uploaded.");
-  } catch (error) {
-    setMessage(error.message, "err");
+    const res = await api(`/api/user/watchlist/${encodeURIComponent(symbol)}`, { method: "DELETE" });
+    if (state.userDashboard) state.userDashboard.watchlist = res.watchlist;
+    render();
+  } catch (err) {
+    console.error("Failed to remove from watchlist:", err);
   }
-  return false;
 };
 
-window.submitBook = async function submitBook(event) {
-  event.preventDefault();
-  setMessage("Saving book files...");
+window.addToWatchlist = async function addToWatchlist(symbol, market) {
   try {
-    await api("/api/admin/book", { method: "POST", body: new FormData(event.currentTarget) });
-    await refreshAfterAdmin("Book saved.");
-  } catch (error) {
-    setMessage(error.message, "err");
-  }
-  return false;
-};
-
-async function openBookPdf(download = false) {
-  if (!state.token) {
-    navigate("/login");
-    return;
-  }
-  setMessage(download ? "Preparing PDF download..." : "Opening PDF...");
-  const pendingWindow = download ? null : window.open("about:blank", "_blank");
-  if (pendingWindow) pendingWindow.opener = null;
-  try {
-    const result = await api(`/api/book/pdf-link${download ? "?download=1" : ""}`);
-    const url = result.url || "";
-    if (!url) throw new Error("Book link was not created.");
-    if (download) {
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "game-of-candles.pdf";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+    const res = await api("/api/user/watchlist", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ symbol, market, note: "Added from Analyzer" })
+    });
+    if (state.userDashboard) state.userDashboard.watchlist = res.watchlist;
+    alert(`${symbol} added to Watchlist!`);
+    render();
+  } catch (err) {
+    console.error("Failed to add to watchlist:", err);
+    if (err.message.includes("Session")) {
+       navigate("/login");
     } else {
-      if (pendingWindow) {
-        pendingWindow.location.href = url;
-      } else {
-        window.location.href = url;
-      }
+       alert("Failed to add to watchlist.");
     }
-    setMessage("");
-  } catch (error) {
-    if (pendingWindow) pendingWindow.close();
-    setMessage(error.message, "err");
   }
-}
+};
+
 
 window.submitScannerControls = async function submitScannerControls(event) {
   event.preventDefault();
@@ -2830,91 +2957,218 @@ window.submitAiAdvisor = async function submitAiAdvisor(event) {
   event.preventDefault();
   if (!hasAiAccess()) {
     state.ai.error = state.user
-      ? "Investor & Trader AI is included with the Courses + Trading Book package ($49.90 one-time)."
-      : "Please log in and buy the Courses + Trading Book package to unlock the AI tool.";
+      ? "Investor & Trader AI is included with Market Hub Pro."
+      : "Please log in and subscribe to Market Hub Pro to unlock the AI tool.";
     render();
     return false;
   }
   const form = event.currentTarget;
   const data = new FormData(form);
+  const question = (data.get("question") || "").trim();
+  
+  if (!question) return false;
+
+  // Build history from current messages (exclude the initial greeting)
+  const currentMessages = state.ai.messages || [];
+  const historyForApi = currentMessages
+    .filter(m => !(m.role === "assistant" && currentMessages.indexOf(m) === 0))
+    .map(m => ({ role: m.role, text: m.text }));
+
   const payload = {
-    mode: data.get("mode"),
-    market: data.get("market"),
-    asset: data.get("asset"),
-    timeframe: data.get("timeframe"),
-    riskProfile: data.get("riskProfile"),
-    experienceLevel: data.get("experienceLevel"),
-    capitalRange: data.get("capitalRange"),
-    question: data.get("question")
+    question,
+    history: historyForApi
   };
-  state.ai.form = { ...state.ai.form, ...payload };
+
   state.ai.loading = true;
   state.ai.error = "";
   state.ai.messages = [
     ...(state.ai.messages || []),
-    { role: "user", text: payload.question || "Analyze the market." }
-  ].slice(-8);
+    { role: "user", text: question }
+  ];
+  
+  // Reset form immediately
+  form.reset();
   render();
+  
+  setTimeout(() => {
+    const msgs = document.getElementById("gemini-messages");
+    if (msgs) msgs.scrollTop = msgs.scrollHeight;
+  }, 50);
+
   try {
     const response = await api("/api/ai/advisor", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    state.ai.result = response.result;
-    state.ai.meta = response.meta;
+    
+    const r = response.result || {};
+    // The real AI returns chatAnswer as clean prose/markdown text
+    const answerText = r.chatAnswer || r.summary || "I wasn't able to generate a response. Please try again.";
+
     state.ai.messages = [
-      ...(state.ai.messages || []),
-      { role: "assistant", text: response.result?.chatAnswer || response.result?.summary || "Analysis completed." }
-    ].slice(-8);
-    state.ai.error = "";
-  } catch (error) {
-    state.ai.error = error.message;
-    state.ai.messages = [
-      ...(state.ai.messages || []),
-      { role: "assistant", text: `I could not complete the analysis: ${error.message}` }
-    ].slice(-8);
-  } finally {
+      ...state.ai.messages,
+      { role: "assistant", text: answerText, chartData: r.chartData }
+    ];
     state.ai.loading = false;
+    state.ai.error = "";
+    render();
+    
+    setTimeout(() => {
+      const msgs = document.getElementById("gemini-messages");
+      if (msgs) msgs.scrollTop = msgs.scrollHeight;
+    }, 50);
+  } catch (error) {
+    state.ai.loading = false;
+    state.ai.error = error.message;
     render();
   }
   return false;
 };
 
-function unavailableMarketResult(marketType, asset) {
+function analyzerModeFromLabel(value = "") {
+  const key = String(value).toLowerCase().replace(/[^a-z]/g, "");
+  const modes = {
+    scalping: "scalping",
+    daytrading: "dayTrading",
+    swingtrading: "swingTrading",
+    longterminvestment: "longTermInvestment",
+    longterminvestmentstrategy: "longTermInvestment",
+    longtermmacroview: "longTermInvestment",
+    marketsummary: "marketSummary",
+    sectoranalysis: "sectorAnalysis"
+  };
+  return modes[key] || "marketSummary";
+}
+
+function analyzerTimeframe(value = "4H") {
+  return String(value).trim().toLowerCase();
+}
+
+async function requestProtectedMarketHubAnalysis(payload) {
+  const headers = { "Content-Type": "application/json" };
+  if (state.token) headers.Authorization = `Bearer ${state.token}`;
+  let response;
+  try {
+    response = await fetch("/api/market-hub/analyze", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+  } catch (cause) {
+    const error = new Error("The protected analyzer could not be reached.");
+    error.status = 0;
+    error.cause = cause;
+    throw error;
+  }
+  const isJson = (response.headers.get("content-type") || "").includes("application/json");
+  const body = isJson ? await response.json() : await response.text();
+  if (!response.ok) {
+    if (response.status === 401) logout(false);
+    const error = new Error(body?.error || body || "Protected analysis failed");
+    error.status = response.status;
+    error.details = body?.details || null;
+    throw error;
+  }
+  return { ...body, _analysisSource: "backend" };
+}
+
+function fallbackRiskReward(value) {
+  const match = String(value || "").match(/1\s*:\s*([\d.]+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function normalizeBrowserFallback(legacy = {}, request) {
+  const confidence = Math.max(0, Math.min(100, Number(legacy.confidenceScore || 0)));
+  const componentScore = Math.max(0, Math.min(10, Math.round(confidence / 10)));
+  const legacyStatus = String(legacy.signalStatus || "").toLowerCase();
+  const signalStatus = legacyStatus.includes("long")
+    ? "long"
+    : legacyStatus.includes("short")
+      ? "short"
+      : legacyStatus.includes("research")
+        ? "neutral"
+        : "noSignal";
+  const riskLevel = String(legacy.riskLevel || "high").toLowerCase();
+  const supportResistance = legacy.supportResistance
+    ? `${legacy.supportResistance.support} / ${legacy.supportResistance.resistance}`
+    : "Browser fallback levels only";
+  const component = (detail, score = componentScore) => ({ score, detail });
   return {
-    marketType,
-    asset,
-    demo: true,
-    signalStatus: "No High-Quality Setup",
-    entryZone: "Service unavailable",
-    stopLoss: "Not active",
-    takeProfits: [],
-    riskRewardRatio: "N/A",
-    confidenceScore: 0,
-    trend: "Unavailable",
-    supportResistance: null,
-    liquidityZones: [],
-    volumeSummary: "Analyzer service is not loaded.",
-    indicatorSummary: null,
-    riskLevel: "High",
-    explanation: "Market Hub analyzer service is unavailable. Reload the page or reconnect the service script.",
-    invalidationRule: "Do not use this output as an active setup.",
-    lastUpdated: new Date().toISOString()
+    market: request.market,
+    asset: request.asset,
+    mode: request.mode,
+    timeframe: request.timeframe,
+    signalStatus,
+    confidenceScore: confidence,
+    riskLevel: ["low", "medium", "high", "extreme"].includes(riskLevel) ? riskLevel : "high",
+    marketBias: legacy.bias || legacy.trend || signalStatus,
+    entryZone: legacy.entryZone || legacy.entryIdea || null,
+    stopLoss: legacy.stopLoss === "Not active" ? null : legacy.stopLoss ?? null,
+    takeProfits: (legacy.takeProfits || []).map((target, index) => ({
+      level: target.level || target.label || `TP${index + 1}`,
+      price: target.price,
+      riskMultiple: target.riskMultiple || null
+    })),
+    riskReward: fallbackRiskReward(legacy.riskRewardRatio),
+    strategyBreakdown: {
+      setupQuality: "browser fallback demo",
+      components: {
+        trend: component(legacy.trend || "Fallback trend placeholder"),
+        marketStructure: component("Browser fallback market-structure placeholder"),
+        supportResistance: component(supportResistance),
+        liquidity: component((legacy.liquidityZones || []).join("; ") || "Fallback liquidity placeholder"),
+        momentum: component(legacy.indicatorSummary?.rsi || "Fallback momentum placeholder"),
+        volume: component(legacy.volumeSummary || "Fallback volume placeholder"),
+        volatility: component(legacy.volatility || "Fallback volatility placeholder", riskLevel === "high" ? 3 : componentScore),
+        newsRisk: component(legacy.newsRisk || legacy.macroNewsRisk || "Live news is not connected", 3),
+        riskReward: component(legacy.riskRewardRatio || "Fallback risk/reward unavailable"),
+        marketSpecific: component("Legacy browser analyzer model")
+      },
+      strategies: ["Legacy browser fallback model"],
+      research: legacy.summary || legacy.strategy || legacy.sectors
+        ? { summary: legacy.summary || {}, strategy: legacy.strategy || {}, sectors: legacy.sectors || [] }
+        : undefined
+    },
+    explanation: `${legacy.explanation || legacy.summary?.overall || "Browser fallback educational scenario."} This fallback is not protected backend analysis and is not a live signal.`,
+    invalidationRule: legacy.invalidationRule || legacy.invalidation || "Do not act on fallback output without independent confirmation.",
+    noSignalReason: signalStatus === "noSignal" ? "Protected analysis was unavailable and the fallback found no high-quality setup." : null,
+    highRiskWarning: riskLevel === "high" ? "Browser fallback risk is high. Wait for protected analysis and independent confirmation." : null,
+    dataStatus: {
+      status: "demo",
+      provider: "browserFallback",
+      message: legacy.dataSource || "Legacy browser-generated demo. No live Analyzer V2 provider was used."
+    },
+    isDemo: true,
+    lastUpdated: legacy.lastUpdated || new Date().toISOString(),
+    metadata: {
+      educationalDisclaimer: "Educational browser fallback only, not financial advice. No result guarantees profit.",
+      executionEnabled: false,
+      orderPlacementSupported: false,
+      modelVersion: "legacy-browser-fallback"
+    },
+    _analysisSource: "fallback"
   };
 }
 
-function queueMarketHubAnalysis(assignResult) {
+async function runMarketHubAnalysis({ request, fallback, resultKey = "result" }) {
+  const requestId = state.marketHub.requestId + 1;
+  state.marketHub.requestId = requestId;
   state.marketHub.loading = true;
+  state.marketHub.error = null;
+  state.marketHub[resultKey] = null;
   render();
-  setTimeout(async () => {
-    try {
-      await assignResult();
-    } finally {
+  try {
+    state.marketHub[resultKey] = await requestProtectedMarketHubAnalysis(request);
+  } catch (error) {
+    state.marketHub.error = { status: error.status || 500, message: error.message };
+  } finally {
+    if (state.marketHub.requestId === requestId) {
       state.marketHub.loading = false;
       render();
     }
-  }, 220);
+  }
 }
 
 window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
@@ -2927,12 +3181,19 @@ window.submitCryptoAnalyzer = function submitCryptoAnalyzer(event) {
   };
   state.marketHub.activeTab = "crypto";
   state.marketHub.forms.crypto = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(async () => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeCryptoMarket
-      ? await service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe)
-      : unavailableMarketResult("Crypto", payload.asset);
+  const request = {
+    market: "crypto",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeCryptoMarket) throw new Error("Crypto fallback service is not loaded.");
+      return service.analyzeCryptoMarket(payload.asset, payload.style, payload.timeframe);
+    }
   });
   return false;
 };
@@ -2942,16 +3203,24 @@ window.submitForexAnalyzer = function submitForexAnalyzer(event) {
   const data = new FormData(event.currentTarget);
   const payload = {
     pair: String(data.get("pair") || "EUR/USD"),
-    style: String(data.get("style") || "Day Trading")
+    style: String(data.get("style") || "Day Trading"),
+    timeframe: String(data.get("timeframe") || "4H")
   };
   state.marketHub.activeTab = "forex";
   state.marketHub.forms.forex = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(() => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeForexMarket
-      ? service.analyzeForexMarket(payload.pair, payload.style)
-      : unavailableMarketResult("Forex", payload.pair);
+  const request = {
+    market: payload.pair === "XAU/USD" ? "gold" : "forex",
+    asset: payload.pair,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeForexMarket) throw new Error("Forex fallback service is not loaded.");
+      return service.analyzeForexMarket(payload.pair, payload.style);
+    }
   });
   return false;
 };
@@ -2961,16 +3230,24 @@ window.submitCommodityAnalyzer = function submitCommodityAnalyzer(event) {
   const data = new FormData(event.currentTarget);
   const payload = {
     asset: String(data.get("asset") || "XAU/USD"),
-    style: String(data.get("style") || "Day Trading")
+    style: String(data.get("style") || "Day Trading"),
+    timeframe: String(data.get("timeframe") || "4H")
   };
   state.marketHub.activeTab = "commodities";
   state.marketHub.forms.commodities = payload;
-  state.marketHub.result = null;
-  queueMarketHubAnalysis(() => {
-    const service = marketHubService();
-    state.marketHub.result = service.analyzeCommodityMarket
-      ? service.analyzeCommodityMarket(payload.asset, payload.style)
-      : unavailableMarketResult("Commodities", payload.asset);
+  const request = {
+    market: payload.asset === "XAU/USD" ? "gold" : "commodities",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.style),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeCommodityMarket) throw new Error("Commodity fallback service is not loaded.");
+      return service.analyzeCommodityMarket(payload.asset, payload.style);
+    }
   });
   return false;
 };
@@ -2978,30 +3255,30 @@ window.submitCommodityAnalyzer = function submitCommodityAnalyzer(event) {
 window.submitStockAnalyzer = function submitStockAnalyzer(event) {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const service = marketHubService();
   const mode = String(data.get("mode") || "Market Summary");
-  const selectedOption = String(data.get("selectedOption") || service.stockOptions?.[mode]?.[0] || "US Market");
-  const payload = { mode, selectedOption };
+  const selectedOption = String(data.get("selectedOption") || "US Market");
+  const payload = {
+    asset: String(data.get("asset") || "SPY"),
+    mode,
+    selectedOption,
+    timeframe: String(data.get("timeframe") || "1D")
+  };
   state.marketHub.activeTab = "stocks";
   state.marketHub.forms.stocks = payload;
-  state.marketHub.stockResult = null;
-  queueMarketHubAnalysis(() => {
-    state.marketHub.stockResult = service.analyzeStockMarket
-      ? service.analyzeStockMarket(payload.mode, payload.selectedOption)
-      : {
-          marketType: "Stocks",
-          mode: payload.mode,
-          selectedOption: payload.selectedOption,
-          demo: true,
-          signalStatus: "Research View",
-          confidenceScore: 0,
-          riskLevel: "High",
-          lastUpdated: new Date().toISOString(),
-          summary: { overall: "Stock analyzer service is unavailable." },
-          strategy: {},
-          sectors: [],
-          investorStyle: "Reload the page or reconnect the service script."
-        };
+  const request = {
+    market: "stocks",
+    asset: payload.asset,
+    mode: analyzerModeFromLabel(payload.mode),
+    timeframe: analyzerTimeframe(payload.timeframe)
+  };
+  runMarketHubAnalysis({
+    request,
+    resultKey: "stockResult",
+    fallback: () => {
+      const service = marketHubService();
+      if (!service.analyzeStockMarket) throw new Error("Stock fallback service is not loaded.");
+      return service.analyzeStockMarket(payload.mode, payload.selectedOption);
+    }
   });
   return false;
 };
@@ -3037,9 +3314,19 @@ document.addEventListener("click", async (event) => {
   const marketTab = event.target.closest("[data-market-tab]");
   if (marketTab) {
     const nextTab = marketTab.getAttribute("data-market-tab") || "arbitrage";
+    
+    // If the user is on the /ai route but clicks another tab, switch the route back to /market-hub
+    // so the page() router doesn't force the activeTab back to 'ai' on render()
+    if (state.route.replace(/\/$/, "") === "/ai") {
+      history.replaceState({}, "", "/market-hub");
+      state.route = "/market-hub";
+    }
+
     const changedTab = nextTab !== state.marketHub.activeTab;
     state.marketHub.activeTab = nextTab;
     state.marketHub.loading = false;
+    state.marketHub.error = null;
+    state.marketHub.requestId += 1;
     if (changedTab) {
       state.marketHub.result = null;
       if (state.marketHub.activeTab !== "stocks") state.marketHub.stockResult = null;
@@ -3102,6 +3389,11 @@ document.addEventListener("click", async (event) => {
   if (aiTemplate) {
     state.ai.form.mode = aiTemplate.getAttribute("data-ai-template") || state.ai.form.mode;
     state.ai.form.question = aiTemplate.getAttribute("data-ai-question") || state.ai.form.question;
+    const form = document.querySelector(".ai-layout form");
+    if (form) {
+      if (form.mode) form.mode.value = state.ai.form.mode;
+      if (form.question) form.question.value = state.ai.form.question;
+    }
     render();
     return;
   }
@@ -3161,10 +3453,16 @@ document.addEventListener("input", (event) => {
 document.addEventListener("change", (event) => {
   const stockMode = event.target.closest("[data-stock-mode]");
   if (stockMode) {
-    const service = marketHubService();
     const mode = stockMode.value || "Market Summary";
     state.marketHub.forms.stocks.mode = mode;
-    state.marketHub.forms.stocks.selectedOption = service.stockOptions?.[mode]?.[0] || "US Market";
+    state.marketHub.forms.stocks.selectedOption = stockAnalyzerOptionsForMode(mode)[0];
+    state.marketHub.forms.stocks.timeframe = mode === "Day Trading"
+      ? "1H"
+      : mode === "Swing Trading"
+        ? "4H"
+        : mode === "Long-Term Investment"
+          ? "1W"
+          : "1D";
     state.marketHub.stockResult = null;
     render();
     return;
@@ -3192,3 +3490,48 @@ window.addEventListener("popstate", () => {
     document.getElementById("app").innerHTML = `<section class="section"><div class="empty">Could not load site content: ${esc(error.message)}</div></section>`;
   }
 })();
+
+function howToUsePage() {
+  document.title = "How to Use - Bull & Bear Trading Academy";
+  return `
+    <div class="pad layout-center">
+      <div class="glass-card pad" style="max-width: 900px; width: 100%; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 40px rgba(16, 185, 129, 0.1);">
+        <div class="text-center">
+          <h1 class="h2 neon-text">How to Use the Analyzer Pro</h1>
+          <p class="lead muted">Master the AI Market Scanner in 4 Simple Steps.</p>
+        </div>
+        
+        <div class="spacer"></div>
+        
+        <div class="grid-2">
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--blue);">1. Choose Your Market</h3>
+            <p class="muted">Select from Crypto, Forex, Gold, Stocks, or Commodities. Our live nodes connect to real-world financial data in milliseconds.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--blue);">2. Read the Risk Engine</h3>
+            <p class="muted">The AI scans global economic calendars (FOMC, NFP) to determine real-time volatility. If risk is <strong style="color: var(--red);">EXTREME</strong>, do not trade.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--green);">3. Analyze the Signal</h3>
+            <p class="muted">Review the calculated Entry Zones and Stop Losses. We calculate optimal risk/reward ratios based on structural liquidity.</p>
+          </div>
+          <div class="card pad glassmorphism">
+            <h3 class="h3" style="color: var(--green);">4. Follow the Invalidation</h3>
+            <p class="muted">If a candle closes beyond the Stop Loss, the setup is dead. The market structure has shifted. <strong>Do not hold onto hope.</strong></p>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        
+        <div class="card pad" style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--green);">
+          <h3 class="h3 neon-text-green text-center">Ready to Dominate?</h3>
+          <p class="lead text-center">Stop trading on emotion. Use the data.</p>
+          <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
+            <a href="/analyzer" data-link class="btn primary glowing-btn">Open Analyzer</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}

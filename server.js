@@ -3,6 +3,10 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
+const {
+  AnalyzerValidationError,
+  analyzeMarketHubWithLiveData
+} = require("./services/marketHubAnalyzer");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -26,12 +30,7 @@ const DEFAULT_NOTIONAL_USD = Number(process.env.SCANNER_NOTIONAL_USD || 1000);
 const MAX_REASONABLE_SPREAD_PCT = Number(process.env.SCANNER_MAX_SPREAD_PCT || 25);
 const MIN_SCANNER_PRICE = Number(process.env.SCANNER_MIN_PRICE || 0.00000001);
 const PAYMENT_PLANS = {
-  "education-bundle": {
-    name: "Courses + Trading Book + AI Tool",
-    amount: 49.9,
-    cadence: "one-time",
-    accessDays: 3650
-  },
+  
   "premium-discord-signals": {
     name: "Legacy Premium Discord Signals",
     amount: 49.9,
@@ -52,9 +51,9 @@ const PAYMENT_PLANS = {
   }
 };
 const RETIRED_CHECKOUT_PLAN_IDS = new Set(["premium-discord-signals", "investor-trader-ai"]);
-const AI_ACCESS_PLAN_IDS = new Set(["education-bundle", "premium-discord-signals", "investor-trader-ai"]);
+const AI_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium", "premium-discord-signals", "investor-trader-ai"]);
 const SCANNER_ACCESS_PLAN_IDS = new Set(["arbitrage-only", "bull-bear-premium"]);
-const EDUCATION_ACCESS_PLAN_IDS = new Set(["education-bundle"]);
+
 const WEBHOOK_PROVIDER_IDS = new Set(["payriff", "epoint", "crypto", "card"]);
 const PAYMENT_DEFAULT_PROVIDER = process.env.PAYMENT_DEFAULT_PROVIDER || "payriff";
 const PAYRIFF_BASE_URL = (process.env.PAYRIFF_BASE_URL || "https://api.payriff.com").replace(/\/+$/, "");
@@ -63,52 +62,25 @@ const PAYRIFF_ORDER_PATH = process.env.PAYRIFF_ORDER_PATH || "/api/v3/orders/:or
 const PAYRIFF_CURRENCY = process.env.PAYRIFF_CURRENCY || "AZN";
 const PAYRIFF_USD_TO_AZN_RATE = Number(process.env.PAYRIFF_USD_TO_AZN_RATE || 1.7);
 const PAYRIFF_LANGUAGE = process.env.PAYRIFF_LANGUAGE || "EN";
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
-const AI_USE_OPENAI = String(process.env.AI_USE_OPENAI || "false").toLowerCase() === "true";
+const AI_USE_OPENAI = String(process.env.AI_USE_OPENAI || "false").toLowerCase() === "true" || Boolean(GEMINI_API_KEY);
 const AI_MAX_REQUESTS_PER_WINDOW = Number(process.env.AI_MAX_REQUESTS_PER_WINDOW || 10);
 const AI_RATE_WINDOW_MS = Number(process.env.AI_RATE_WINDOW_MS || 10 * 60 * 1000);
 
 app.set("trust proxy", true);
 
 const uploadFolders = {
-  videoFile: "videos",
-  thumbnailFile: "images",
+  
   coverFile: "images",
-  bookFile: "books",
+  
   imageFile: "images"
 };
 
-const BUILT_IN_FREE_COURSES = [
-  {
-    id: "course-market-structure",
-    title: "Market Structure Foundations",
-    description: "Learn trend phases, break of structure, liquidity zones, and the core language of price action.",
-    category: "beginner",
-    duration: "4:34",
-    isFree: true,
-    videoUrl: "/assets/videos/market-structure-foundations.mp4",
-    thumbnailUrl: "",
-    createdAt: "2026-03-16T00:00:00.000Z"
-  },
-  {
-    id: "course-risk-system",
-    title: "Risk Management System",
-    description: "Build a rules-based position sizing plan, define invalidation, and protect capital across volatile sessions.",
-    category: "risk-management",
-    duration: "3:37",
-    isFree: true,
-    videoUrl: "/assets/videos/risk-management-system.mp4",
-    thumbnailUrl: "",
-    createdAt: "2026-03-16T00:00:00.000Z"
-  }
-];
 
-function withBuiltInFreeCourses(courses = []) {
-  const rest = courses.filter((course) => !BUILT_IN_FREE_COURSES.some((builtin) => builtin.id === course.id));
-  return [...BUILT_IN_FREE_COURSES, ...rest];
-}
 
 function ensureProjectFiles() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -120,24 +92,35 @@ function ensureProjectFiles() {
   }
 }
 
+let dbCache = null;
+let writeTimeout = null;
+
 function readDb() {
+  if (dbCache) return dbCache;
   ensureProjectFiles();
-  const db = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-  db.users = Array.isArray(db.users) ? db.users : [];
-  db.subscriptions = Array.isArray(db.subscriptions) ? db.subscriptions : [];
-  db.payments = Array.isArray(db.payments) ? db.payments : [];
-  db.paymentLogs = Array.isArray(db.paymentLogs) ? db.paymentLogs : [];
-  db.oauthStates = Array.isArray(db.oauthStates) ? db.oauthStates : [];
-  db.auditLogs = Array.isArray(db.auditLogs) ? db.auditLogs : [];
-  db.announcements = Array.isArray(db.announcements) ? db.announcements : [];
-  db.notifications = Array.isArray(db.notifications) ? db.notifications : [];
-  db.scannerControls = db.scannerControls || {
+  try {
+    const raw = fs.readFileSync(DATA_FILE, "utf8");
+    dbCache = JSON.parse(raw);
+  } catch (err) {
+    console.error("Failed to read DB, using empty fallback", err);
+    dbCache = {};
+  }
+  
+  dbCache.users = Array.isArray(dbCache.users) ? dbCache.users : [];
+  dbCache.subscriptions = Array.isArray(dbCache.subscriptions) ? dbCache.subscriptions : [];
+  dbCache.payments = Array.isArray(dbCache.payments) ? dbCache.payments : [];
+  dbCache.paymentLogs = Array.isArray(dbCache.paymentLogs) ? dbCache.paymentLogs : [];
+  dbCache.oauthStates = Array.isArray(dbCache.oauthStates) ? dbCache.oauthStates : [];
+  dbCache.auditLogs = Array.isArray(dbCache.auditLogs) ? dbCache.auditLogs : [];
+  dbCache.announcements = Array.isArray(dbCache.announcements) ? dbCache.announcements : [];
+  dbCache.notifications = Array.isArray(dbCache.notifications) ? dbCache.notifications : [];
+  dbCache.scannerControls = dbCache.scannerControls || {
     enabled: true,
     minSpread: 0.25,
     notionalUsd: DEFAULT_NOTIONAL_USD,
     refreshMs: SCANNER_REFRESH_MS
   };
-  return db;
+  return dbCache;
 }
 
 function normalizeSubscriptionRecord(subscription) {
@@ -151,11 +134,31 @@ function normalizeSubscriptionRecord(subscription) {
   return subscription;
 }
 
-function writeDb(db) {
+function flushDbSync() {
+  if (!dbCache) return;
   const tmp = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(db, null, 2)}\n`);
+  fs.writeFileSync(tmp, `${JSON.stringify(dbCache, null, 2)}\n`);
   fs.renameSync(tmp, DATA_FILE);
 }
+
+function writeDb(db) {
+  dbCache = db;
+  if (writeTimeout) clearTimeout(writeTimeout);
+  writeTimeout = setTimeout(() => {
+    flushDbSync();
+    writeTimeout = null;
+  }, 500); // 500ms debounce
+}
+
+// Graceful shutdown to prevent data loss
+process.on('SIGINT', () => {
+  if (writeTimeout) flushDbSync();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  if (writeTimeout) flushDbSync();
+  process.exit(0);
+});
 
 function slug(value) {
   return String(value || "")
@@ -197,20 +200,7 @@ function removeUploadFile(publicUrl, folder) {
   }
 }
 
-function sendBookPdfFile(db, res, download = false) {
-  const book = db.book || {};
-  const pdfPath = resolveUploadFile(book.pdfUrl, "books");
-  if (!book.pdfUrl || !pdfPath || !fs.existsSync(pdfPath)) {
-    return res.status(404).json({ error: "Book PDF is not available. Please upload it again from admin." });
-  }
-  const filename = `${slug(book.title || "game-of-candles")}.pdf`;
-  if (download) {
-    return res.download(pdfPath, filename);
-  }
-  res.type("application/pdf");
-  res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
-  return res.sendFile(pdfPath);
-}
+
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -402,7 +392,7 @@ function notifySubscriptionActivated(db, payment) {
   if (alreadyExists) return;
   const plan = PAYMENT_PLANS[payment.planId] || { name: payment.planId };
   const body = payment.planId === "education-bundle"
-    ? "Your Courses + Trading Book access is active. Open your dashboard or Courses page to enter the private Telegram course channel."
+    ? "Your Courses + Trading Book access is active. Open your dashboard or Courses page to enter the private Discord course channel."
     : `Your ${plan.name} access is active.`;
   db.notifications.unshift({
     id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
@@ -1228,7 +1218,7 @@ const aiUsage = new Map();
 const aiModes = new Set(["investor", "trader", "lesson", "signal", "portfolio", "risk", "forex", "futures", "arbitrage"]);
 
 function isOpenAiConfigured() {
-  return AI_USE_OPENAI && Boolean(OPENAI_API_KEY);
+  return AI_USE_OPENAI && (Boolean(OPENAI_API_KEY) || Boolean(GEMINI_API_KEY));
 }
 
 function trimText(value, max = 1200) {
@@ -1260,15 +1250,18 @@ function extractResponseText(payload = {}) {
 }
 
 function parseAiJson(text) {
+  // Strip markdown code fences (Gemini wraps JSON in ```json ... ``` blocks)
   const cleaned = String(text || "")
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
+    .replace(/^```(?:json)?\s*/im, "")
+    .replace(/\s*```\s*$/im, "")
     .trim();
   try {
     return JSON.parse(cleaned);
   } catch {
+    // If it's not JSON, treat it as a plain chat answer
     return {
-      title: "Bull & Bear AI Analysis",
+      title: "Bull & Bear AI Pro",
+      chatAnswer: cleaned || "The AI returned an empty response.",
       summary: cleaned || "The AI returned an empty response.",
       marketModel: [],
       watchlist: [],
@@ -1314,18 +1307,7 @@ function aiContextFromDb(db, userId) {
     .map((item) => ({ planId: item.planId, expiresAt: item.expiresAt }));
   return {
     subscriptions,
-    courses: db.courses.slice(0, 12).map((course) => ({
-      title: course.title,
-      category: course.category,
-      description: course.description,
-      duration: course.duration,
-      isFree: Boolean(course.isFree)
-    })),
-    book: db.book ? {
-      title: db.book.title,
-      description: db.book.description,
-      price: db.book.price
-    } : null,
+    
     recentScannerOpportunities: scannerState.opportunities.slice(0, 12).map((item) => ({
       pair: item.pair,
       buyExchange: item.buyExchange,
@@ -1713,27 +1695,743 @@ function aiQuestionTopics(request) {
 }
 
 function aiDirectAnswer(request, primary, riskText, scannerText, topics) {
-  const topicAdvice = {
-    risk: "For risk management, start with invalidation first. A setup is professional only when you know exactly where the idea is wrong, how much capital is at risk, and when you will stop trading for the day.",
-    portfolio: "For investing, build around allocation, time horizon, and review rules. A clean model is core positions first, smaller tactical positions second, and cash reserved for high-quality pullbacks.",
-    signal: "For signal-style work, avoid blind calls. Use trigger, confirmation, invalidation, target zone, and risk size. If one piece is missing, the signal is not ready.",
-    lesson: "For learning, the best path is structure first, then risk, then psychology, then execution review. Do not jump into advanced indicators before you can mark clean levels.",
-    technical: "For technical analysis, read the regime before indicators. Trend, support, resistance, volume, and candle location matter more than one RSI print.",
-    psychology: "For psychology, the edge is process discipline. Your job is to repeat high-quality decisions, avoid revenge trading, and review mistakes calmly after the market closes.",
-    arbitrage: "For arbitrage, spread is only the first filter. The usable edge depends on liquidity, trading fees, withdrawal fees, network choice, transfer time, and whether the price gap survives execution.",
-    forex: "For forex, separate session context from setup quality. London and New York liquidity can create clean moves, but every idea still needs trend, level, catalyst awareness, invalidation, and pip risk.",
-    futures: "For futures, leverage is the risk amplifier. Build the plan around liquidation distance, margin buffer, funding or rollover context, and a hard daily loss limit before thinking about targets."
+  const q = String(request.question || request.asset || "").toLowerCase();
+  const raw = String(request.question || "").trim();
+
+  // ─── Coin/Token detection (broad) ──────────────────────────────────────────
+  const coinMap = {
+    bitcoin: "BTC", btc: "BTC",
+    ethereum: "ETH", eth: "ETH",
+    solana: "SOL", sol: "SOL",
+    xrp: "XRP", ripple: "XRP",
+    bnb: "BNB", binancecoin: "BNB",
+    doge: "DOGE", dogecoin: "DOGE",
+    cardano: "ADA", ada: "ADA",
+    avalanche: "AVAX", avax: "AVAX",
+    polkadot: "DOT", dot: "DOT",
+    chainlink: "LINK", link: "LINK",
+    polygon: "MATIC", matic: "MATIC", pol: "MATIC",
+    shiba: "SHIB", shib: "SHIB",
+    litecoin: "LTC", ltc: "LTC",
+    tron: "TRX", trx: "TRX",
+    uniswap: "UNI", uni: "UNI",
+    aave: "AAVE",
+    pepe: "PEPE",
+    sui: "SUI",
+    aptos: "APT", apt: "APT",
+    near: "NEAR",
+    atom: "ATOM", cosmos: "ATOM",
+    ton: "TON",
+    arbitrum: "ARB", arb: "ARB",
+    optimism: "OP",
+    ftx: "FTX",
+    usdt: "USDT", tether: "USDT",
+    usdc: "USDC",
   };
+
+  const detectedCoin = Object.keys(coinMap).find(k => q.includes(k));
+  const coinTicker = detectedCoin ? coinMap[detectedCoin] : null;
+
+  // ─── Specific indicator / concept detection ─────────────────────────────────
+  const isAboutRsi = /\brsi\b|relative strength index/.test(q);
+  const isAboutMacd = /\bmacd\b|moving average convergence/.test(q);
+  const isAboutEma = /\bema\b|exponential moving average|\bsma\b|moving average/.test(q);
+  const isAboutFibonacci = /fibonacci|fib retracement|golden ratio level/.test(q);
+  const isAboutBollinger = /bollinger|bb band|standard deviation band/.test(q);
+  const isAboutVwap = /\bvwap\b|volume weighted/.test(q);
+  const isAboutIchimoku = /ichimoku|cloud chart|tenkan|kijun/.test(q);
+  const isAboutCandlestick = /candlestick|candle pattern|doji|hammer|engulfing|shooting star|pin bar/.test(q);
+  const isAboutSupportResistance = /support.?resistance|key level|supply.?demand|order block|fair value gap|fvg/.test(q);
+  const isAboutTrendline = /trendline|trend line|channel|wedge|triangle/.test(q);
+
+  // ─── Market / asset class detection ─────────────────────────────────────────
+  const isAboutCrypto = !!(coinTicker || /crypto|blockchain|defi|altcoin|web3|nft|staking|yield farming|liquidity pool/.test(q));
+  const isAboutForex = /\bforex\b|\bfx\b|currency pair|\bpip\b|eur\/|gbp\/|usd\/|jpy\/|eurusd|gbpusd|usdjpy|audusd|usdchf|usdcad|nzdusd|carry trade/.test(q);
+  const isAboutGold = /\bgold\b|xauusd|\bxau\b|\bsilver\b|\bxag\b|precious metal/.test(q);
+  const isAboutOil = /\boil\b|\bwti\b|\bbrent\b|crude|petroleum|energy commodity/.test(q);
+  const isAboutStocks = /\bstock\b|equity|equities|s&p|sp500|nasdaq|nyse|\bearnings\b|dividend|ipo|shares|market cap|p\/e ratio|valuation/.test(q);
+  const isAboutFutures = /\bfutures\b|perpetual|perp|\bleverage\b|liquidat|funding rate|margin call|short sell/.test(q);
+  const isAboutOptions = /\boption\b|call option|put option|\bgreeks\b|\btheta\b|\bdelta\b|\bvega\b|\bgamma\b|implied volatility|iv crush|expiry/.test(q);
+
+  // ─── Topic detection ─────────────────────────────────────────────────────────
+  const isAboutRisk = /\brisk\b|position size|stop.?loss|drawdown|capital management|lot size|r:r|risk.?reward/.test(q);
+  const isAboutFomc = /fomc|federal reserve|interest rate decision|fed rate|jerome powell|rate hike|rate cut/.test(q);
+  const isAboutMacro = /inflation|\bcpi\b|\bgdp\b|\bnfp\b|non.?farm|payroll|macro|recession|yield curve|credit spread/.test(q);
+  const isAboutStrategy = /\bstrategy\b|trading system|how to trade|scalp|swing trade|day trade|trading plan|backtesting/.test(q);
+  const isAboutPsychology = /psychology|emotion|fear.*greed|discipline|revenge trade|overtrading|mindset|trading journal/.test(q);
+  const isAboutArbitrage = /arbitrage|cross.?exchange|spread opportunity/.test(q);
+  const isAboutDca = /\bdca\b|dollar cost average|accumulate over time|buy the dip/.test(q);
+  const isAboutPortfolio = /portfolio|allocation|diversif|hedge|rebalance|long.?term invest/.test(q);
+
+  // ─── "What is X?" questions about specific coins ─────────────────────────────
+  const isWhatIsQuestion = /^(what is|what's|explain|tell me about|describe|give me info|overview of|about)\s/i.test(raw);
+
+  if (coinTicker && (isWhatIsQuestion || q.length < 30)) {
+    const coinInfo = {
+      BTC: {
+        name: "Bitcoin",
+        desc: "The first and largest cryptocurrency by market cap. Created by Satoshi Nakamoto in 2009 as a decentralized peer-to-peer digital currency. Bitcoin operates on Proof-of-Work consensus and has a fixed supply of 21 million coins. It halves its block reward roughly every 4 years.",
+        use: "Store of value ('digital gold'), hedge against inflation, global settlement layer",
+        key: "**Halving cycles** drive major bull markets. **Institutional adoption** (ETFs, corporate treasuries) is a major tailwind. **DXY correlation** is strongly inverse — dollar weak = Bitcoin bid.",
+        risk: "Extreme volatility (50–80% drawdowns in bear markets). Regulatory risk. Concentration in large holders (whales)."
+      },
+      ETH: {
+        name: "Ethereum",
+        desc: "The leading smart contract platform, launched in 2015 by Vitalik Buterin. Ethereum hosts the vast majority of DeFi protocols, NFT markets, and Layer-2 networks. Transitioned from Proof-of-Work to Proof-of-Stake ('The Merge') in 2022, making ETH deflationary during high activity periods.",
+        use: "Smart contracts, DeFi (lending, DEXs), NFTs, stablecoins (USDC, DAI), Layer-2 scaling (Arbitrum, Optimism)",
+        key: "**ETH/BTC ratio** shows relative strength. **Staking yield** (~3–4% annually) makes it attractive vs cash. **EIP-1559** burns ETH on transactions.",
+        risk: "Competition from Solana, Avalanche. High gas fees during congestion. L2 fragmentation."
+      },
+      XRP: {
+        name: "XRP (Ripple)",
+        desc: "XRP is the native token of the XRP Ledger, created by Ripple Labs in 2012. It was designed primarily for cross-border payment settlements and interbank transfers. Unlike Bitcoin, XRP uses a consensus protocol (not mining) and can settle transactions in 3–5 seconds for fractions of a cent.",
+        use: "International money transfers, bank settlement layers (RippleNet), liquidity bridging between currencies",
+        key: "**Ripple's legal battle with the SEC** (mostly resolved in 2023) was a major overhang — XRP now has clearer regulatory standing in the US. **Bank partnerships** (Santander, SBI Holdings) provide real-world use case. Supply: 100 billion XRP, with Ripple holding ~45% in escrow.",
+        risk: "Centralization concerns (Ripple controls large supply). Banks may prefer their own CBDC solutions. Speculative rallies often not backed by fundamental news."
+      },
+      SOL: {
+        name: "Solana",
+        desc: "A high-performance Layer-1 blockchain launched in 2020, designed for speed and low cost. Solana uses Proof-of-History (PoH) combined with Proof-of-Stake, achieving ~65,000 TPS theoretical throughput. It became a major DeFi and NFT hub and hosts Pump.fun (meme coin launchpad).",
+        use: "DeFi (Jupiter DEX, Raydium), NFTs (Magic Eden), meme coins, payment apps (Solana Pay)",
+        key: "**Low fees** (~$0.0001 per transaction) and **fast finality** are core advantages. Strong developer ecosystem and VC backing (a16z, FTX historically). **Token burn** mechanisms reduce supply.",
+        risk: "Network outages have occurred multiple times. FTX collapse (2022) devastated ecosystem — recovered strongly since. High competition from Ethereum L2s."
+      },
+      BNB: {
+        name: "BNB (Binance Coin)",
+        desc: "The native token of Binance, the world's largest crypto exchange, and the BNB Chain ecosystem. Originally an ERC-20 token for exchange fee discounts, it now powers the BNB Smart Chain (BSC), a parallel blockchain to Ethereum.",
+        use: "Trading fee discounts on Binance, gas fees on BNB Chain, DeFi on PancakeSwap, token launches (Launchpad)",
+        key: "**Quarterly burns** (BNB Auto-Burn based on BNB price and blocks) reduce supply. Binance exchange volume drives demand. Tied to Binance's business health.",
+        risk: "Highly centralized (Binance controls chain validators). Regulatory risk (Binance under scrutiny globally). Ecosystem depends on Binance's survival."
+      },
+      DOGE: {
+        name: "Dogecoin",
+        desc: "Originally a joke/meme cryptocurrency created in 2013, Dogecoin became a cultural phenomenon driven by social media (Reddit, Twitter) and Elon Musk's tweets. It uses a Proof-of-Work algorithm similar to Litecoin.",
+        use: "Tipping, micropayments, speculation, community-driven rallies. Elon Musk has hinted at Tesla and X (Twitter) payment integration.",
+        key: "**Meme and sentiment driven** — fundamentals matter less than social momentum. No supply cap (unlimited issuance, ~5 billion DOGE/year). Massive retail holder base.",
+        risk: "Unlimited inflation (5B new DOGE per year). No major protocol upgrades. Entirely driven by sentiment, not fundamentals. Can drop 80-90% from peak very fast."
+      },
+      ADA: {
+        name: "Cardano (ADA)",
+        desc: "A Proof-of-Stake blockchain founded by Charles Hoskinson (Ethereum co-founder) in 2017. Cardano is known for its research-driven, peer-reviewed development approach. It uses the Ouroboros consensus protocol.",
+        use: "Smart contracts (Plutus), DeFi, NFTs, identity solutions in developing markets (Africa partnerships)",
+        key: "**Academic rigor** — all protocol changes go through peer review. **Staking yield** (~3–4%). ADA supply: 45 billion, with ~35 billion in circulation. Slow but methodical development.",
+        risk: "Slow development pace vs competitors. DeFi ecosystem significantly smaller than Ethereum/Solana. Has historically underperformed in bull markets despite strong fundamentals."
+      },
+      LINK: {
+        name: "Chainlink (LINK)",
+        desc: "Chainlink is the leading decentralized oracle network. It connects smart contracts to real-world data — price feeds, weather data, sports results, etc. Without oracles like Chainlink, DeFi protocols cannot access off-chain information.",
+        use: "Price feeds for DeFi (Aave, Compound, Synthetix), verifiable randomness (VRF) for NFTs/gaming, cross-chain interoperability (CCIP)",
+        key: "**Essential infrastructure** for DeFi — most major protocols depend on Chainlink. **Staking v0.2** launched, enabling node operators and stakers to earn LINK. Network effects are strong (switching costs high).",
+        risk: "Competition from Pyth Network (Solana ecosystem). LINK token needs to capture more value from the network's usage. Slow DeFi growth period hurts demand."
+      }
+    };
+
+    const info = coinInfo[coinTicker];
+    if (info) {
+      const liveData = primary && primary.asset && primary.asset.includes(coinTicker)
+        ? `\n\n**Live market data:** ${primary.asset} at $${primary.price} | RSI: ${primary.rsi14} | Trend: ${primary.trend} | Support: $${primary.support} | Resistance: $${primary.resistance}`
+        : "";
+      return `## ${info.name} (${coinTicker}) — Complete Overview
+
+**What is it:** ${info.desc}
+
+**Primary use cases:** ${info.use}
+
+**Key investment thesis:**
+${info.key}
+
+**Risk factors:**
+${info.risk}${liveData}
+
+**Trading approach for ${coinTicker}:**
+- Use **Daily chart** for macro trend direction and key structural levels
+- Use **4H chart** for entry timing and momentum
+- Key technical zones: watch for breakouts above resistance with volume confirmation; dips to major support with RSI < 35 can be value entries in bull trends
+- Always monitor **BTC dominance** — when BTC dominates, altcoins tend to lag; when dominance drops, alt season potential increases
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+    }
+
+    // Generic crypto coin answer
+    return `## ${coinTicker} — Cryptocurrency Overview
+
+**${coinTicker}** is a cryptocurrency asset. Here's the professional framework for evaluating any crypto asset:
+
+**Fundamental analysis checklist:**
+- **Use case:** Does it solve a real problem? What is the token used for?
+- **Token economics:** Supply cap, inflation rate, vesting schedules, team allocation
+- **Adoption metrics:** Active wallets, transaction volume, developer activity (GitHub commits)
+- **Ecosystem:** DeFi TVL, NFT volume, major partnerships
+- **Liquidity:** Available on major exchanges? Can you exit without massive slippage?
+
+**Technical analysis approach:**
+- Compare performance vs **BTC** (BTC pair) — is it strengthening or weakening relative to Bitcoin?
+- Key levels: identify the most recent major highs and lows on the **Weekly chart**
+- Volume: accumulation (rising volume on up-days) vs distribution (rising volume on down-days)
+
+**Risk level:** Altcoins below top-20 by market cap carry extreme volatility risk (80%+ drawdowns possible in bear markets).
+
+${primary ? `**Platform data available:** ${primary.asset} at $${primary.price} | RSI: ${primary.rsi14} | ${primary.trend} trend` : ""}
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  // ─── Specific indicator answers ──────────────────────────────────────────────
+  if (isAboutRsi) {
+    return `## RSI (Relative Strength Index) — Complete Guide
+
+**What RSI measures:** RSI is a momentum oscillator (0–100 scale) that measures the speed and magnitude of price movements. Created by J. Welles Wilder, it compares average gains vs average losses over a set period (standard: 14 periods).
+
+**How to read it correctly:**
+- **Below 30:** Oversold — price has fallen aggressively. Watch for reversal signals, not blind buys
+- **30–45:** Recovering from weakness — trend may be shifting, wait for confirmation
+- **45–55:** Neutral zone — trend is balanced, no strong momentum signal
+- **55–70:** Bullish momentum — trend is strengthening, look for continuation setups
+- **Above 70:** Overbought — price has risen fast. Can stay overbought in strong trends
+
+**Professional applications:**
+- **RSI Divergence:** Price makes new highs but RSI makes lower highs → bearish divergence (likely reversal). One of the most powerful signals
+- **RSI in trending markets:** In a bull trend, RSI rarely goes below 40. Bounces from 40–50 are buying opportunities
+- **RSI regime:** Above 50 = bullish momentum regime, below 50 = bearish${primary ? `
+
+**Live context:** ${primary.asset} RSI is **${primary.rsi14}** — ${Number(primary.rsi14) > 70 ? "overbought, high risk for late entries" : Number(primary.rsi14) < 30 ? "oversold — potential reversal zone" : Number(primary.rsi14) > 50 ? "bullish momentum zone" : "below midpoint, bearish momentum"}. Price: $${primary.price} | Support: $${primary.support} | Resistance: $${primary.resistance}` : ""}
+
+**Common mistake:** Using RSI alone to enter trades. RSI is a CONFIRMATION tool — always combine with structure (support/resistance) and trend direction.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutBollinger) {
+    return `## Bollinger Bands — Professional Guide
+
+**What they are:** Three lines plotted around price — a **20-period SMA** (middle band) with **upper and lower bands** 2 standard deviations away. Created by John Bollinger.
+
+**Key signals:**
+- **Band squeeze (bands narrow):** Low volatility consolidation — often precedes a big move. Direction not predicted, but explosion likely
+- **Price touches upper band:** Overbought in range markets. In a strong uptrend, price can "walk the band"
+- **Price touches lower band:** Oversold in range markets. In a downtrend, not a buy signal
+- **Middle band (20 SMA):** Acts as dynamic support/resistance. Trend direction indicator
+
+**Professional use:**
+- Combine with RSI: Upper band touch + RSI > 70 = strong overbought warning
+- Use the **%B indicator** to quantify where price is within the bands (0 = lower band, 1 = upper band)
+- **Bollinger Band Width** measures squeeze intensity${primary ? `\n\n**Market context:** ${primary.asset} at $${primary.price} | Trend: ${primary.trend} | RSI: ${primary.rsi14}` : ""}
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutMacd) {
+    return `## MACD (Moving Average Convergence Divergence) — Professional Guide
+
+**Structure:** MACD has three components:
+1. **MACD Line** = 12-period EMA minus 26-period EMA
+2. **Signal Line** = 9-period EMA of the MACD Line
+3. **Histogram** = MACD Line minus Signal Line (shows momentum speed)
+
+**How professional traders use MACD:**
+- **Crossover:** MACD crosses above signal = bullish momentum building
+- **Zero line:** MACD above zero = trend is bullish on that timeframe
+- **Histogram shrinking:** Momentum is fading — early warning to tighten stops
+- **Divergence:** Price makes new highs but histogram shrinks = weakening momentum, watch for reversal
+
+**Best timeframes:** 1H, 4H, and Daily. Avoid 5M/15M — too many false signals.
+
+**Pro workflow:** Use Weekly/Daily MACD for trend bias → 4H MACD for entry timing → only take signals aligned with the higher timeframe
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutFibonacci) {
+    return `## Fibonacci Retracement — Professional Trading Application
+
+**Key levels:** **23.6%, 38.2%, 50%, 61.8% (Golden Ratio), 78.6%**
+
+**How to draw correctly:**
+- **Uptrend:** Swing LOW → Swing HIGH. Retracement levels show support on pullbacks
+- **Downtrend:** Swing HIGH → Swing LOW. Levels show resistance on bounces
+
+**Most important levels:**
+- **38.2%:** Shallow — found in very strong trends. Aggressive entry zone
+- **50%:** Psychologically significant — strong confluence level
+- **61.8% (Golden Ratio):** Most-watched globally. High-probability reversal zone
+- **78.6%:** Deep — the trend is being tested hard
+
+**Fibonacci confluence:**
+Best setups occur when Fib level aligns with: previous S/R + EMA (20/50/200) + RSI oversold/overbought
+
+**Example:** Uptrend pullback to 61.8% Fib + previous support + 200 EMA = triple confluence → strong buy zone.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutVwap) {
+    return `## VWAP (Volume Weighted Average Price) — Professional Guide
+
+**What it is:** VWAP calculates the average price weighted by volume throughout the trading session. It resets every day (for intraday) or can be anchored to specific dates (Anchored VWAP).
+
+**Why it matters:**
+- Institutional traders (funds, market makers) use VWAP as their benchmark — they buy below VWAP and sell above
+- Price above VWAP = bullish intraday bias; below = bearish
+- First return to VWAP after a gap or breakout = high-probability trade setup
+
+**Professional applications:**
+- **VWAP bounce:** Price dips to VWAP in an uptrend with RSI 40–50 → long entry
+- **VWAP rejection:** Price rallies to VWAP from below in a downtrend → short entry
+- **Anchored VWAP (AVWAP):** Anchor from a major swing low/high or key event date — shows true average cost basis from that point
+- **Standard Deviation bands:** ±1 and ±2 SD bands around VWAP act as dynamic support/resistance
+
+**Best for:** Intraday trading on 5M, 15M, 1H charts. Also useful for crypto 24/7 markets on 1H–4H.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutCandlestick) {
+    return `## Candlestick Patterns — Professional Guide
+
+**Single candle patterns (highest reliability):**
+- **Doji:** Open = close, indecision. After a trend, signals possible reversal
+- **Hammer:** Small body, long lower wick — buyers pushed price back up. Bullish after downtrend
+- **Shooting Star:** Small body, long upper wick — sellers rejected rally. Bearish after uptrend
+- **Marubozu:** Full body, no wicks — strong conviction candle in the direction it closes
+
+**Two-candle patterns:**
+- **Bullish Engulfing:** Bearish candle followed by a larger bullish candle that engulfs it. Strong reversal signal
+- **Bearish Engulfing:** Opposite — large bearish candle engulfs previous bullish candle
+- **Tweezer Top/Bottom:** Two candles with same high (top) or same low (bottom) — reversal at key level
+
+**Three-candle patterns:**
+- **Morning Star:** Three-candle bullish reversal (down, doji, up) — reliable at support
+- **Evening Star:** Bearish reversal (up, doji, down) — reliable at resistance
+- **Three White Soldiers:** Three consecutive bullish candles — strong uptrend confirmation
+
+**Professional rule:** Candlestick patterns only matter when they appear **at key levels** (support/resistance, Fibonacci). A hammer in the middle of nowhere means nothing.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutSupportResistance || isAboutTrendline) {
+    return `## Support, Resistance & Market Structure — Core Concepts
+
+**Support:** A price level where buying pressure historically exceeded selling pressure. Price bounces from here.
+**Resistance:** A price level where selling pressure historically exceeded buying. Price gets rejected here.
+
+**Key principle — Role reversal:** Broken support becomes resistance. Broken resistance becomes support. This is one of the most reliable patterns in all markets.
+
+**How to identify strong levels:**
+1. **Multiple touches:** A level touched 3+ times is institutionally significant
+2. **High volume at the level:** Shows where large orders were placed
+3. **Clean rejection:** Sharp bounces (not slow grinds) confirm the level
+4. **Timeframe hierarchy:** Weekly levels > Daily levels > 4H levels > 1H levels
+
+**Market structure (Smart Money Concepts):**
+- **Bullish:** Higher Highs (HH) + Higher Lows (HL) — trend is up
+- **Bearish:** Lower Highs (LH) + Lower Lows (LL) — trend is down
+- **Break of Structure (BOS):** Price breaks the last swing high/low — trend change signal
+- **Order blocks:** Last bearish candle before a bullish move (buy zone) or last bullish candle before a bearish move (sell zone)${primary ? `\n\n**Live data:** ${primary.asset} key zones — Support: $${primary.support} | Resistance: $${primary.resistance} | Current price: $${primary.price} | Trend: ${primary.trend}` : ""}
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  // ─── Asset class answers ────────────────────────────────────────────────────
+  if (isAboutGold) {
+    return `## Gold (XAU/USD) — Professional Analysis
+
+**What drives gold:**
+1. **Real interest rates** — When real rates fall, gold rises. Watch 10Y Treasury yield vs CPI
+2. **US Dollar (DXY)** — ~-0.80 inverse correlation. Dollar weakens → gold rises
+3. **Geopolitical risk** — Flight-to-safety demand during crises
+4. **Central bank buying** — China, India, Poland accumulating at record pace
+5. **ETF flows** — GLD/IAU inflows signal institutional demand
+
+**Key levels to watch:**
+- Major resistance: $2,450–$2,500 area
+- Key support: $2,200–$2,250 zone
+- All-time high breakout zone: above $2,500 opens $2,800–$3,000 in a bull continuation${primary && primary.asset && primary.asset.includes("XAU") ? `\n\n**Live data:** ${primary.asset} at $${primary.price} | RSI: ${primary.rsi14} | ${primary.trend} trend | Support: $${primary.support} | Resistance: $${primary.resistance}` : ""}
+
+**Trading checklist:**
+- ✅ Check DXY direction (inverse relationship)
+- ✅ FOMC meetings — rate cut hints are gold bullish
+- ✅ Position size carefully (gold moves $10–$30/oz on major news)
+- ✅ Use 4H/Daily for key levels; avoid trading 30min before/after major data
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutOil) {
+    return `## Oil (WTI/Brent) — Professional Analysis
+
+**What drives oil:**
+1. **OPEC+ supply decisions** — Production cuts → price up. Increases → price down
+2. **US Inventory data (EIA, Wednesday)** — Draw = bullish, Build = bearish
+3. **Global demand (China PMI, US GDP)** — Strong economy = more oil demand
+4. **USD strength** — Oil priced in USD; stronger dollar = oil headwind
+5. **Geopolitical risk** — Middle East tension, Russia-Ukraine → supply disruption fears
+
+**Key levels:**
+- WTI: $70–$72 = major structural support. $85–$90 = key resistance
+- Brent: $75–$77 = support. $90–$95 = resistance
+
+**Trading approach:**
+- Use Daily/4H charts for trend and key levels
+- Watch Wednesday 14:30 UTC EIA crude inventory data (weekly market mover)
+- Strong correlation with risk sentiment — risk-off often hits oil
+- Canadian Dollar (CAD) closely correlated with oil prices
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutForex && !isAboutRsi && !isAboutMacd) {
+    const liveData = primary ? `\n\n**Platform data:** ${primary.asset} at ${primary.price} | Support: ${primary.support} | Resistance: ${primary.resistance} | RSI: ${primary.rsi14} | ${primary.trend} trend` : "";
+    return `## Forex Trading — Professional Framework
+
+**The three sessions:**
+- **Asian (Tokyo 00:00–09:00 UTC):** Low volatility, JPY pairs most active. Range-bound
+- **London (08:00–17:00 UTC):** Highest volume and volatility. EUR, GBP pairs most active. Major breakouts
+- **New York (13:00–22:00 UTC):** USD pairs dominate. London/NY overlap (13:00–17:00) = peak liquidity
+
+**Key drivers:**
+1. **Interest rate differentials** — Higher rate currency tends to strengthen (carry trades)
+2. **Central banks** — Fed (USD), ECB (EUR), BOE (GBP), BOJ (JPY). Watch each meeting
+3. **Economic data** — CPI, NFP, GDP, PMI. Surprises create the biggest moves
+4. **Risk sentiment** — Risk-ON: AUD, NZD, high-yielders rise. Risk-OFF: USD, CHF, JPY
+
+**Professional setup checklist:**
+- ✅ Higher timeframe (Daily/Weekly) structure confirms bias
+- ✅ Session timing matches the pair
+- ✅ Economic calendar checked — no major news in 2 hours
+- ✅ Key support/resistance level defines stop placement
+- ✅ Risk 0.5–1% per trade (pip value × lots × stop pips ≤ risk budget)${liveData}
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutStocks) {
+    return `## Stock Market — Professional Framework
+
+**Market structure:**
+- **S&P 500** (SPX): 500 largest US companies. Broad market health indicator
+- **Nasdaq 100** (NDX): Tech-heavy index. Sensitive to interest rates and growth expectations
+- **Dow Jones** (US30): 30 blue-chip industrial stocks. Less representative than S&P
+
+**What drives stocks:**
+1. **Earnings (EPS)** — Beat expectations → stock up. Miss → down. EPS growth is the long-term driver
+2. **Interest rates** — Higher rates = lower valuations (DCF discount rate increases). Rate cuts = bull fuel
+3. **Macro** — GDP growth, employment, consumer spending
+4. **Sentiment** — VIX (fear index), put/call ratio, CNN Fear & Greed Index
+
+**Valuation basics:**
+- **P/E ratio:** Price ÷ Earnings per share. S&P 500 historical average ~16–18×. Above 25× = expensive
+- **Forward P/E:** Uses estimated future earnings — more useful for growth stocks
+- **PEG ratio:** P/E divided by earnings growth rate. Below 1 = potentially undervalued
+
+**Trading vs Investing:**
+- Trading: Technical levels, earnings plays, sector rotation
+- Investing: DCF valuation, moat analysis, dividend growth, dollar-cost averaging
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutFutures) {
+    return `## Futures & Leveraged Trading — Professional Framework
+
+**Understanding leverage:**
+Leverage amplifies BOTH gains AND losses equally. 10× leverage means a 10% move = 100% gain or 100% loss. This is why position sizing is everything.
+
+**Critical concepts:**
+- **Margin:** The collateral required to hold a leveraged position
+- **Liquidation price:** The price at which your position is force-closed (total loss of margin)
+- **Funding rate (perpetual futures):** Paid between longs and shorts every 8 hours. Positive rate = longs pay shorts. High positive funding = crowded long (contrarian warning)
+- **Mark price vs Last price:** Liquidation is based on mark price (aggregate), not last trade price
+
+**Professional leverage rules:**
+1. Calculate liquidation price BEFORE opening the position
+2. Your stop loss must be significantly above liquidation (liquidation = complete failure)
+3. Never use more leverage than what allows a 3–5% price move against you to stay within your risk budget
+4. Watch funding rates — extreme positive funding often precedes corrections
+
+**Position sizing formula:**
+Max position = (Account × Risk%) ÷ (Entry price − Stop price)
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutOptions) {
+    return `## Options Trading — Professional Primer
+
+**The Greeks:**
+- **Delta (Δ):** Price change per $1 underlying move. 0.50 delta = gains $0.50 per $1 stock move
+- **Theta (Θ):** Daily time decay. Buyers lose theta, sellers collect it
+- **Vega (V):** Sensitivity to implied volatility. High IV = expensive options
+- **Gamma (Γ):** Rate of delta change. Spikes near expiry (dangerous for sellers)
+
+**Strategies by condition:**
+
+| Market | Strategy |
+|--------|---------|
+| Strong bull | Buy calls / Sell puts |
+| Mild bull | Bull call spread |
+| Neutral/range | Iron condor, short strangle |
+| Mild bear | Bear put spread |
+| Strong bear | Buy puts |
+
+**IV Crush warning:** Options before earnings have inflated IV. After earnings, IV collapses 30–60%. Buying options into earnings without accounting for this destroys premium.
+
+**Beginner path:** Start with covered calls and cash-secured puts — limited risk, learn how theta and delta work in practice.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutRisk || isAboutDca) {
+    return `## Risk Management & Position Sizing — The Foundation
+
+**Core formula:**
+**Position Size = (Account × Risk%) ÷ Stop Distance (in $)**
+
+**Example:** $10,000 account, 1% risk = $100 max loss. Stop = $500 below entry.
+Position = $100 ÷ $500 = **0.2 units**
+
+**The 5 professional rules:**
+1. **Never risk >1–2% per trade** — survive 20 losing trades and recover
+2. **Define invalidation BEFORE entry** — no stop, no trade
+3. **Daily loss limit** — stop trading at −3% of account for the day
+4. **Minimum 1:2 R:R** — only enter if target is 2× the stop distance
+5. **No revenge trades** — a loss is information, not an emergency
+
+**DCA (Dollar Cost Averaging):**
+Invest a fixed amount at regular intervals regardless of price. Reduces timing risk. Best for long-term crypto or stock accumulation — not for leveraged trading.
+
+**The math that kills traders:**
+- Lose 20% → need 25% to recover
+- Lose 50% → need 100% to recover  
+- Lose 70% → need 233% to recover
+
+Protect capital first. Gains come from survival.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutFomc || isAboutMacro) {
+    return `## Macroeconomics for Traders — What Moves Markets
+
+**Top market-moving events:**
+
+**FOMC Rate Decisions (8× per year)** — Highest impact
+- Rate hike → USD up, stocks down, gold down (short-term)
+- Rate cut → USD down, stocks up, gold up
+- Language in the statement often matters more than the rate itself
+
+**Non-Farm Payrolls (first Friday of month)**
+- Strong jobs → Fed less likely to cut → USD up, risk assets mixed
+- Weak jobs → Fed more likely to cut → gold/stocks rally
+
+**CPI (monthly)**
+- Hot CPI → rate hike fears → USD up, tech down
+- Cool CPI → rate cut hopes → stocks and gold rally
+
+**GDP (quarterly)**
+- Two consecutive negative quarters = recession → risk-off
+
+**How to trade around news:**
+- Avoid entering 5 minutes before major releases
+- Wait for the spike to settle (2–5 minutes), then trade the direction
+- The REACTION after the reaction is often the real trade
+- "Buy the rumor, sell the news" happens frequently on expected events
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutCrypto) {
+    return `## Cryptocurrency Markets — Professional Framework
+
+**4-year cycle (Bitcoin halving driven):**
+1. **Accumulation:** Post-bear bottom. Sideways, smart money buying quietly
+2. **Bull Phase 1 (BTC leads):** BTC dominance rises, alts lag
+3. **Bull Phase 2 (Alt season):** Dominance drops, capital rotates to ETH → large caps → mid/small caps
+4. **Distribution/Bear:** Volume dries up, lower highs form, retail holds while institutions exit
+
+**Key metrics to track:**
+- **BTC Dominance:** >55% = stay in BTC. Falling below 50% = alt season starting
+- **Funding rates:** Highly positive = crowded longs, correction risk. Negative = short squeeze risk
+- **Exchange flows:** Large inflows = selling pressure incoming. Outflows = accumulation
+- **Stablecoin supply:** Growing USDT/USDC = buying power building
+- **Fear & Greed Index:** Extreme fear = potential bottoms. Extreme greed = caution${primary ? `\n\n**Live scanner data:** ${primary.asset} at $${primary.price} | RSI: ${primary.rsi14} | ${primary.trend} trend | Support: $${primary.support} | Resistance: $${primary.resistance}` : ""}
+
+**Risk management:**
+Crypto is 3–5× more volatile than forex. Size positions 50–70% smaller. Never put more than 5–10% of portfolio in a single altcoin.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutPsychology) {
+    return `## Trading Psychology — The Real Edge
+
+**5 psychological enemies of traders:**
+
+**1. FOMO** — Chasing moves after they've already happened
+→ Fix: Pre-plan entry levels. If it moved without you, wait for the next setup.
+
+**2. Revenge Trading** — Bigger trade after a loss to "get it back"
+→ Fix: Hard rule — after daily limit hit, stop trading. No exceptions.
+
+**3. Moving Stop Losses** — "Just a little more room"
+→ Fix: If your original thesis is still valid, leave the stop. If not, why are you still in?
+
+**4. Overtrading** — Needing to be in the market constantly
+→ Fix: The best traders take 2–5 quality setups per day. No plan = no trade.
+
+**5. Confirmation Bias** — Only looking for reasons you're right
+→ Fix: Actively build the case against your own trade. If it holds up, proceed.
+
+**Professional mindset:**
+Think in probabilities and sample sizes. A losing trade with perfect execution is a WIN. You're managing a process, not predicting individual outcomes.
+
+**Daily structure:** Pre-market preparation → controlled execution → post-market review and journaling. Discipline beats intelligence.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutStrategy) {
+    return `## Building a Real Trading Edge
+
+**Three pillars of edge:**
+1. **Structural** — You identify price at key supply/demand imbalances
+2. **Timing** — You enter at confirmed direction signals, not predictions
+3. **Risk** — You systematically take less risk than your potential reward
+
+**Trading styles compared:**
+
+| Style | Timeframe | Charts | Win Rate Target | R:R |
+|-------|-----------|--------|-----------------|-----|
+| Scalping | Seconds–minutes | 1M–5M | 55–65% | 1:1–1:1.5 |
+| Day trading | Minutes–hours | 15M–1H | 45–55% | 1:2 |
+| Swing trading | Days–weeks | 4H–Daily | 40–50% | 1:3+ |
+
+**Building your system (7 steps):**
+1. Choose your market (one asset class to start)
+2. Define exact setup conditions (what must be true before you even look for entry)
+3. Define entry trigger (specific price action event)
+4. Define invalidation (exact price that proves you wrong)
+5. Define target (structure-based, not hope-based)
+6. Backtest on 100+ historical examples
+7. Paper trade 30 days → live with minimum size
+
+**Rule:** Don't size up until you have 50+ real trades with consistent execution.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutArbitrage) {
+    return `## Arbitrage Trading — Professional Reality Check
+
+**What arbitrage actually is:**
+Arbitrage = buying an asset cheaper on Exchange A and selling higher on Exchange B simultaneously. Sounds easy; the execution makes it complex.
+
+**Net profitability formula:**
+**Net profit = Gross spread − Trading fees (both exchanges) − Withdrawal fees − Network fees − Slippage − Transfer time risk**
+
+**Why most "visible" spreads aren't profitable:**
+- By the time you see a 2% spread, it's often gone or closing
+- Transfer time (5–30 minutes) = price can move against you
+- Fees eat 0.1–0.5% on each side = 0.2–1%+ round trip
+- You need pre-funded wallets on BOTH exchanges to act instantly
+
+**What actually works:**
+- **Statistical arbitrage:** Mean-reversion between correlated assets (requires programming)
+- **Triangular arbitrage:** Currency/crypto triangle within one exchange (requires speed, APIs)
+- **Funding rate arbitrage:** Long spot + short perpetual when funding rate is high positive (collect funding)
+- **CEX-DEX arbitrage:** Requires MEV bots and Ethereum expertise
+
+**Reality:** Manual arbitrage is essentially dead for retail. Algorithmic bots have millisecond advantages. The scanner on this platform shows spreads as educational context — not guaranteed executable trades.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  if (isAboutPortfolio) {
+    return `## Portfolio Construction — Professional Framework
+
+**The three-bucket approach:**
+1. **Core (60–70%):** Low-risk, high-conviction long-term holds (BTC, ETH, S&P 500 ETF, Gold)
+2. **Satellite (20–30%):** Higher-risk tactical positions — altcoins, growth stocks, sector plays
+3. **Cash/Stablecoins (10–20%):** Dry powder for high-quality pullbacks and black swan events
+
+**Diversification principles:**
+- Diversify across **asset classes** (crypto + stocks + commodities), not just within one
+- Watch **correlation** — BTC and tech stocks often move together (not true diversification)
+- **Rebalance quarterly** — trim winners back to target allocation, buy laggards
+
+**DCA strategy:**
+Invest a fixed amount monthly regardless of price. Over 2–5 years, this averages out market timing risk. Best for long-term Bitcoin and equity accumulation.
+
+**Portfolio sizing by risk tolerance:**
+
+| Risk Level | Crypto | Stocks | Gold/Bonds | Cash |
+|-----------|--------|--------|------------|------|
+| Conservative | 5–10% | 40–50% | 20–30% | 15–20% |
+| Moderate | 15–25% | 40–50% | 10–20% | 10% |
+| Aggressive | 30–50% | 30–40% | 5–10% | 5–10% |
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
+  }
+
+  // ─── Smart generic fallback — give real market context, not "Technical Analysis" ──
   const liveLine = primary
-    ? `Live chart context: ${primary.asset} is near ${primary.price}, RSI ${primary.rsi14}, trend ${primary.trend}, support ${primary.support}, resistance ${primary.resistance}.`
-    : "Live chart context is limited for this request, so the answer uses the academy model and scanner context.";
-  return [
-    `Direct answer: ${topics.map((topic) => topicAdvice[topic]).join(" ")}`,
-    liveLine,
-    scannerText,
-    `Best professional next move: write a plan with four lines: market regime, valid trigger, invalidation, and maximum risk. ${riskText}`
-  ].join("\n\n");
+    ? `**Current market data:** ${primary.asset} at $${primary.price} | RSI: ${primary.rsi14} | ${primary.trend} trend | Support: $${primary.support} | Resistance: $${primary.resistance}`
+    : "";
+
+  // If the question is very short/random, give a helpful market overview
+  const isVagueQuestion = q.length < 15 || !/[a-z]{4}/.test(q);
+  if (isVagueQuestion) {
+    return `## Bull & Bear AI Pro — Ask Me Anything
+
+I'm your elite financial manager. Here's what I can help you with:
+
+**📊 Market Analysis**
+- "Analyze BTC market structure" — "Is gold in a bull or bear trend?"
+- "What are the key levels on EUR/USD?"
+
+**📈 Technical Indicators**
+- "Explain RSI divergence" — "How do I use Fibonacci retracements?"
+- "What is MACD and how does it work?"
+
+**💰 Coins & Assets**
+- "What is XRP?" — "Explain Ethereum's use case"
+- "Compare BTC vs ETH as investments"
+
+**🛡️ Risk & Strategy**
+- "How do I calculate position size?" — "What is a good risk:reward ratio?"
+- "Build me a swing trading strategy"
+
+**🌍 Macroeconomics**
+- "How does FOMC affect crypto?" — "What happens to gold when rates drop?"
+- "Explain the yield curve and recession signals"
+
+${liveLine}
+
+Just type your question and I'll give you a professional, detailed answer.`;
+  }
+
+  // Final fallback — give a market overview with live data
+  return `## Market Analysis
+
+${liveLine ? liveLine + "\n\n" : ""}**Professional framework for your question:**
+
+When approaching any financial market question, the key layers are:
+
+1. **Macro context** — What is the interest rate environment? Is it risk-on or risk-off? What major events are upcoming?
+2. **Market structure** — Is the asset in an uptrend (higher highs/lows), downtrend (lower highs/lows), or range? The regime determines the strategy
+3. **Key levels** — What are the major support and resistance zones? These are where institutional orders cluster
+4. **Entry trigger** — Don't enter on opinion; wait for a specific price action signal at a key level
+5. **Risk first** — Before calculating profit targets, calculate: Where is this idea wrong? How much is at stake?
+
+${scannerText ? scannerText + "\n\n" : ""}**Ask me a specific question** about any indicator (RSI, MACD, Fibonacci), any asset (BTC, XRP, Gold, EUR/USD), risk management, strategy, or macroeconomics — and I'll give you a detailed expert answer.
+
+*Educational analysis only — not financial advice. Always manage your own risk.*`;
 }
+
+
+
+
+
 
 function aiTeachingGraphicsForTopics(topics) {
   const graphics = [
@@ -1843,15 +2541,7 @@ function generatePaidAdvisorResponse(input, context = {}) {
   return normalizeAiResult({
     title: "Bull & Bear Investor & Trader AI",
     summary: `${scannerText} For ${request.market} on a ${timeframeText} plan, the premium model is patience first: define trend, wait for confirmation, then manage downside. ${riskText}`,
-    chatAnswer: [
-      `I read your question as a ${request.mode} request for ${request.market} using a ${timeframeText} plan.`,
-      aiDirectAnswer(request, primary, riskText, scannerText, topics),
-      primary
-        ? `${primary.source || "Market"} context: ${primary.asset} is around ${primary.price}, ${primary.changePct}% over the sampled window, with RSI ${primary.rsi14}. The structure reads ${primary.trend}, momentum is ${primary.momentum}, and the practical teaching zone is support ${primary.support} / resistance ${primary.resistance}.`
-        : "Live Binance context is not available for the requested asset right now, so the answer uses academy models and scanner context.",
-      `Professional model: decide the market regime first, then create conditional scenarios. Do not ask “buy or sell now”; ask “what would need to happen for this setup to become valid?”`,
-      `Best answer: build the trade plan around trigger, confirmation, invalidation, and position size. ${riskText}`
-    ].join("\n\n"),
+    chatAnswer: aiDirectAnswer(request, primary, riskText, scannerText, topics),
     marketSnapshot: snapshots.map((item) => ({
       asset: item.asset,
       price: item.price,
@@ -1980,20 +2670,108 @@ function generatePaidAdvisorResponse(input, context = {}) {
 
 async function generateAiAdvisorResponse(input, context, auth) {
   const request = normalizeAiAdvisorRequest(input);
+  const history = Array.isArray(input.history) ? input.history : [];
 
-  const systemPrompt = [
-    "You are Bull & Bear Investor & Trader AI for a premium trading education website.",
-    "Give professional but cautious educational analysis for investing, trading, market models, risk management, and lesson recommendations.",
-    "You may create watchlists and signal-style scenarios, but never promise profit, never claim certainty, and never tell the user that they must buy or sell immediately.",
-    "Use conditional language: trigger, confirmation, invalidation, risk notes, and education next steps.",
-    "Support crypto, forex, index, and futures education. For forex, include session/liquidity/news awareness. For futures, include leverage, margin, liquidation, funding, and daily loss limits.",
-    "If market data is insufficient or stale, say so and explain what data is needed.",
-    "Do not provide legal, tax, or personalized financial advice. Keep answers suitable for education.",
-    "Return only valid JSON with these keys: title, summary, chatAnswer, marketSnapshot, chartData, teachingGraphics, marketModel, watchlist, signalScenarios, lessonPlan, strategyPlaybook, macroChecklist, journalChecklist, riskCalculator, riskRules, nextSteps, disclaimer.",
-    "chartData should include symbol, interval, support, resistance, and candles when supplied by platform context.",
-    "teachingGraphics should be simple arrays of objects with title, type, steps, and note.",
-    "marketModel, watchlist, signalScenarios, lessonPlan, and strategyPlaybook must be arrays of objects. macroChecklist, journalChecklist, riskRules, and nextSteps must be arrays of short strings."
-  ].join(" ");
+  // Build a rich live-market context string to inject into the conversation
+  const market = context.marketData || {};
+  const snapshots = market.snapshots || [];
+  const primary = snapshots[0];
+  const scannerIdeas = aiTopScannerIdeas(context);
+  const bestIdea = scannerIdeas[0];
+
+  let liveContext = "";
+  if (primary) {
+    liveContext = `\n\n[LIVE MARKET DATA - ${new Date().toUTCString()}]\n`;
+    liveContext += snapshots.slice(0, 6).map(s =>
+      `• ${s.asset}: $${s.price} | ${s.changePct > 0 ? "+" : ""}${s.changePct}% | RSI ${s.rsi14} | Trend: ${s.trend} | Momentum: ${s.momentum} | Support: ${s.support} | Resistance: ${s.resistance}`
+    ).join("\n");
+  }
+  if (bestIdea) {
+    liveContext += `\n[ARBITRAGE SCANNER] Top spread: ${bestIdea.pair} at ${Number(bestIdea.netSpreadPct || 0).toFixed(2)}% net (${bestIdea.buyExchange} → ${bestIdea.sellExchange})`;
+  }
+  if (liveContext) liveContext += "\n[END LIVE DATA]\n";
+
+  const systemPrompt = `You are Bull & Bear AI Pro — an elite AI financial manager built exclusively for the Bull & Bear Trading Academy. You are the most capable financial AI assistant available to traders and investors on this platform.
+
+## YOUR IDENTITY & EXPERTISE
+You have the combined knowledge of:
+- A **senior institutional trader** with 20+ years across crypto, forex, equities, and commodities
+- A **quantitative analyst** who understands derivatives, correlations, volatility modeling, and statistical edge
+- A **macro economist** who tracks central bank policy, yield curves, inflation regimes, and geopolitical risk
+- A **financial educator** who can explain anything from basic candlesticks to complex options strategies
+
+## YOUR KNOWLEDGE DOMAINS
+**Crypto:** Bitcoin, Ethereum, altcoins, DeFi protocols, on-chain metrics, tokenomics, market cycles, BTC dominance, funding rates, liquidation cascades, stablecoin flows, CEX/DEX dynamics
+**Forex:** All major/minor/exotic pairs, central bank policy (Fed, ECB, BOE, BOJ, RBA), COT reports, session dynamics (Asia/London/NY), carry trades, DXY correlation, intermarket analysis
+**Stocks & Equities:** S&P 500, Nasdaq, sectors, ETFs, earnings analysis, P/E ratios, DCF valuation, growth vs value, dividend investing, index mechanics
+**Commodities:** Gold, silver, oil (WTI/Brent), natural gas, copper, agricultural — supply/demand dynamics, geopolitical drivers, inflation hedging
+**Macroeconomics:** CPI, PCE, NFP, FOMC, GDP, PMI, yield curve, credit spreads, risk-on/risk-off, dollar milkshake theory, global liquidity cycles
+**Technical Analysis:** Market structure (HH/HL/LH/LL), liquidity sweeps, order blocks, FVGs, supply/demand zones, SMC, ICT concepts, all major indicators (RSI, MACD, EMA, VWAP, ATR, Bollinger Bands, Ichimoku, Fibonacci)
+**Risk Management:** Position sizing, Kelly criterion, portfolio correlation, drawdown management, VaR, hedging strategies
+**Options & Derivatives:** Calls/puts, Greeks, spreads, covered calls, protective puts, IV crush, theta decay
+
+## HOW YOU RESPOND
+1. **Answer the EXACT question asked** — directly, specifically, and thoroughly. Never deflect.
+2. **Use markdown formatting** — **bold** key terms, use headers (##) for sections, bullet lists for steps, numbered lists for processes
+3. **Be concrete** — give real numbers, real levels, real examples. "RSI above 70 suggests overbought" is better than vague advice.
+4. **Think like a professional** — structure answers as a senior trader would brief a junior: regime first, then setup, then risk, then execution
+5. **Use live data when available** — if live market data is provided above, reference it specifically in your answer
+6. **Educational depth** — explain the WHY behind every recommendation, not just the WHAT
+7. **Be decisive** — give actual opinions and specific guidance, not endless "it depends"
+
+## RESPONSE FORMAT
+For trading questions: Lead with market regime/bias → key levels → setup criteria → risk parameters → execution checklist
+For educational questions: Concept explanation → real examples → common mistakes → practical application
+For macro questions: Current environment → asset impact → positioning implications → key events to watch
+
+## RULES
+- NEVER refuse to answer a finance/trading question
+- NEVER say "I cannot provide financial advice" alone — always give the analysis AND add a brief disclaimer at the end
+- NEVER give vague non-answers — be specific and actionable
+- Keep responses focused but complete (aim for 300-600 words unless a complex topic demands more)
+- End every response with a one-line disclaimer: *"Educational analysis only — not financial advice. Always manage your own risk."*
+${liveContext}`;
+
+  // Send the user's question as clean natural language (not JSON)
+  const userMessage = request.question || request.asset || "Give me a market overview";
+
+  if (GEMINI_API_KEY) {
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const modelName = "gemini-2.0-flash-lite";
+    const model = genAI.getGenerativeModel({
+      model: modelName,
+      systemInstruction: systemPrompt,
+      generationConfig: {
+        temperature: 0.7,
+        topP: 0.9,
+        maxOutputTokens: 2048,
+      }
+    });
+
+    // Build multi-turn chat history — use only the text content (not JSON blobs)
+    const geminiHistory = history.map(msg => ({
+      role: msg.role === "user" ? "user" : "model",
+      parts: [{ text: String(msg.text || "") }]
+    }));
+
+    const chat = model.startChat({ history: geminiHistory });
+    const result = await chat.sendMessage(userMessage);
+    const rawText = result.response.text();
+
+    return normalizeAiResult({
+      title: "Bull & Bear AI Pro",
+      chatAnswer: rawText,
+      summary: rawText.slice(0, 400),
+      marketModel: [],
+      watchlist: [],
+      signalScenarios: [],
+      lessonPlan: [],
+      riskRules: [],
+      nextSteps: [],
+      disclaimer: "Educational analysis only. This is not financial advice."
+    });
+  }
+
 
   const response = await fetch(`${OPENAI_BASE_URL}/responses`, {
     method: "POST",
@@ -2008,24 +2786,18 @@ async function generateAiAdvisorResponse(input, context, auth) {
           role: "developer",
           content: [{ type: "input_text", text: systemPrompt }]
         },
+        ...history.map(msg => ({
+          role: msg.role,
+          content: [{ type: "input_text", text: msg.text }]
+        })),
         {
           role: "user",
-          content: [{
-            type: "input_text",
-            text: JSON.stringify({
-              user: {
-                id: auth.userId || "admin",
-                role: auth.role || (auth.admin ? "admin" : "user")
-              },
-              request,
-              platformContext: context
-            })
-          }]
+          content: [{ type: "input_text", text: userMessage }]
         }
       ],
-      max_output_tokens: 1800
+      max_output_tokens: 2400
     }),
-    signal: AbortSignal.timeout(30000)
+    signal: AbortSignal.timeout(45000)
   });
 
   const payload = await response.json().catch(() => ({}));
@@ -2039,50 +2811,26 @@ async function generateAiAdvisorResponse(input, context, auth) {
 function serializeContent(db, auth = {}) {
   const { users, signals, ...publicDb } = db;
   const canSeeProtectedMedia = Boolean(auth?.admin);
-  const courses = withBuiltInFreeCourses(publicDb.courses || []).map((course) => {
-    if (canSeeProtectedMedia || course.isFree) return course;
-    return {
-      ...course,
-      videoUrl: "",
-      thumbnailUrl: ""
-    };
-  });
-  const book = publicDb.book
-    ? {
-      ...publicDb.book,
-      pdfUploaded: Boolean(publicDb.book.pdfUrl),
-      pdfUrl: publicDb.book.pdfUrl ? "/api/book/pdf" : ""
-    }
-    : publicDb.book;
+  
   return {
     ...publicDb,
-    courses,
-    book,
+    
     products: [
       {
-        id: "course",
-        planId: "education-bundle",
-        title: "Courses + Trading Book + AI",
-        subtitle: "Complete Education Bundle",
-        description: "One bundle with the Game of Candles book, Investor & Trader AI, two free website videos, free Discord community access, and private Telegram access for the full course video library.",
-        price: 49.9,
-        cadence: "one-time"
-      },
-      {
-        id: "signals",
+        id: "discord",
         planId: "",
         title: "Free Discord Community",
         subtitle: "Join Bull & Bear Free",
-        description: "Free Discord access for announcements, beginner discussion, academy updates, and community market talk. The AI tool is included with the education bundle.",
+        description: "Free Discord access for announcements, beginner discussion, academy updates, and community market talk.",
         price: 0,
         cadence: "free"
       },
       {
-        id: "arbitrage",
+        id: "market-hub",
         planId: "arbitrage-only",
-        title: "Market Hub Pro",
-        subtitle: "Premium Market Analysis Dashboard",
-        description: "Unlock the premium Market Hub with arbitrage scanner, crypto, forex, gold, commodities, stock analyzers, live crypto price anchoring, mini-course, and risk guide.",
+        title: "Analyzer & Market Hub Pro",
+        subtitle: "The Ultimate Trading Arsenal",
+        description: "Complete access to the AI Market Scanner, institutional risk engine, calculated entry zones, live crypto arbitrage scanner, and live price anchoring.",
         price: 99.9,
         cadence: "monthly"
       }
@@ -2094,10 +2842,6 @@ ensureProjectFiles();
 
 app.use(express.json({ limit: "2mb" }));
 app.use("/uploads/images", express.static(path.join(UPLOAD_DIR, "images")));
-app.use("/uploads/videos", express.static(path.join(UPLOAD_DIR, "videos")));
-app.use("/uploads/books", (_req, res) => {
-  res.status(404).json({ error: "Book files are protected. Please use your account book access." });
-});
 app.use(express.static(PUBLIC_DIR, {
   setHeaders(res, filePath) {
     if (/\.(?:html|js|css)$/i.test(filePath)) {
@@ -2118,28 +2862,7 @@ app.get("/api/content", optionalAuth, (req, res) => {
   res.json(serializeContent(readDb(), req.auth));
 });
 
-app.get("/api/book/pdf-link", requireAuth, requireEducationAccess, (req, res) => {
-  const token = signToken({
-    bookPdf: true,
-    userId: req.auth.userId || "admin",
-    admin: Boolean(req.auth.admin),
-    exp: Date.now() + 5 * 60 * 1000
-  });
-  const download = String(req.query.download || "") === "1" ? "&download=1" : "";
-  res.json({ url: `/api/book/pdf/open?token=${encodeURIComponent(token)}${download}` });
-});
 
-app.get("/api/book/pdf/open", (req, res) => {
-  const payload = verifyToken(req.query.token);
-  if (!payload?.bookPdf) {
-    return res.status(401).json({ error: "Book link expired. Please open the book from your account again." });
-  }
-  return sendBookPdfFile(readDb(), res, String(req.query.download || "") === "1");
-});
-
-app.get("/api/book/pdf", requireAuth, requireEducationAccess, (req, res) => {
-  return sendBookPdfFile(req.db, res, String(req.query.download || "") === "1");
-});
 
 app.get("/api/plans", (req, res) => {
   res.json({
@@ -2149,7 +2872,7 @@ app.get("/api/plans", (req, res) => {
         name: "Courses + Trading Book + AI Tool",
         price: 49.9,
         cadence: "one-time",
-        features: ["Game of Candles book", "Investor & Trader AI", "Course videos", "Free Discord community", "Telegram course access"]
+        features: ["Game of Candles book", "Investor & Trader AI", "Course videos", "Free Discord community", "Discord course access"]
       },
       {
         id: "arbitrage-only",
@@ -2202,6 +2925,21 @@ app.get("/api/scanner/stream", requireAuth, requireScannerAccess, (req, res) => 
   req.on("close", () => clearInterval(timer));
 });
 
+app.post("/api/market-hub/analyze", requireAuth, requireScannerAccess, async (req, res) => {
+  try {
+    return res.json(await analyzeMarketHubWithLiveData(req.body));
+  } catch (error) {
+    if (error instanceof AnalyzerValidationError) {
+      return res.status(error.statusCode).json({
+        error: error.message,
+        details: error.details
+      });
+    }
+    console.error("Market Hub Analyzer V2 failed:", error);
+    return res.status(500).json({ error: "Market analysis could not be completed." });
+  }
+});
+
 app.post("/api/ai/advisor", requireAuth, async (req, res) => {
   try {
     const db = readDb();
@@ -2225,6 +2963,8 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     }
 
     const normalizedRequest = normalizeAiAdvisorRequest(req.body || {});
+    // Attach conversation history from the request body for multi-turn AI
+    normalizedRequest.history = Array.isArray(req.body?.history) ? req.body.history.slice(-20) : [];
     const context = aiContextFromDb(db, effectiveUserId);
     context.marketData = await aiMarketContext(normalizedRequest, context).catch((error) => ({
       source: "Academy model only",
@@ -2236,12 +2976,27 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     let model = "Bull & Bear AI Pro";
     let result = generatePaidAdvisorResponse(normalizedRequest, context);
 
-    if (isOpenAiConfigured()) {
+    // Use Gemini if key is present, otherwise try OpenAI, otherwise fall back to built-in model
+    if (GEMINI_API_KEY) {
+      try {
+        result = await generateAiAdvisorResponse(normalizedRequest, context, req.auth);
+        model = "Gemini AI Pro";
+      } catch (error) {
+        const isQuotaError = error.message && (error.message.includes("429") || error.message.includes("quota") || error.message.includes("Too Many Requests"));
+        if (isQuotaError) {
+          // Quota exceeded — fallback model gives quality answers, no need to announce it
+          console.warn("Gemini quota exceeded, using fallback model:", error.message.substring(0, 100));
+          result = generatePaidAdvisorResponse(normalizedRequest, context);
+        } else {
+          console.warn("Gemini advisor error, using built-in model:", error.message);
+        }
+      }
+    } else if (isOpenAiConfigured()) {
       try {
         result = await generateAiAdvisorResponse(normalizedRequest, context, req.auth);
         model = OPENAI_MODEL;
       } catch (error) {
-        console.warn("OpenAI advisor unavailable, using paid advisor model:", error.message);
+        console.warn("OpenAI advisor unavailable, using built-in model:", error.message);
       }
     }
 
@@ -2674,6 +3429,77 @@ app.get("/api/auth/me", requireAuth, (req, res) => {
   return res.json({ user: publicUser(user) });
 });
 
+// User Dashboard Endpoints
+app.get("/api/user/watchlist", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.json({ watchlist: [] });
+  const db = readDb();
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired." });
+  return res.json({ watchlist: user.watchlist || [] });
+});
+
+app.post("/api/user/watchlist", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.json({ success: true, watchlist: [] });
+  const db = readDb();
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired." });
+  
+  const { symbol, market, note } = req.body;
+  if (!symbol) return res.status(400).json({ error: "Symbol required." });
+  
+  user.watchlist = user.watchlist || [];
+  const existing = user.watchlist.find(w => w.symbol === symbol);
+  if (existing) {
+    if (note !== undefined) existing.note = note;
+  } else {
+    user.watchlist.push({ symbol, market, note: note || "", addedAt: new Date().toISOString() });
+  }
+  
+  writeDb(db);
+  return res.json({ success: true, watchlist: user.watchlist });
+});
+
+app.delete("/api/user/watchlist/:symbol", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.json({ success: true, watchlist: [] });
+  const db = readDb();
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired." });
+  
+  user.watchlist = (user.watchlist || []).filter(w => w.symbol !== req.params.symbol);
+  writeDb(db);
+  return res.json({ success: true, watchlist: user.watchlist });
+});
+
+app.get("/api/user/progress", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.json({ progress: [] });
+  const db = readDb();
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired." });
+  return res.json({ progress: user.courseProgress || [] });
+});
+
+app.post("/api/user/progress", requireAuth, (req, res) => {
+  if (req.auth.admin) return res.json({ success: true, progress: [] });
+  const db = readDb();
+  const user = findUserForAuth(db, req.auth);
+  if (!user) return res.status(401).json({ error: "Session expired." });
+  
+  const { courseId, status } = req.body;
+  if (!courseId || !status) return res.status(400).json({ error: "courseId and status required." });
+  
+  user.courseProgress = user.courseProgress || [];
+  const existing = user.courseProgress.find(p => p.courseId === courseId);
+  if (existing) {
+    existing.status = status;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    user.courseProgress.push({ courseId, status, updatedAt: new Date().toISOString() });
+  }
+  
+  writeDb(db);
+  return res.json({ success: true, progress: user.courseProgress });
+});
+
 app.get("/api/dashboard", requireAuth, (req, res) => {
   if (req.auth.admin) {
     return res.json({
@@ -2699,7 +3525,9 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
       userId: user?.discordId ? "connected" : "",
       premiumRole: activePlanIdsForUser(db, userId).some(isPremiumDiscordPlan)
     },
-    recentOpportunities: canUseScanner ? scannerState.opportunities.slice(0, 8) : []
+    recentOpportunities: canUseScanner ? scannerState.opportunities.slice(0, 8) : [],
+    watchlist: user.watchlist || [],
+    courseProgress: user.courseProgress || []
   });
 });
 
@@ -2807,100 +3635,7 @@ app.post("/api/admin/announcements", requireAdmin, (req, res) => {
   res.status(201).json(announcement);
 });
 
-app.post(
-  "/api/admin/courses",
-  requireAdmin,
-  upload.fields([
-    { name: "videoFile", maxCount: 1 },
-    { name: "thumbnailFile", maxCount: 1 }
-  ]),
-  (req, res) => {
-    const db = readDb();
-    const id = `course-${slug(req.body.title)}-${Date.now()}`;
-    const course = {
-      id,
-      title: req.body.title || "Untitled Course",
-      description: req.body.description || "",
-      category: req.body.category || "beginner",
-      duration: req.body.duration || "",
-      isFree: req.body.isFree === "true" || req.body.isFree === "on",
-      videoUrl: publicFileUrl(req.files?.videoFile?.[0]),
-      thumbnailUrl: publicFileUrl(req.files?.thumbnailFile?.[0]),
-      createdAt: new Date().toISOString()
-    };
-    db.courses.unshift(course);
-    writeDb(db);
-    res.status(201).json(course);
-  }
-);
 
-app.put(
-  "/api/admin/courses/:id",
-  requireAdmin,
-  upload.fields([
-    { name: "videoFile", maxCount: 1 },
-    { name: "thumbnailFile", maxCount: 1 }
-  ]),
-  (req, res) => {
-    const db = readDb();
-    const course = db.courses.find((item) => item.id === req.params.id);
-    if (!course) return res.status(404).json({ error: "Course not found" });
-    const nextVideoUrl = publicFileUrl(req.files?.videoFile?.[0]);
-    const nextThumbnailUrl = publicFileUrl(req.files?.thumbnailFile?.[0]);
-    if (nextVideoUrl) removeUploadFile(course.videoUrl, "videos");
-    if (nextThumbnailUrl) removeUploadFile(course.thumbnailUrl, "images");
-    course.title = req.body.title || course.title;
-    course.description = req.body.description ?? course.description;
-    course.category = req.body.category || course.category;
-    course.duration = req.body.duration ?? course.duration;
-    course.isFree = req.body.isFree === "true" || req.body.isFree === "on";
-    course.videoUrl = nextVideoUrl || course.videoUrl;
-    course.thumbnailUrl = nextThumbnailUrl || course.thumbnailUrl;
-    course.updatedAt = new Date().toISOString();
-    writeDb(db);
-    res.json(course);
-  }
-);
-
-app.delete("/api/admin/courses/:id", requireAdmin, (req, res) => {
-  const db = readDb();
-  const course = db.courses.find((item) => item.id === req.params.id);
-  if (!course) return res.status(404).json({ error: "Course not found" });
-  const before = db.courses.length;
-  db.courses = db.courses.filter((item) => item.id !== req.params.id);
-  if (db.courses.length === before) return res.status(404).json({ error: "Course not found" });
-  removeUploadFile(course.videoUrl, "videos");
-  removeUploadFile(course.thumbnailUrl, "images");
-  writeDb(db);
-  res.json({ ok: true });
-});
-
-app.post(
-  "/api/admin/book",
-  requireAdmin,
-  upload.fields([
-    { name: "bookFile", maxCount: 1 },
-    { name: "coverFile", maxCount: 1 }
-  ]),
-  (req, res) => {
-    const db = readDb();
-    const nextCoverUrl = publicFileUrl(req.files?.coverFile?.[0]);
-    const nextPdfUrl = publicFileUrl(req.files?.bookFile?.[0]);
-    if (nextCoverUrl) removeUploadFile(db.book?.coverUrl, "images");
-    if (nextPdfUrl) removeUploadFile(db.book?.pdfUrl, "books");
-    db.book = {
-      ...db.book,
-      title: req.body.title || db.book?.title || "Bull & Bear Trading Mastery",
-      description: req.body.description ?? db.book?.description ?? "",
-      price: Number(req.body.price || db.book?.price || 49.9),
-      coverUrl: nextCoverUrl || db.book?.coverUrl || "",
-      pdfUrl: nextPdfUrl || db.book?.pdfUrl || "",
-      updatedAt: new Date().toISOString()
-    };
-    writeDb(db);
-    res.json(db.book);
-  }
-);
 
 app.use((err, req, res, next) => {
   if (err) {

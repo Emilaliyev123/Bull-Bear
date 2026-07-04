@@ -6,3 +6,4 @@ uploads/*
 data/db.json
 *.log
 OPENAI_KEY_FOR_RENDER.txt
+.env
