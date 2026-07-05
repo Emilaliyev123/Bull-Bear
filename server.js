@@ -32,7 +32,7 @@ const MIN_SCANNER_PRICE = Number(process.env.SCANNER_MIN_PRICE || 0.00000001);
 const PAYMENT_PLANS = {
   
   "premium-discord-signals": {
-    name: "Legacy Premium Discord Signals",
+    name: "Legacy Premium Telegram Signals",
     amount: 49.9,
     cadence: "monthly",
     accessDays: 30
@@ -383,17 +383,12 @@ function hasScannerAccess(db, auth = {}) {
   return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), SCANNER_ACCESS_PLAN_IDS));
 }
 
-function hasEducationAccess(db, auth = {}) {
-  return Boolean(auth.admin || hasActiveSubscription(db, authUserId(db, auth), EDUCATION_ACCESS_PLAN_IDS));
-}
 
 function notifySubscriptionActivated(db, payment) {
   const alreadyExists = db.notifications.some((item) => item.paymentId === payment.id && item.type === "subscription");
   if (alreadyExists) return;
   const plan = PAYMENT_PLANS[payment.planId] || { name: payment.planId };
-  const body = payment.planId === "education-bundle"
-    ? "Your Courses + Trading Book access is active. Open your dashboard or Courses page to enter the private Discord course channel."
-    : `Your ${plan.name} access is active.`;
+  const body = `Your ${plan.name} access is active.`;
   db.notifications.unshift({
     id: `note-${Date.now()}-${crypto.randomBytes(3).toString("hex")}`,
     userId: payment.userId,
@@ -691,15 +686,6 @@ function requireScannerAccess(req, res, next) {
   return next();
 }
 
-function requireEducationAccess(req, res, next) {
-  const db = readDb();
-  if (!hasEducationAccess(db, req.auth)) {
-    return res.status(402).json({
-      error: "Game of Candles requires the Courses + Trading Book purchase.",
-      requiredPlan: "education-bundle",
-      checkoutUrl: "/checkout/education-bundle"
-    });
-  }
   req.db = db;
   return next();
 }
@@ -2819,9 +2805,9 @@ function serializeContent(db, auth = {}) {
       {
         id: "discord",
         planId: "",
-        title: "Free Discord Community",
+        title: "Free Telegram Community",
         subtitle: "Join Bull & Bear Free",
-        description: "Free Discord access for announcements, beginner discussion, academy updates, and community market talk.",
+        description: "Free Telegram access for announcements, beginner discussion, academy updates, and community market talk.",
         price: 0,
         cadence: "free"
       },
@@ -2867,13 +2853,6 @@ app.get("/api/content", optionalAuth, (req, res) => {
 app.get("/api/plans", (req, res) => {
   res.json({
     plans: [
-      {
-        id: "education-bundle",
-        name: "Courses + Trading Book + AI Tool",
-        price: 49.9,
-        cadence: "one-time",
-        features: ["Game of Candles book", "Investor & Trader AI", "Course videos", "Free Discord community", "Discord course access"]
-      },
       {
         id: "arbitrage-only",
         name: "Market Hub Pro",
@@ -2949,9 +2928,9 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
     }
     if (!hasAiAccess(db, req.auth)) {
       return res.status(402).json({
-        error: "Investor & Trader AI is included with the Courses + Trading Book package.",
-        requiredPlan: "education-bundle",
-        checkoutUrl: "/checkout/education-bundle"
+        error: "Investor & Trader AI is included with the Market Hub Pro package.",
+        requiredPlan: "arbitrage-only",
+        checkoutUrl: "/checkout/arbitrage-only"
       });
     }
 
@@ -3034,7 +3013,7 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   if (!supported.includes(provider)) return res.status(400).json({ error: "Unsupported payment provider" });
   if (RETIRED_CHECKOUT_PLAN_IDS.has(planId)) {
     return res.status(400).json({
-      error: "This old checkout is no longer available. Discord is free now, and the AI tool is included with the Courses + Trading Book + AI package."
+      error: "This old checkout is no longer available. Telegram is free now, and the AI tool is included with the Market Hub Pro package."
     });
   }
   const plan = PAYMENT_PLANS[planId];
