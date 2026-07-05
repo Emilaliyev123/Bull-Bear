@@ -17,7 +17,13 @@ function nowIso() {
 }
 
 function readDb() {
-  const db = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+  let db = {};
+  try {
+    const raw = fs.readFileSync(DATA_FILE, "utf8");
+    db = JSON.parse(raw);
+  } catch (error) {
+    console.warn("[preload] Failed to read db.json, using empty fallback", error.message);
+  }
   db.users = Array.isArray(db.users) ? db.users : [];
   db.payments = Array.isArray(db.payments) ? db.payments : [];
   db.paymentLogs = Array.isArray(db.paymentLogs) ? db.paymentLogs : [];
@@ -28,8 +34,12 @@ function readDb() {
 
 function writeDb(db) {
   const tmp = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(db, null, 2)}\n`);
-  fs.renameSync(tmp, DATA_FILE);
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(db, null, 2)}\n`);
+    fs.renameSync(tmp, DATA_FILE);
+  } catch (error) {
+    console.warn("[preload] Failed to write db.json:", error.message);
+  }
 }
 
 function addPaymentLog(db, provider, status, paymentId = "") {
