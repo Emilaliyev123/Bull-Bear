@@ -1359,8 +1359,8 @@ function renderCryptoAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
       </form>
-      <div style="display: block;">
-        <div id="tv-advanced-chart" style="height: 240px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+      <div class="hub-right-column">
+        <div id="tv-advanced-chart" style="height: 200px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1383,8 +1383,8 @@ function renderForexAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
       </form>
-      <div style="display: block;">
-        <div id="tv-advanced-chart" style="height: 240px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+      <div class="hub-right-column">
+        <div id="tv-advanced-chart" style="height: 200px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1407,8 +1407,8 @@ function renderCommoditiesAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Gold / Commodity"}</button>
       </form>
-      <div style="display: block;">
-        <div id="tv-advanced-chart" style="height: 240px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+      <div class="hub-right-column">
+        <div id="tv-advanced-chart" style="height: 200px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1445,8 +1445,8 @@ function renderStockAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Stock Market"}</button>
       </form>
-      <div style="display: block;">
-        <div id="tv-advanced-chart" style="height: 240px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+      <div class="hub-right-column">
+        <div id="tv-advanced-chart" style="height: 200px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(result)}
       </div>
     </div>

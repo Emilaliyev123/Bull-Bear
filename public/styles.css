@@ -1587,10 +1587,10 @@ canvas {
 }
 
 .hub-workspace {
-  display: grid;
-  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  display: flex;
+  flex-direction: row;
   gap: 18px;
-  align-items: start;
+  align-items: flex-start;
 }
 
 .hub-control-panel,
@@ -1612,6 +1612,15 @@ canvas {
   display: grid;
   gap: 16px;
   padding: 20px;
+  flex: 0 0 320px;
+  max-width: 320px;
+  width: 100%;
+}
+
+.hub-right-column {
+  flex: 1;
+  min-width: 0;
+  display: block;
 }
 
 .hub-control-panel .h3,
@@ -3796,13 +3805,18 @@ canvas {
     padding-top: 34px;
   }
 
-  .market-hub-hero,
-  .hub-workspace {
+  .market-hub-hero {
     grid-template-columns: 1fr;
+  }
+
+  .hub-workspace {
+    flex-direction: column;
   }
 
   .hub-control-panel {
     position: static;
+    flex: none;
+    max-width: 100%;
   }
 
   .market-hub-status-grid,
