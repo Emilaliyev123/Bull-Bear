@@ -2147,8 +2147,11 @@ canvas {
 .strategy-score i {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--green), var(--gold));
 }
+.strategy-score i.bg-bullish { background: linear-gradient(90deg, var(--green), var(--gold)); }
+.strategy-score i.bg-bearish { background: linear-gradient(90deg, var(--red), var(--gold)); }
+.strategy-score i.bg-risk { background: linear-gradient(90deg, var(--red), var(--gold)); }
+.strategy-score i.bg-neutral { background: linear-gradient(90deg, var(--faint), var(--line)); }
 
 .strategy-item-copy {
   align-items: flex-start;
