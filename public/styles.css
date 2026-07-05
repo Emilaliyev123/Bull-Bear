@@ -1637,10 +1637,18 @@ canvas {
 .analyzer-result,
 .stock-research-panel {
   min-height: 360px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+  display: block;
   padding: 20px;
+}
+
+.analyzer-result > *,
+.stock-research-panel > * {
+  margin-bottom: 16px;
+}
+
+.analyzer-result > *:last-child,
+.stock-research-panel > *:last-child {
+  margin-bottom: 0;
 }
 
 .analyzer-result.no-signal {
