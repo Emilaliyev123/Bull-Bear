@@ -1641,7 +1641,8 @@ canvas {
 .analyzer-result,
 .stock-research-panel {
   min-height: 360px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
   padding: 20px;
 }
