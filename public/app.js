@@ -1359,6 +1359,7 @@ function renderCryptoAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
       </form>
+      <div id="tv-advanced-chart" style="height: 400px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
   `;
@@ -1380,6 +1381,7 @@ function renderForexAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
       </form>
+      <div id="tv-advanced-chart" style="height: 400px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
   `;
@@ -1401,6 +1403,7 @@ function renderCommoditiesAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Gold / Commodity"}</button>
       </form>
+      <div id="tv-advanced-chart" style="height: 400px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
       ${renderAnalyzerResult(state.marketHub.result)}
     </div>
   `;
@@ -1436,6 +1439,7 @@ function renderStockAnalyzer() {
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Stock Market"}</button>
       </form>
+      <div id="tv-advanced-chart" style="height: 400px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
       ${renderAnalyzerResult(result)}
     </div>
   `;
@@ -2746,6 +2750,7 @@ function render() {
   initMarketCanvas();
   mountRouteEffects();
   if (typeof initTradingViewCharts === "function") initTradingViewCharts();
+  if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
 }
 
 function initMarketCanvas() {
@@ -3535,3 +3540,50 @@ function howToUsePage() {
     </div>
   `;
 }
+
+window.initAdvancedTradingViewWidget = function() {
+  const container = document.getElementById("tv-advanced-chart");
+  if (!container) return;
+  if (container.hasChildNodes()) return;
+
+  let symbol = "BINANCE:BTCUSDT";
+  if (state.marketHub.activeTab === "crypto" && state.marketHub.forms.crypto.asset) {
+    symbol = "BINANCE:" + state.marketHub.forms.crypto.asset.replace("/", "") + "USDT";
+  } else if (state.marketHub.activeTab === "forex" && state.marketHub.forms.forex.pair) {
+    symbol = "FX:" + state.marketHub.forms.forex.pair.replace("/", "");
+  } else if (state.marketHub.activeTab === "commodities" && state.marketHub.forms.commodities.asset) {
+    symbol = "OANDA:" + state.marketHub.forms.commodities.asset.replace("/", "");
+  } else if (state.marketHub.activeTab === "stocks" && state.marketHub.forms.stocks.asset) {
+    symbol = state.marketHub.forms.stocks.asset;
+  }
+
+  if (!window.TradingView) {
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/tv.js";
+    script.onload = () => createWidget(container.id, symbol);
+    document.head.appendChild(script);
+  } else {
+    createWidget(container.id, symbol);
+  }
+
+  function createWidget(cid, sym) {
+    new window.TradingView.widget({
+      "width": "100%",
+      "height": "100%",
+      "symbol": sym,
+      "interval": "15",
+      "timezone": "Etc/UTC",
+      "theme": "dark",
+      "style": "1",
+      "locale": "en",
+      "enable_publishing": false,
+      "backgroundColor": "rgba(5, 5, 5, 1)",
+      "gridColor": "rgba(255, 255, 255, 0.04)",
+      "hide_top_toolbar": false,
+      "hide_legend": false,
+      "save_image": false,
+      "container_id": cid,
+      "support_host": "https://www.tradingview.com"
+    });
+  }
+};
