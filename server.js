@@ -83,12 +83,30 @@ const uploadFolders = {
 
 
 function ensureProjectFiles() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  for (const folder of Object.values(uploadFolders)) {
-    fs.mkdirSync(path.join(UPLOAD_DIR, folder), { recursive: true });
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    for (const folder of Object.values(uploadFolders)) {
+      fs.mkdirSync(path.join(UPLOAD_DIR, folder), { recursive: true });
+    }
+  } catch (err) {
+    console.warn("Failed to create project directories:", err.message);
   }
+
   if (!fs.existsSync(DATA_FILE)) {
-    fs.copyFileSync(SEED_FILE, DATA_FILE);
+    try {
+      if (fs.existsSync(SEED_FILE)) {
+        fs.copyFileSync(SEED_FILE, DATA_FILE);
+      } else {
+        fs.writeFileSync(DATA_FILE, "{}");
+      }
+    } catch (err) {
+      console.warn("Failed to initialize db.json from seed:", err.message);
+      try {
+        fs.writeFileSync(DATA_FILE, "{}");
+      } catch (fallbackErr) {
+        console.warn("Failed to create fallback db.json:", fallbackErr.message);
+      }
+    }
   }
 }
 
@@ -137,8 +155,12 @@ function normalizeSubscriptionRecord(subscription) {
 function flushDbSync() {
   if (!dbCache) return;
   const tmp = `${DATA_FILE}.tmp`;
-  fs.writeFileSync(tmp, `${JSON.stringify(dbCache, null, 2)}\n`);
-  fs.renameSync(tmp, DATA_FILE);
+  try {
+    fs.writeFileSync(tmp, `${JSON.stringify(dbCache, null, 2)}\n`);
+    fs.renameSync(tmp, DATA_FILE);
+  } catch (error) {
+    console.warn("Failed to flush DB to disk:", error.message);
+  }
 }
 
 function writeDb(db) {
@@ -490,11 +512,20 @@ function payriffAmount(amount, currency = payriffConfig().currency) {
 }
 
 function payriffMessage(payload = {}, fallback = "Payriff request failed") {
-  return payload?.message
+  let msg = payload?.message
     || payload?.error
     || payload?.payload?.message
     || payload?.payload?.error
     || fallback;
+  const ticket = payload?.ticket || payload?.payload?.ticket || payload?.ticketId;
+  if (ticket && msg === "Application not found") {
+    return `Payment provider returned: Application not found. Please contact support with ticket ${ticket}.`;
+  }
+  if (ticket) {
+    msg = String(msg).replace(/support\s+ticket\s*[:#\-]?\s*[a-zA-Z0-9]+/i, "").trim();
+    return `${msg} (support ticket: ${ticket})`;
+  }
+  return msg;
 }
 
 function payriffReference(payload = {}) {
@@ -547,6 +578,16 @@ function applyPayriffStatusToPayment(db, payment, payload = {}) {
   return null;
 }
 
+const PAYRIFF_REQUEST_TIMEOUT_MS = 15000;
+
+function safeUrlHostname(urlStr) {
+  try {
+    return new URL(urlStr).hostname;
+  } catch {
+    return "invalid_url";
+  }
+}
+
 async function callPayriff(method, pathname, body = null) {
   const config = payriffConfig();
   if (!isPayriffConfigured()) {
@@ -563,12 +604,20 @@ async function callPayriff(method, pathname, body = null) {
         "Authorization": config.secretKey
       },
       body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(15000)
+      signal: AbortSignal.timeout(PAYRIFF_REQUEST_TIMEOUT_MS)
     });
   } catch (error) {
     const detail = error.cause?.code || error.cause?.message || error.name || "network_error";
-    console.warn("Payriff network request failed:", { targetUrl, detail });
-    throw new Error(`Payriff network error: ${detail}`);
+    const timedOut = error.name === "TimeoutError" || detail === "timeout";
+    const errorMessage = timedOut 
+      ? "Payriff is temporarily unavailable because the secure checkout request timed out. Please try again."
+      : "Payriff is temporarily unavailable due to a network routing error.";
+    console.warn("Payriff network request failed:", { 
+      targetUrl: safeUrlHostname(targetUrl), 
+      category: timedOut ? "timeout" : "network_error",
+      detail 
+    });
+    throw new Error(errorMessage);
   }
   const text = await response.text();
   let payload;
@@ -577,11 +626,26 @@ async function callPayriff(method, pathname, body = null) {
   } catch {
     payload = { raw: text };
   }
+  
   if (!response.ok) {
-    throw new Error(payriffMessage(payload, `Payriff returned ${response.status}`));
+    const responseErrorMessage = payriffMessage(payload, `Payriff returned ${response.status}`);
+    console.error("Payriff application error:", {
+      status: response.status,
+      errorMessage: responseErrorMessage,
+      endpointHostname: safeUrlHostname(`${config.baseUrl}${config.createPath}`),
+      secretExists: Boolean(config.secretKey)
+    });
+    throw new Error(responseErrorMessage);
   }
   if (payload?.code && !["00000", "0", "success", "SUCCESS"].includes(String(payload.code))) {
-    throw new Error(payriffMessage(payload));
+    const responseErrorMessage = payriffMessage(payload);
+    console.error("Payriff API rejected request:", {
+      code: payload.code,
+      errorMessage: responseErrorMessage,
+      endpointHostname: safeUrlHostname(`${config.baseUrl}${config.createPath}`),
+      secretExists: Boolean(config.secretKey)
+    });
+    throw new Error(responseErrorMessage);
   }
   return payload;
 }
@@ -596,6 +660,16 @@ async function createPayriffCheckout(req, payment, plan, planId) {
   payment.providerAmount = checkoutAmount;
   payment.providerCurrency = config.currency;
   payment.exchangeRate = config.currency === "AZN" ? payriffUsdToAznRate() : null;
+  
+  console.info("Initializing Payriff checkout order:", {
+    paymentId: payment.id,
+    planId,
+    currency: config.currency,
+    endpointHostname: safeUrlHostname(`${config.baseUrl}${config.createPath}`),
+    callbackUrlHost: safeUrlHostname(callbackUrl),
+    secretExists: Boolean(config.secretKey)
+  });
+
   const payload = await callPayriff("POST", config.createPath, {
     amount: checkoutAmount,
     currency: config.currency,
