@@ -38,9 +38,9 @@ const SAMPLES = [
   { market: "commodities", asset: "OIL", mode: "swingTrading", timeframe: "4h" }
 ];
 
-test("returns a complete, non-executable demo result for every market", () => {
+test("returns a complete, non-executable demo result for every market", async () => {
   for (const sample of SAMPLES) {
-    const result = analyzeMarketHub(sample);
+    const result = await analyzeMarketHub(sample);
     for (const field of REQUIRED_RESULT_FIELDS) {
       assert.ok(Object.hasOwn(result, field), `${sample.market} is missing ${field}`);
     }
@@ -53,8 +53,8 @@ test("returns a complete, non-executable demo result for every market", () => {
   }
 });
 
-test("long-term stock research does not return trading levels", () => {
-  const result = analyzeMarketHub(SAMPLES[3]);
+test("long-term stock research does not return trading levels", async () => {
+  const result = await analyzeMarketHub(SAMPLES[3]);
   assert.equal(result.signalStatus, "neutral");
   assert.equal(result.entryZone, null);
   assert.equal(result.stopLoss, null);
@@ -62,15 +62,15 @@ test("long-term stock research does not return trading levels", () => {
   assert.equal(result.riskReward, null);
 });
 
-test("risk/reward below 2 blocks an otherwise directional setup", () => {
-  const result = analyzeMarketHub(SAMPLES[1]);
+test("risk/reward below 2 blocks an otherwise directional setup", async () => {
+  const result = await analyzeMarketHub(SAMPLES[1]);
   assert.ok(result.riskReward < 2);
   assert.equal(result.signalStatus, "noSignal");
   assert.equal(result.entryZone, null);
 });
 
-test("extreme simulated risk returns highRisk and suppresses levels", () => {
-  const result = analyzeMarketHub(SAMPLES[4]);
+test("extreme simulated risk returns highRisk and suppresses levels", async () => {
+  const result = await analyzeMarketHub(SAMPLES[4], "2026-07-29T18:00:00.000Z"); // FOMC
   assert.equal(result.riskLevel, "extreme");
   assert.equal(result.signalStatus, "highRisk");
   assert.equal(result.entryZone, null);

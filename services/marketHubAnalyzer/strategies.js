@@ -191,8 +191,8 @@ function buildComponents(data, snapshot, riskReward, marketSpecific) {
       detail: data.volatilityRisk.reason
     },
     newsRisk: {
-      score: data.newsRisk.level === "extreme" ? 0 : data.newsRisk.level === "elevated" ? 4 : data.newsRisk.level === "unknown" ? 5 : 9,
-      detail: data.newsRisk.event
+      score: data.newsRisk.level === "extreme" ? 0 : data.newsRisk.level === "high" ? 4 : data.newsRisk.level === "medium" ? 6 : data.newsRisk.level === "unknown" ? 5 : 9,
+      detail: data.newsRisk.explanation || data.newsRisk.event || "No immediate news risk"
     },
     riskReward: {
       score: riskRewardScore(riskReward),
@@ -244,6 +244,12 @@ function createTechnicalAnalysis({ request, data, marketSpecific, strategies, no
     ? round(riskReward, 2)
     : round(1.6 + (data.seed % 20) / 10, 2);
   const confluence = scoreConfluence(buildComponents(data, snapshot, resolvedRiskReward, marketSpecific));
+  
+  // Apply the raw score impact from the news risk engine directly to the total confluence
+  if (data.newsRisk && data.newsRisk.scoreImpact) {
+    confluence.total = Math.max(0, confluence.total + data.newsRisk.scoreImpact);
+  }
+
   const riskLevel = assessRiskLevel({
     confidenceScore: confluence.total,
     newsRisk: data.newsRisk.level,
@@ -312,7 +318,8 @@ function createTechnicalAnalysis({ request, data, marketSpecific, strategies, no
         attempted: false,
         available: false,
         fallbackUsed: false
-      }
+      },
+      newsRiskMetrics: data.newsRisk
     }
   };
 }

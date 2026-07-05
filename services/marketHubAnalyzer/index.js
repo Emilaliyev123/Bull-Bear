@@ -149,10 +149,12 @@ function validateAnalysisRequest(payload) {
   const asset = normalizeAsset(market, payload.asset);
   return { market, asset, mode, timeframe };
 }
+const { evaluateNewsRisk } = require("./newsRiskEngine");
 
-function analyzeMarketHub(payload) {
+async function analyzeMarketHub(payload, injectedTime = null) {
   const request = validateAnalysisRequest(payload);
   const data = getMockMarketData(request);
+  data.newsRisk = await evaluateNewsRisk(request.market, request.asset, request.mode, injectedTime);
   const analyzers = {
     crypto: analyzeCrypto,
     forex: analyzeForex,
@@ -160,7 +162,15 @@ function analyzeMarketHub(payload) {
     stocks: analyzeStocks,
     commodities: analyzeCommodity
   };
-  return analyzers[request.market](request, data);
+  const response = analyzers[request.market](request, data);
+  if (data.newsRisk.shouldBlockTrade) {
+    response.signalStatus = "highRisk";
+    response.riskLevel = "extreme";
+    response.entryZone = null;
+    response.stopLoss = null;
+    response.takeProfits = null;
+  }
+  return response;
 }
 
 async function analyzeMarketHubWithLiveData(payload, options = {}) {
@@ -168,6 +178,9 @@ async function analyzeMarketHubWithLiveData(payload, options = {}) {
   const data = request.market === "crypto"
     ? await getCryptoMarketData(request, options.crypto || {})
     : await getFmpMarketData(request, options.fmp || {});
+  
+  data.newsRisk = await evaluateNewsRisk(request.market, request.asset, request.mode, options.injectedTime || null);
+  
   const analyzers = {
     crypto: analyzeCrypto,
     forex: analyzeForex,
@@ -175,9 +188,16 @@ async function analyzeMarketHubWithLiveData(payload, options = {}) {
     stocks: analyzeStocks,
     commodities: analyzeCommodity
   };
-  return analyzers[request.market](request, data);
+  const response = analyzers[request.market](request, data);
+  if (data.newsRisk.shouldBlockTrade) {
+    response.signalStatus = "highRisk";
+    response.riskLevel = "extreme";
+    response.entryZone = null;
+    response.stopLoss = null;
+    response.takeProfits = null;
+  }
+  return response;
 }
-
 module.exports = {
   ALLOWED_MARKETS,
   ALLOWED_MODES,
