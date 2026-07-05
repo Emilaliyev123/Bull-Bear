@@ -3,7 +3,7 @@ const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
 const DISCORD_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
-  course: "education-bundle",
+  
   signals: "",
   arbitrage: "arbitrage-only"
 };
@@ -113,7 +113,7 @@ const categories = [
 
 const productFeatures = {
   discord: [
-    "Free public Discord community",
+    "Free public Telegram community",
     "Academy announcements",
     "Beginner discussion rooms",
     "Community market talk",
@@ -240,7 +240,7 @@ function activeSubscriptionPlanIds() {
 function hasAiAccess() {
   if (isAdmin()) return true;
   const plans = activeSubscriptionPlanIds();
-  return plans.includes("education-bundle") || plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai");
+  return plans.includes("premium-discord-signals") || plans.includes("investor-trader-ai") || plans.includes("arbitrage-only");
 }
 
 function hasScannerAccess() {
@@ -249,10 +249,7 @@ function hasScannerAccess() {
   return plans.includes("arbitrage-only") || plans.includes("bull-bear-premium");
 }
 
-function hasEducationAccess() {
-  if (isAdmin()) return true;
-  return activeSubscriptionPlanIds().includes("education-bundle");
-}
+function hasEducationAccess() { return false; }
 
 function setSession(token, user) {
   state.token = token;
@@ -374,7 +371,7 @@ async function startPlanCheckout(planId, button = null) {
     if (button) {
       if (button.tagName === "BUTTON") button.disabled = false;
       button.removeAttribute("aria-disabled");
-      button.textContent = originalText || (planId === "education-bundle" ? "Buy Now" : "Subscribe Now");
+      button.textContent = originalText || "Subscribe Now";
     }
   }
 }
@@ -931,7 +928,7 @@ function signalsPage() {
         <div>
           <div class="eyebrow">Free Discord</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Discord Is Free</h1>
-          <p class="lead">Join the public Discord community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Market Hub Pro package.</p>
+          <p class="lead">Join the public Telegram community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Market Hub Pro package.</p>
           <div class="hero-actions">
             <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
             <a href="/courses" data-link class="btn secondary">View Course + AI Bundle</a>
@@ -956,7 +953,7 @@ function signalsPage() {
         </div>
         <div class="card pad">
           <h2 class="h3">AI With Education Bundle</h2>
-          <p class="muted">The AI market tool is included with Market Hub Pro. Discord stays free for the public community.</p>
+          <p class="muted">The AI market tool is included with Market Hub Pro. Telegram stays free for the public community.</p>
         </div>
         <div class="card pad">
           <h2 class="h3">Community First</h2>
@@ -2078,15 +2075,9 @@ function aiAccessPanel() {
         <h2 class="h2" style="margin-top:12px;">Investor & Trader AI Tool</h2>
         <p class="lead">${checking
           ? "Loading your account access..."
-          : "The AI market coach is included with Market Hub Pro. Use it for crypto, forex, futures, signal-style scenarios, teaching charts, and risk rules."}</p>
+          : "The AI market coach is included with Market Hub Pro. Upgrade to access."}</p>
       </div>
-      <div class="ai-plan-card">
-        <span>Bundle Access</span>
-        <strong>$49.90</strong>
-        <small>Courses + book + AI tool</small>
-        ${checking ? `<button class="btn primary" type="button" disabled>Checking...</button>` : checkoutCta("education-bundle", state.user ? "Buy Course + AI Bundle" : "Log In to Buy")}
-        <a href="/products" data-link class="btn secondary">Compare Plans</a>
-      </div>
+      
       <div class="ai-paywall-grid">
         <div><strong>Forex desk</strong><span>EURUSD, GBPUSD, XAUUSD, DXY, session logic, pip risk.</span></div>
         <div><strong>Futures risk</strong><span>Leverage, liquidation buffer, funding, daily loss limits.</span></div>
