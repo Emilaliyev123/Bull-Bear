@@ -3079,7 +3079,9 @@ async function requestProtectedMarketHubAnalysis(payload) {
   const body = isJson ? await response.json() : await response.text();
   if (!response.ok) {
     if (response.status === 401) logout(false);
-    const error = new Error(body?.error || body || "Protected analysis failed");
+    const isHtml = typeof body === "string" && body.trim().startsWith("<");
+    const errorMessage = isHtml ? "The server returned an invalid response. It may be temporarily unavailable." : (body?.error || body || "Protected analysis failed");
+    const error = new Error(errorMessage);
     error.status = response.status;
     error.details = body?.details || null;
     throw error;
