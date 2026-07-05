@@ -1620,7 +1620,8 @@ canvas {
 .hub-right-column {
   flex: 1;
   min-width: 0;
-  display: block;
+  display: flex;
+  flex-direction: column;
 }
 
 .hub-control-panel .h3,
