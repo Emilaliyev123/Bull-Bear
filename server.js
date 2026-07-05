@@ -686,10 +686,6 @@ function requireScannerAccess(req, res, next) {
   return next();
 }
 
-  req.db = db;
-  return next();
-}
-
 function optionalAuth(req, _res, next) {
   const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
   const payload = token ? verifyToken(token) : null;
