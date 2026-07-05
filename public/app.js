@@ -1057,7 +1057,7 @@ function analyzerSignalLabel(status = "neutral") {
     short: "Short",
     neutral: "Neutral",
     noSignal: "No Signal",
-    highRisk: "High Risk"
+    highRisk: "Entry Suppressed"
   };
   return labels[status] || humanizeAnalyzerKey(status);
 }
@@ -1102,8 +1102,9 @@ function strategyTone(name, component = {}) {
   return "neutral";
 }
 
-function renderStrategyBreakdown(breakdown = {}) {
+function renderStrategyBreakdown(breakdown = {}, metadata = {}) {
   const components = breakdown.components || {};
+  const newsRiskMetrics = metadata.newsRiskMetrics;
   const componentOrder = [
     "trend",
     "marketStructure",
@@ -1121,6 +1122,52 @@ function renderStrategyBreakdown(breakdown = {}) {
     .map((name) => {
       const component = components[name];
       const tone = strategyTone(name, component);
+      
+      if (name === "newsRisk" && newsRiskMetrics) {
+        const rLevel = (newsRiskMetrics.level || "normal").toLowerCase();
+        let badgeColor = "green";
+        if (rLevel === "medium") badgeColor = "yellow";
+        if (rLevel === "high") badgeColor = "orange";
+        if (rLevel === "extreme") badgeColor = "flashing-crimson";
+        
+        let eventsHtml = "";
+        const drawEvents = (title, events) => {
+          if (!events || !events.length) return "";
+          return `
+            <div class="event-group">
+              <h5>${esc(title)}</h5>
+              <ul>
+                ${events.map(ev => `<li><strong>${esc(ev.title)}</strong> (${esc(ev.country || "Global")}) - <span class="event-importance ${esc(ev.importance)}">${esc(ev.importance)}</span></li>`).join("")}
+              </ul>
+            </div>
+          `;
+        };
+        
+        if (newsRiskMetrics.activeEvents?.length || newsRiskMetrics.upcomingEvents?.length) {
+          eventsHtml += drawEvents("Active Risk Window", newsRiskMetrics.activeEvents);
+          eventsHtml += drawEvents("Upcoming (24h)", newsRiskMetrics.upcomingEvents);
+        }
+        
+        let dataStatusHtml = "";
+        if (newsRiskMetrics.dataStatus === "static-calendar") {
+          dataStatusHtml = `<p class="data-status-warning">Static event-risk rules active. Live economic calendar API not connected yet.</p>`;
+        }
+
+        return `
+          <div class="strategy-item news-risk-card">
+            <div class="strategy-item-head">
+              <strong>News & Macro Risk</strong>
+              <span class="strategy-status badge-${badgeColor}">${esc(newsRiskMetrics.level.toUpperCase())}</span>
+            </div>
+            <div class="strategy-item-copy">
+              <p>${esc(newsRiskMetrics.explanation)}</p>
+              ${eventsHtml}
+              ${dataStatusHtml}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <div class="strategy-item">
           <div class="strategy-item-head">
@@ -1326,7 +1373,7 @@ function renderAnalyzerResult(result) {
         </div>
       ` : ""}
       ${researchMode ? renderStockResearchSummary(result) : ""}
-      ${renderStrategyBreakdown(result.strategyBreakdown || {})}
+      ${renderStrategyBreakdown(result.strategyBreakdown || {}, result.metadata || {})}
       <div class="result-explain">
         <div class="explanation-copy"><strong>Explanation</strong><p>${esc(result.explanation || "Educational research framework.")}</p></div>
         <div class="invalidation-card"><span>Invalidation Rule</span><strong>${esc(result.invalidationRule || "If the thesis breaks, stand aside and wait for a new setup.")}</strong><small>A disciplined plan defines what proves the idea wrong before any position is considered.</small></div>
