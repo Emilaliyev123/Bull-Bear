@@ -5,6 +5,7 @@ const { analyzeGold } = require("./goldAnalyzer");
 const { getMockMarketData } = require("./mockDataProvider");
 const { analyzeStocks } = require("./stockAnalyzer");
 const { getCryptoMarketData } = require("./cryptoDataProvider");
+const { getFmpMarketData } = require("./fmpDataProvider");
 
 const ALLOWED_MARKETS = new Set(["crypto", "forex", "gold", "stocks", "commodities"]);
 const ALLOWED_MODES = new Set([
@@ -166,7 +167,7 @@ async function analyzeMarketHubWithLiveData(payload, options = {}) {
   const request = validateAnalysisRequest(payload);
   const data = request.market === "crypto"
     ? await getCryptoMarketData(request, options.crypto || {})
-    : getMockMarketData(request);
+    : await getFmpMarketData(request, options.fmp || {});
   const analyzers = {
     crypto: analyzeCrypto,
     forex: analyzeForex,
