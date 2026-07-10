@@ -3,6 +3,9 @@ const fs = require("fs");
 const path = require("path");
 const express = require("express");
 const multer = require("multer");
+const helmet = require("helmet");
+const xss = require("xss");
+const rateLimit = require("express-rate-limit");
 const {
   AnalyzerValidationError,
   analyzeMarketHubWithLiveData
@@ -81,6 +84,26 @@ const uploadFolders = {
 };
 
 
+
+function validateEnvironmentConfiguration() {
+  const missing = [];
+  if (!process.env.ADMIN_SECRET) {
+    console.warn("⚠️  WARNING: ADMIN_SECRET is missing. A random one will be generated, invalidating sessions on restart.");
+  } else if (process.env.ADMIN_SECRET.length < 16) {
+    missing.push("ADMIN_SECRET is too short (must be >= 16 chars).");
+  }
+  
+  if (!process.env.PAYRIFF_SECRET_KEY && process.env.PAYMENT_DEFAULT_PROVIDER === "payriff") {
+    console.warn("⚠️  WARNING: PAYRIFF_SECRET_KEY is missing. Checkout flows will fail in production.");
+  }
+  
+  if (missing.length > 0) {
+    console.error("❌ CRITICAL SECURITY ERROR: Environment validation failed.");
+    missing.forEach(err => console.error(`   - ${err}`));
+    process.exit(1);
+  }
+}
+validateEnvironmentConfiguration();
 
 function ensureProjectFiles() {
   try {
@@ -2896,7 +2919,56 @@ function serializeContent(db, auth = {}) {
 
 ensureProjectFiles();
 
-app.use(express.json({ limit: "2mb" }));
+// --- Security Middlewares ---
+app.use(helmet({
+  contentSecurityPolicy: false, // Too complex to retro-fit immediately without breaking inline scripts
+  crossOriginEmbedderPolicy: false
+}));
+
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: "Too many requests from this IP, please try again later." }
+});
+app.use(globalLimiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Too many authentication attempts, please try again later." }
+});
+app.use("/api/auth", authLimiter);
+app.use("/api/payments/checkout", authLimiter);
+
+// Custom recursive XSS sanitizer
+function sanitizeInput(obj) {
+  if (typeof obj === "string") return xss(obj);
+  if (Array.isArray(obj)) return obj.map(v => sanitizeInput(v));
+  if (obj !== null && typeof obj === "object") {
+    const sanitized = {};
+    for (const [key, val] of Object.entries(obj)) {
+      sanitized[key] = sanitizeInput(val);
+    }
+    return sanitized;
+  }
+  return obj;
+}
+
+// Ensure we capture raw body for HMAC signature verification
+app.use(express.json({
+  limit: "2mb",
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+
+// Apply XSS sanitization
+app.use((req, res, next) => {
+  if (req.body) req.body = sanitizeInput(req.body);
+  if (req.query) req.query = sanitizeInput(req.query);
+  if (req.params) req.params = sanitizeInput(req.params);
+  next();
+});
 app.use("/uploads/images", express.static(path.join(UPLOAD_DIR, "images")));
 app.use(express.static(PUBLIC_DIR, {
   setHeaders(res, filePath) {
@@ -3201,11 +3273,34 @@ app.post("/api/payments/webhook/:provider", express.raw({ type: "*/*" }), async 
   if (!WEBHOOK_PROVIDER_IDS.has(provider)) {
     return res.status(400).json({ ok: false, error: "Unsupported webhook provider" });
   }
+
+  // --- Webhook Signature Verification ---
+  const secret = providerWebhookSecret(provider);
+  if (secret) {
+    const rawBuffer = Buffer.isBuffer(req.body) ? req.body : req.rawBody;
+    if (!rawBuffer) {
+      return res.status(401).json({ ok: false, error: "Missing raw body for signature verification" });
+    }
+    const signature = req.headers["x-webhook-signature"] || req.headers["signature"] || "";
+    if (!signature) {
+      return res.status(401).json({ ok: false, error: "Missing webhook signature header" });
+    }
+    const expectedSig = crypto.createHmac("sha256", secret).update(rawBuffer).digest("hex");
+    
+    const sigBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSig);
+    
+    if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+      console.warn(`⚠️ Security Warning: Spoofed webhook signature rejected for provider: ${provider}`);
+      return res.status(401).json({ ok: false, error: "Invalid webhook signature" });
+    }
+  }
+
   const db = readDb();
   let payload = req.body || {};
-  if (Buffer.isBuffer(payload)) {
+  if (Buffer.isBuffer(req.body)) {
     try {
-      payload = JSON.parse(payload.toString("utf8") || "{}");
+      payload = JSON.parse(req.body.toString("utf8") || "{}");
     } catch {
       payload = {};
     }
