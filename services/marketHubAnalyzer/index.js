@@ -6,6 +6,7 @@ const { getMockMarketData } = require("./mockDataProvider");
 const { analyzeStocks } = require("./stockAnalyzer");
 const { getCryptoMarketData } = require("./cryptoDataProvider");
 const { getFmpMarketData } = require("./fmpDataProvider");
+const { getYahooMarketData } = require("./yahooDataProvider");
 const { evaluateNewsRisk } = require("./newsRiskEngine");
 
 const ALLOWED_MARKETS = new Set(["crypto", "forex", "gold", "stocks", "commodities"]);
@@ -175,9 +176,23 @@ async function analyzeMarketHub(payload, injectedTime = null) {
 
 async function analyzeMarketHubWithLiveData(payload, options = {}) {
   const request = validateAnalysisRequest(payload);
-  const data = request.market === "crypto"
-    ? await getCryptoMarketData(request, options.crypto || {})
-    : await getFmpMarketData(request, options.fmp || {});
+  /**
+   * Data routing strategy:
+   *   crypto      → Binance (free, public, no key)
+   *   forex       → Yahoo Finance (free, no key) — FMP free plan blocks Forex
+   *   gold        → Yahoo Finance (free, GC=F futures, no key)
+   *   commodities → Yahoo Finance (free, futures symbols, no key)
+   *   stocks      → FMP Stable API (free plan covers EOD/intraday equities)
+   */
+  let data;
+  if (request.market === "crypto") {
+    data = await getCryptoMarketData(request, options.crypto || {});
+  } else if (request.market === "stocks") {
+    data = await getFmpMarketData(request);
+  } else {
+    // forex, gold, commodities — all free via Yahoo Finance
+    data = await getYahooMarketData(request);
+  }
   
   data.newsRisk = await evaluateNewsRisk(request.market, request.asset, request.mode, options.injectedTime || null);
   
