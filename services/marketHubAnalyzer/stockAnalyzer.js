@@ -2,8 +2,17 @@ const { scoreConfluence } = require("./scoring");
 const { assessRiskLevel, highRiskWarning } = require("./risk");
 const { createTechnicalAnalysis, EDUCATIONAL_DISCLAIMER } = require("./strategies");
 
+const SESSION_NOTES = {
+  scalping: "Scalping stocks is highly session-dependent: pre-market (4–9:30 ET) has thin liquidity and wide spreads; regular hours (9:30–16:00 ET) are safest; after-hours (16:00–20:00 ET) carry gap risk.",
+  dayTrading: "Day-trading stocks: opening range breakouts (first 30 min) and the 10–11 ET reversal window are the highest-probability intraday windows. Avoid the 12–14 ET low-volume lunch zone."
+};
+
 function analyzeStockTrading(request, data) {
   const relativeStrength = data.fundamentals.growth >= 65;
+  const sessionNote = SESSION_NOTES[request.mode];
+  const notes = ["Stock trading levels are available only for dayTrading and swingTrading modes."];
+  if (sessionNote) notes.push(sessionNote);
+
   return createTechnicalAnalysis({
     request,
     data,
@@ -18,13 +27,22 @@ function analyzeStockTrading(request, data) {
       "High relative-volume placeholder",
       "Market-regime placeholder"
     ],
-    notes: ["Stock trading levels are available only for dayTrading and swingTrading modes."]
+    notes
   });
 }
 
 function analyzeStockResearch(request, data) {
   const fundamentals = data.fundamentals;
-  const averageFundamental = Math.round((fundamentals.quality + fundamentals.value + fundamentals.growth + fundamentals.dividend) / 4);
+  const averageFundamental = Math.round(
+    (fundamentals.quality + fundamentals.value + fundamentals.growth + fundamentals.dividend) / 4
+  );
+  // newsRisk.level taxonomy: normal / medium / high / extreme
+  // "elevated" is NOT a valid level — use "high" for the conditional check
+  const newsRiskScore = data.newsRisk.level === "extreme" ? 0
+    : data.newsRisk.level === "high" ? 4
+      : data.newsRisk.level === "medium" ? 6
+        : 9;
+
   const components = {
     trend: { score: 6, detail: "Long-term trend placeholder" },
     marketStructure: { score: 6, detail: "Broad market structure placeholder" },
@@ -32,10 +50,19 @@ function analyzeStockResearch(request, data) {
     liquidity: { score: 7, detail: "Large-cap liquidity assumption in demo data" },
     momentum: { score: Math.round(fundamentals.growth / 10), detail: `Growth quality placeholder ${fundamentals.growth}/100` },
     volume: { score: 6, detail: "Institutional participation placeholder" },
-    volatility: { score: data.volatilityRisk.level === "extreme" ? 0 : data.volatilityRisk.level === "elevated" ? 4 : 8, detail: data.volatilityRisk.reason },
-    newsRisk: { score: data.newsRisk.level === "extreme" ? 0 : data.newsRisk.level === "elevated" ? 4 : 9, detail: data.newsRisk.event },
+    volatility: {
+      score: data.volatilityRisk.level === "extreme" ? 0 : data.volatilityRisk.level === "elevated" ? 4 : 8,
+      detail: data.volatilityRisk.reason
+    },
+    newsRisk: {
+      score: newsRiskScore,
+      detail: data.newsRisk.explanation || data.newsRisk.event || "No immediate news risk"
+    },
     riskReward: { score: 6, detail: "Not expressed as a trade ratio in investing/research mode" },
-    marketSpecific: { score: Math.round(averageFundamental / 10), detail: `Composite quality/value/growth/dividend placeholder ${averageFundamental}/100` }
+    marketSpecific: {
+      score: Math.round(averageFundamental / 10),
+      detail: `Composite quality/value/growth/dividend placeholder ${averageFundamental}/100`
+    }
   };
   const confluence = scoreConfluence(components);
   const riskLevel = assessRiskLevel({
@@ -53,6 +80,7 @@ function analyzeStockResearch(request, data) {
     mode: request.mode,
     timeframe: request.timeframe,
     signalStatus: extremeRisk ? "highRisk" : "neutral",
+    signalStrength: extremeRisk ? "highRisk" : "neutral",
     confidenceScore: confluence.total,
     riskLevel,
     marketBias,
@@ -73,7 +101,13 @@ function analyzeStockResearch(request, data) {
       research: {
         fundamentals,
         dcaIdea: "Split a planned allocation into regular intervals and review the thesis before each addition.",
-        riskFactors: ["Valuation compression", "Earnings revisions", "Interest rates", "Sector concentration", "Company-specific execution"]
+        riskFactors: [
+          "Valuation compression",
+          "Earnings revisions",
+          "Interest rates",
+          "Sector concentration",
+          "Company-specific execution"
+        ]
       }
     },
     explanation: `${request.mode} is a research view with a ${marketBias} demo bias. It intentionally has no trading entry, stop, or take-profit levels. ${EDUCATIONAL_DISCLAIMER}`,

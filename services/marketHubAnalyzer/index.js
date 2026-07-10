@@ -6,6 +6,7 @@ const { getMockMarketData } = require("./mockDataProvider");
 const { analyzeStocks } = require("./stockAnalyzer");
 const { getCryptoMarketData } = require("./cryptoDataProvider");
 const { getFmpMarketData } = require("./fmpDataProvider");
+const { evaluateNewsRisk } = require("./newsRiskEngine");
 
 const ALLOWED_MARKETS = new Set(["crypto", "forex", "gold", "stocks", "commodities"]);
 const ALLOWED_MODES = new Set([
@@ -149,7 +150,6 @@ function validateAnalysisRequest(payload) {
   const asset = normalizeAsset(market, payload.asset);
   return { market, asset, mode, timeframe };
 }
-const { evaluateNewsRisk } = require("./newsRiskEngine");
 
 async function analyzeMarketHub(payload, injectedTime = null) {
   const request = validateAnalysisRequest(payload);

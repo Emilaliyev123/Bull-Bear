@@ -119,15 +119,21 @@ function getMockMarketData({ market, asset, mode, timeframe }) {
     const wick = volatility * (0.15 + random() * 0.45);
     const high = Math.max(open, close) * (1 + wick);
     const low = Math.min(open, close) * (1 - wick);
+    // Forex has no centralized volume. The volume field is a tick-volume proxy
+    // (scaled for visual parity with other markets). It does not represent
+    // real traded notional volume and should not be used for volume analysis.
+    const isForex = market === "forex";
     const volumePulse = index > 112 ? 1 + (seed % 5) * 0.12 : 1;
-    const volume = (800000 + random() * 1200000) * volumePulse * (market === "forex" ? 2.5 : 1);
+    const rawVolume = (800000 + random() * 1200000) * volumePulse * (isForex ? 2.5 : 1);
+    const candleVolume = round(rawVolume, 2);
     candles.push({
       timestamp: new Date(endTime - (119 - index) * intervalMinutes * 60 * 1000).toISOString(),
       open: round(open, 8),
       high: round(high, 8),
       low: round(low, 8),
       close: round(close, 8),
-      volume: round(volume, 2)
+      volume: candleVolume,
+      ...(isForex && { isTickVolume: true })
     });
     previousClose = close;
   }

@@ -2,6 +2,7 @@ const { getMockMarketData } = require("./mockDataProvider");
 
 const FMP_BASE_URL = "https://financialmodelingprep.com/api/v3";
 const DEFAULT_TIMEOUT_MS = 4000;
+const MIN_VALID_CANDLES = 60;
 
 function mapFmpSymbol(market, asset) {
   if (market === "gold") return "XAUUSD";
@@ -21,9 +22,32 @@ function mapFmpTimeframe(timeframe) {
     "15m": "15m",
     "1h": "1hour",
     "4h": "4hour",
-    "1d": "1d"
+    "1d": "1d",
+    // 1w: FMP does not have a dedicated weekly endpoint.
+    // We use daily bars and return enough bars (200) for weekly-context analysis.
+    "1w": "1d"
   };
   return map[String(timeframe).toLowerCase()] || "1hour";
+}
+
+/**
+ * Tries to parse a single raw FMP candle row.
+ * Returns null (instead of throwing) if the row is malformed or out-of-range,
+ * so callers can filter-and-continue rather than aborting the entire fetch.
+ */
+function parseFmpCandle(c) {
+  const time = new Date(c.date).toISOString();
+  const open = Number(c.open);
+  const high = Number(c.high);
+  const low = Number(c.low);
+  const close = Number(c.close);
+  const volume = Number(c.volume) || 0;
+
+  if (!time || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) return null;
+  if (open <= 0 || high <= 0 || low <= 0 || close <= 0) return null;
+  if (low > high || open < low || open > high || close < low || close > high) return null;
+
+  return { time, open, high, low, close, volume };
 }
 
 async function fetchFmpCandles(market, asset, timeframe) {
@@ -35,9 +59,11 @@ async function fetchFmpCandles(market, asset, timeframe) {
   const symbol = mapFmpSymbol(market, asset);
   const fmpTimeframe = mapFmpTimeframe(timeframe);
 
+  // For weekly timeframe we request 200 daily bars to give enough context
+  const limitParam = timeframe === "1w" ? "&limit=200" : "";
   let url;
   if (fmpTimeframe === "1d") {
-    url = `${FMP_BASE_URL}/historical-price-full/${symbol}?apikey=${apiKey}`;
+    url = `${FMP_BASE_URL}/historical-price-full/${symbol}?apikey=${apiKey}${limitParam}`;
   } else {
     url = `${FMP_BASE_URL}/historical-chart/${fmpTimeframe}/${symbol}?apikey=${apiKey}`;
   }
@@ -67,27 +93,28 @@ async function fetchFmpCandles(market, asset, timeframe) {
       rawCandles = data;
     }
 
-    if (rawCandles.length < 60) {
-      throw new Error("INSUFFICIENT_CANDLES");
-    }
-
-    // FMP returns newest first (descending). We sort by time to get oldest first (ascending).
+    // FMP returns newest first (descending). Sort to oldest-first (ascending).
     rawCandles.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const candles = rawCandles.map(c => {
-      const time = new Date(c.date).toISOString();
-      const open = Number(c.open);
-      const high = Number(c.high);
-      const low = Number(c.low);
-      const close = Number(c.close);
-      const volume = Number(c.volume) || 0;
-
-      if (!time || isNaN(open) || isNaN(high) || isNaN(low) || isNaN(close)) {
-        throw new Error("MALFORMED_CANDLE");
+    // Defensive parsing: filter bad rows rather than throwing on a single bad candle
+    const skipped = [];
+    const candles = rawCandles.reduce((acc, c, i) => {
+      const parsed = parseFmpCandle(c);
+      if (parsed) {
+        acc.push(parsed);
+      } else {
+        skipped.push(i);
       }
+      return acc;
+    }, []);
 
-      return { time, open, high, low, close, volume };
-    });
+    if (skipped.length > 0) {
+      console.warn(`[fmpDataProvider] Skipped ${skipped.length} malformed candle(s) for ${symbol}`);
+    }
+
+    if (candles.length < MIN_VALID_CANDLES) {
+      throw new Error("INSUFFICIENT_CANDLES");
+    }
 
     return { candles, symbol, fmpTimeframe };
   } catch (error) {
@@ -120,7 +147,7 @@ async function getFmpMarketData(request, options = {}) {
       dataStatus: {
         status: "live",
         provider: "Financial Modeling Prep",
-        message: `Live OHLCV candles for ${symbol} at ${fmpTimeframe}. No live news feed is currently connected.`
+        message: `Live OHLCV candles for ${symbol} at ${fmpTimeframe}${request.timeframe === "1w" ? " (daily bars used for weekly context)" : ""}. No live news feed is currently connected.`
       },
       dataSource: "Financial Modeling Prep",
       isDemo: false,
@@ -134,7 +161,7 @@ async function getFmpMarketData(request, options = {}) {
   } catch (error) {
     const fallback = getMockMarketData(request);
     const reasonCode = String(error.message || "PROVIDER_UNAVAILABLE").toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-    
+
     return {
       ...fallback,
       dataStatus: {
@@ -155,4 +182,4 @@ async function getFmpMarketData(request, options = {}) {
   }
 }
 
-module.exports = { getFmpMarketData, fetchFmpCandles, mapFmpSymbol, mapFmpTimeframe };
+module.exports = { getFmpMarketData, fetchFmpCandles, mapFmpSymbol, mapFmpTimeframe, parseFmpCandle };

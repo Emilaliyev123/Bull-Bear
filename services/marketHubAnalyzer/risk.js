@@ -1,7 +1,25 @@
+/**
+ * Risk level taxonomy (lowest to highest severity):
+ *   normal  →  medium  →  high  →  extreme
+ *
+ * The newsRisk engine outputs "normal", "medium", "high", or "extreme".
+ * The volatilityRisk assessors output "normal", "elevated", or "extreme".
+ * We normalise "elevated" → "high" here so downstream consumers only
+ * ever see the four canonical levels.
+ */
+function normalizeRiskLevel(level) {
+  if (level === "elevated") return "high";
+  return level || "normal";
+}
+
 function assessRiskLevel({ confidenceScore, newsRisk, volatilityRisk, mode }) {
-  if (newsRisk === "extreme" || volatilityRisk === "extreme") return "extreme";
-  if (newsRisk === "elevated" && volatilityRisk === "elevated") return "high";
-  if (newsRisk === "elevated" || volatilityRisk === "elevated" || mode === "scalping") return "high";
+  const news = normalizeRiskLevel(newsRisk);
+  const vol = normalizeRiskLevel(volatilityRisk);
+
+  if (news === "extreme" || vol === "extreme") return "extreme";
+  if (news === "high" && vol === "high") return "extreme";
+  if (news === "high" || vol === "high" || mode === "scalping") return "high";
+  if (news === "medium" || vol === "medium") return "medium";
   if (confidenceScore >= 75 && !["scalping", "dayTrading"].includes(mode)) return "low";
   return "medium";
 }
@@ -21,5 +39,6 @@ function highRiskWarning(riskLevel, score) {
 
 module.exports = {
   assessRiskLevel,
-  highRiskWarning
+  highRiskWarning,
+  normalizeRiskLevel
 };
