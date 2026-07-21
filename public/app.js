@@ -2797,6 +2797,7 @@ function render() {
     bindCheckoutButtons();
     initMarketCanvas();
     mountRouteEffects();
+    bindInteractiveEffects();
     if (typeof initTradingViewCharts === "function") initTradingViewCharts();
     if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
   };
@@ -2806,6 +2807,39 @@ function render() {
   } else {
     updateDOM();
   }
+}
+
+function bindInteractiveEffects() {
+  // Find all cards and panels to make them interactive
+  const interactiveElements = document.querySelectorAll('.card, .panel, .academy-panel, .hub-hero-panel, .price-card');
+  
+  interactiveElements.forEach(el => {
+    // Add the class required for the glow effect
+    el.classList.add('interactive-card');
+    
+    el.addEventListener('mousemove', (e) => {
+      const rect = el.getBoundingClientRect();
+      const x = e.clientX - rect.left; // x position within the element.
+      const y = e.clientY - rect.top;  // y position within the element.
+      
+      // Update CSS variables for the spotlight glow
+      el.style.setProperty('--x', `${x}px`);
+      el.style.setProperty('--y', `${y}px`);
+      
+      // Calculate 3D tilt
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = ((y - centerY) / centerY) * -5; // max 5 degrees
+      const rotateY = ((x - centerX) / centerX) * 5;  // max 5 degrees
+      
+      el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
+    });
+    
+    el.addEventListener('mouseleave', () => {
+      // Reset transform when mouse leaves
+      el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+    });
+  });
 }
 
 function initMarketCanvas() {
