@@ -2791,12 +2791,21 @@ function render() {
     app.innerHTML = `<main class="main"><section class="section"><div class="empty">Loading...</div></section></main>`;
     return;
   }
-  app.innerHTML = `<div class="app">${header()}<main class="main">${page()}</main>${footer()}</div>`;
-  bindCheckoutButtons();
-  initMarketCanvas();
-  mountRouteEffects();
-  if (typeof initTradingViewCharts === "function") initTradingViewCharts();
-  if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
+  
+  const updateDOM = () => {
+    app.innerHTML = `<div class="app">${header()}<main class="main scroll-reveal">${page()}</main>${footer()}</div>`;
+    bindCheckoutButtons();
+    initMarketCanvas();
+    mountRouteEffects();
+    if (typeof initTradingViewCharts === "function") initTradingViewCharts();
+    if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
+  };
+
+  if (document.startViewTransition) {
+    document.startViewTransition(updateDOM);
+  } else {
+    updateDOM();
+  }
 }
 
 function initMarketCanvas() {
