@@ -1,6 +1,6 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
-const FREE_DISCORD_URL = "https://discord.gg/zcXkSV34H";
-const DISCORD_COURSE_URL = "https://t.me/+X_thhI2G6F82ZmMy";
+const FREE_TELEGRAM_URL = "https://t.me/bullandbeartradingcomm";
+const DISCORD_COURSE_URL = "https://t.me/bullandbeartradingcomm";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   
@@ -535,20 +535,20 @@ function header() {
   const links = [
     ["/products", "Products"],
     ["/how-to-use", "How to Use"],
-    ["/signals", "Discord"],
+    ["/signals", "Telegram"],
     ["/market-hub", "Market Hub"],
     ["/ai", "AI"],
     ["/support", "Support"]
   ];
   const actions = state.user
     ? `
-      <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener">Free Discord</a>
+      <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener">Free Telegram</a>
       ${isAdmin() ? `<a href="/admin" data-link class="admin-link">Admin</a>` : ""}
       <a href="/profile" data-link>${esc(state.user.name || "Profile")}</a>
       <button type="button" data-logout>Logout</button>
     `
     : `
-      <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener">Free Discord</a>
+      <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener">Free Telegram</a>
       <a href="/login" data-link class="${state.route === "/login" ? "active" : ""}">Log in</a>
       <a href="/register" data-link class="admin-link ${state.route === "/register" ? "active" : ""}">Sign up</a>
     `;
@@ -576,7 +576,7 @@ function footer() {
     ["/products", "Products"],
     
     
-    ["/signals", "Free Discord"],
+    ["/signals", "Free Telegram"],
     ["/market-hub", "Market Hub"],
     ["/ai", "Investor AI"]
   ];
@@ -608,7 +608,7 @@ function footer() {
           <strong>Contact</strong>
           <span>${CONTACT_EMAIL}</span>
           <span>+994 55 388 66 10</span>
-          <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener">Join Free Discord</a>
+          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener">Join Free Telegram</a>
         </div>
       </div>
     </footer>
@@ -630,16 +630,16 @@ function ticker() {
 }
 
 function productCard(product) {
-  const cls = product.id === "analyzer" ? "blue" : product.id === "discord" ? "gold" : product.id === "market-hub" ? "green" : "red";
-  const mark = product.id === "analyzer" ? "AI" : product.id === "discord" ? "T" : "M";
-  const badge = product.id === "discord" ? `<div class="badge">FREE DISCORD</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
-  const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" ? "/signals" : "/market-hub";
-  const planId = product.id === "discord" ? "" : product.planId || productPlanIds[product.id];
+  const cls = product.id === "analyzer" ? "blue" : product.id === "discord" || product.id === "signals" ? "gold" : product.id === "market-hub" ? "green" : "red";
+  const mark = product.id === "analyzer" ? "AI" : product.id === "discord" || product.id === "signals" ? "TG" : "M";
+  const badge = product.id === "discord" || product.id === "signals" ? `<div class="badge" style="background:#0088cc;color:#fff;">FREE TELEGRAM</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
+  const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" || product.id === "signals" ? "/signals" : "/market-hub";
+  const planId = product.id === "discord" || product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
   const primaryLabel = planId === "education-bundle"
     ? (state.user ? "Buy Now" : "Log In to Buy")
     : (state.user ? "Subscribe Now" : "Log In to Subscribe");
-  const primaryAction = product.id === "discord"
-    ? `<a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn">Join Free Discord</a>`
+  const primaryAction = product.id === "discord" || product.id === "signals"
+    ? `<a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn">Join Free Telegram</a>`
     : planId
       ? checkoutCta(planId, primaryLabel)
       : "";
@@ -655,15 +655,15 @@ function productCard(product) {
           <div class="icon-box ${cls}">${mark}</div>
           <span>${esc(product.cadence)}</span>
         </div>
-        <h3 class="h3">${esc(product.title)}</h3>
-        <p class="product-subtitle">${esc(product.subtitle)}</p>
-        <p class="muted" style="line-height:1.55;margin:0;">${esc(product.description)}</p>
+        <h3 class="h3">${esc(product.title.replace(/Discord/gi, "Telegram"))}</h3>
+        <p class="product-subtitle">${esc(product.subtitle.replace(/Discord/gi, "Telegram"))}</p>
+        <p class="muted" style="line-height:1.55;margin:0;">${esc(product.description.replace(/Discord/gi, "Telegram"))}</p>
         ${priceMarkup}
         <ul class="feature-list">
-          ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item)}</li>`).join("")}
+          ${(productFeatures[product.id] || []).map((item) => `<li>${esc(item.replace(/Discord/gi, "Telegram"))}</li>`).join("")}
         </ul>
         ${primaryAction}
-        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" ? "View Free Discord" : "View Product"}</a>
+        <a href="${href}" data-link class="btn secondary" style="margin-top:auto;">${product.id === "signals" || product.id === "discord" ? "View Free Telegram" : "View Product"}</a>
       </div>
     </article>
   `;
@@ -725,16 +725,16 @@ function heroSection() {
         <div class="hero-copy">
           <h1 class="h1">Bull & Bear <span class="gold-text">Market Command</span></h1>
           <p class="lead">
-            The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our Free Discord community today.
+            The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our 100% Free Telegram community today.
           </p>
           <div class="hero-kpis" aria-label="Platform highlights">
             <span><strong>AI Market Scanner</strong><small>Institutional Risk Engine</small></span>
-            <span><strong>Free Discord</strong><small>Trading Community</small></span>
+            <span><strong>Free Telegram</strong><small>Trading Community</small></span>
             <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
           </div>
           <div class="hero-actions">
             <a href="/products" data-link class="btn primary glowing-btn">Unlock Market Hub</a>
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary">Join Discord</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Telegram</a>
           </div>
         </div>
         <aside class="hero-console" aria-label="Bull and Bear platform preview">
@@ -814,7 +814,7 @@ function homePage() {
       <div class="metric-strip">
         <div><strong>2</strong><span>Core products</span></div>
         <div><strong>Live</strong><span>Market Analyzer</span></div>
-        <div><strong>Discord</strong><span>Free community access</span></div>
+        <div><strong>Telegram</strong><span>100% Free Community</span></div>
         <div><strong>24/7</strong><span>Digital access</span></div>
       </div>
     </section>
@@ -843,7 +843,7 @@ function homePage() {
         <div>
           <div class="eyebrow">Method</div>
           <h2 class="h2" style="margin-top:12px;">Built for Repeatable Trading Workflows</h2>
-          <p class="lead">The AI tool and Market Hub are now one bundle. Discord is free for community updates, beginner discussion, and academy announcements.</p>
+          <p class="lead">The AI tool and Market Hub are now one bundle. Telegram is 100% free for community updates, daily signals, and lectures.</p>
         </div>
         <div class="academy-stats">
           <div class="stat"><span class="h3">5+</span><span class="muted">Live Markets</span></div>
@@ -852,25 +852,38 @@ function homePage() {
         <div class="process-list">
           <div><strong>01</strong><span>Learn structure and risk rules</span></div>
           <div><strong>02</strong><span>Practice with the AI Desk</span></div>
-          <div><strong>03</strong><span>Join the free Discord community</span></div>
+          <div><strong>03</strong><span>Join the free Telegram channel</span></div>
         </div>
       </div>
     </section>
     <section class="section compact">
-      <div class="discord-panel">
+      <div class="discord-panel" style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(9, 9, 11, 0.95) 100%);">
         <div>
-          <div class="eyebrow">Discord Community</div>
-          <h2 class="h2" style="margin-top:12px;">Discord Community Is Free</h2>
-          <p class="lead">Join the public Bull & Bear Discord for announcements, beginner discussion, community market talk, and academy updates. No subscription is required for Discord access.</p>
-          <div class="hero-actions">
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
-            <a href="/signals" data-link class="btn secondary">View Discord Page</a>
+          <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">Telegram Community</div>
+          <h2 class="h2" style="margin-top:12px;">100% Free Telegram Channel</h2>
+          <p class="lead">Here is what we drop in this channel 100% Free:</p>
+          <div class="telegram-features-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 16px 0 24px 0;">
+            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
+              <strong>🔹 1 Free Signal Daily</strong>
+              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Market opportunities delivered every day</p>
+            </div>
+            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
+              <strong>🔹 2–3 Video/Text Lectures Weekly</strong>
+              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Step-by-step trading & investing lessons</p>
+            </div>
+            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
+              <strong>🔹 Latest Financial News</strong>
+              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Stay ahead of market-moving events</p>
+            </div>
+            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
+              <strong>🔹 Investment Ideas</strong>
+              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Curated insights on top assets to buy</p>
+            </div>
           </div>
-        </div>
-        <div class="process-list">
-          <div><strong>Free</strong><span>Community chat and announcements</span></div>
-          <div><strong>AI</strong><span>Included in Market Hub</span></div>
-          <div><strong>Hub</strong><span>Market Hub Pro is separate</span></div>
+          <div class="hero-actions">
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
+            <a href="/signals" data-link class="btn secondary">View Telegram Details</a>
+          </div>
         </div>
       </div>
     </section>
@@ -884,12 +897,12 @@ function productsPage() {
       <div class="section-head center">
         <div class="eyebrow">Analyzer Access</div>
         <h1 class="h2">Choose Your <span class="neon-text-green">Trading Arsenal</span></h1>
-        <p class="lead">Unlock the AI Market Scanner, join our free Discord community, or upgrade to Market Hub Pro.</p>
+        <p class="lead">Unlock the AI Market Scanner, join our 100% free Telegram channel, or upgrade to Market Hub Pro.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
-      <div class="discord-mini">
-        <span>Free Discord community is open to everyone.</span>
-        <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Join Free Discord</a>
+      <div class="discord-mini" style="border-color: rgba(0, 136, 204, 0.3);">
+        <span>Free Telegram community (@bullandbeartradingcomm) is open to everyone.</span>
+        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="background: #0088cc;">Join Free Telegram</a>
       </div>
     </section>
   `;
@@ -924,40 +937,43 @@ function courseModal() {
 function signalsPage() {
   return `
     <section class="section">
-      <div class="discord-hero">
+      <div class="discord-hero" style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.12) 0%, rgba(9, 9, 11, 0.95) 100%);">
         <div>
-          <div class="eyebrow">Free Discord</div>
-          <h1 class="h2" style="margin-top:12px;">Bull & Bear Discord Is Free</h1>
-          <p class="lead">Join the public Telegram community for announcements, beginner discussion, market talk, and academy updates. The AI tool is now included with the Market Hub Pro package.</p>
-          <div class="hero-actions">
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn primary">Join Free Discord</a>
-            <a href="/courses" data-link class="btn secondary">View Course + AI Bundle</a>
+          <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">100% Free Telegram</div>
+          <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
+          <p class="lead">Join our official Telegram community (@bullandbeartradingcomm) for daily market signals, video & text lectures, financial news, and curated investment ideas—completely free.</p>
+          <div class="hero-actions" style="margin-top:20px;">
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram</a>
+            <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
           </div>
         </div>
-        <div class="card pad">
-          <div class="price">Free <span>/ community</span></div>
-          <ul class="feature-list">
-            <li>Free Discord invite</li>
-            <li>Community market discussion</li>
-            <li>Academy announcements</li>
-            <li>Beginner rooms and support direction</li>
-            <li>AI tool included with the course bundle</li>
+        <div class="card pad" style="border-color: rgba(0, 136, 204, 0.3);">
+          <div class="price" style="color: #38bdf8;">100% Free <span>/ channel</span></div>
+          <ul class="feature-list" style="margin-top: 16px;">
+            <li>🔹 <strong>1 Free Signal Daily</strong> (Market opportunities delivered every day)</li>
+            <li>🔹 <strong>2–3 Video/Text Lectures Weekly</strong> (Step-by-step trading & investing lessons)</li>
+            <li>🔹 <strong>Latest Financial News</strong> (Stay ahead of market-moving events)</li>
+            <li>🔹 <strong>Investment Ideas</strong> (Curated insights on top assets to buy)</li>
           </ul>
         </div>
       </div>
-      <div class="grid three" style="margin-top:24px;">
-        <div class="card pad">
-          <h2 class="h3">Free Discord</h2>
-          <p class="muted">Join the public community for announcements, beginner discussion, and academy updates.</p>
-          <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small" style="margin-top:14px;">Join Free</a>
+      <div class="grid four" style="margin-top:24px;">
+        <div class="card pad glassmorphism">
+          <h2 class="h3" style="color: #38bdf8;">🔹 Daily Free Signal</h2>
+          <p class="muted" style="margin-top: 8px;">1 high-probability market opportunity delivered straight to your phone every day.</p>
+          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="margin-top:14px; background: #0088cc;">Join Telegram</a>
         </div>
-        <div class="card pad">
-          <h2 class="h3">AI With Education Bundle</h2>
-          <p class="muted">The AI market tool is included with Market Hub Pro. Telegram stays free for the public community.</p>
+        <div class="card pad glassmorphism">
+          <h2 class="h3" style="color: var(--gold);">🔹 Weekly Lectures</h2>
+          <p class="muted" style="margin-top: 8px;">2–3 educational video & text lessons weekly covering technicals, macro, and risk management.</p>
         </div>
-        <div class="card pad">
-          <h2 class="h3">Community First</h2>
-          <p class="muted">Discord is now free. Paid access is focused on the education bundle and Market Hub Pro.</p>
+        <div class="card pad glassmorphism">
+          <h2 class="h3" style="color: var(--green);">🔹 Breaking News</h2>
+          <p class="muted" style="margin-top: 8px;">Real-time analysis of central bank decisions, CPI releases, and geopolitical events.</p>
+        </div>
+        <div class="card pad glassmorphism">
+          <h2 class="h3" style="color: #a855f7;">🔹 Investment Ideas</h2>
+          <p class="muted" style="margin-top: 8px;">Deep-dive research and trade ideas on high-performing Crypto, Forex, and Stock assets.</p>
         </div>
       </div>
     </section>

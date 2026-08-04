@@ -27,22 +27,22 @@ function buildLineGrid(size = 12, divisions = 16) {
 }
 
 function buildParticleField() {
-  const count = 520;
+  const count = 850;
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i += 1) {
-    const radius = 2.4 + Math.random() * 5.6;
+    const radius = 2.0 + Math.random() * 6.5;
     const angle = Math.random() * Math.PI * 2;
     positions[i * 3] = Math.cos(angle) * radius;
-    positions[i * 3 + 1] = (Math.random() - 0.42) * 4.2;
+    positions[i * 3 + 1] = (Math.random() - 0.42) * 5.2;
     positions[i * 3 + 2] = Math.sin(angle) * radius - 1.2;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const material = new THREE.PointsMaterial({
-    color: 0x00f0ff,
-    size: 0.018,
+    color: 0x38bdf8,
+    size: 0.024,
     transparent: true,
-    opacity: 0.72,
+    opacity: 0.85,
     depthWrite: false
   });
   return new THREE.Points(geometry, material);
@@ -51,18 +51,18 @@ function buildParticleField() {
 function buildCandles() {
   const group = new THREE.Group();
   const green = new THREE.MeshStandardMaterial({
-    color: 0x12d18e,
-    emissive: 0x063322,
-    metalness: 0.35,
-    roughness: 0.42
+    color: 0x10b981,
+    emissive: 0x064e3b,
+    metalness: 0.6,
+    roughness: 0.25
   });
   const red = new THREE.MeshStandardMaterial({
     color: 0xef4444,
-    emissive: 0x3b0909,
-    metalness: 0.25,
-    roughness: 0.5
+    emissive: 0x450a0a,
+    metalness: 0.5,
+    roughness: 0.3
   });
-  const wick = new THREE.MeshBasicMaterial({ color: 0xf8e7ad, transparent: true, opacity: 0.72 });
+  const wick = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.85 });
 
   for (let i = 0; i < 72; i += 1) {
     const up = i % 5 !== 0 && i % 7 !== 0;
@@ -84,22 +84,22 @@ function buildCandles() {
 function buildRings() {
   const group = new THREE.Group();
   const gold = new THREE.MeshStandardMaterial({
-    color: 0x12d18e,
-    emissive: 0x5a3605,
-    metalness: 0.88,
-    roughness: 0.18
+    color: 0xfbbf24,
+    emissive: 0x78350f,
+    metalness: 0.95,
+    roughness: 0.15
   });
-  const darkGold = new THREE.MeshStandardMaterial({
-    color: 0x0f9b6a,
-    emissive: 0x2d1b02,
-    metalness: 0.92,
-    roughness: 0.23,
+  const emerald = new THREE.MeshStandardMaterial({
+    color: 0x10b981,
+    emissive: 0x064e3b,
+    metalness: 0.9,
+    roughness: 0.2,
     transparent: true,
-    opacity: 0.72
+    opacity: 0.85
   });
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.38, 0.035, 18, 120), gold);
-  const inner = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.018, 12, 96), darkGold);
-  const knot = new THREE.Mesh(new THREE.TorusKnotGeometry(0.7, 0.018, 140, 8, 2, 3), darkGold);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.04, 24, 120), gold);
+  const inner = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.025, 16, 96), emerald);
+  const knot = new THREE.Mesh(new THREE.IcosahedronGeometry(0.5, 0), gold);
   ring.rotation.set(1.14, 0.28, -0.18);
   inner.rotation.set(0.92, -0.52, 0.44);
   knot.rotation.set(0.6, 0.2, 0.2);
