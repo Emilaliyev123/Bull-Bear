@@ -113,11 +113,10 @@ const categories = [
 
 const productFeatures = {
   discord: [
-    "Free public Telegram community",
-    "Academy announcements",
-    "Beginner discussion rooms",
-    "Community market talk",
-    "No subscription required"
+    "🔹 1 Free Signal Daily (Market opportunities delivered every day)",
+    "🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)",
+    "🔹 Latest Financial News (Stay ahead of market-moving events)",
+    "🔹 Investment Ideas (Curated insights on top assets to buy)"
   ],
   "market-hub": [
     "AI Market Scanner & Risk Engine",
@@ -933,7 +932,6 @@ function courseModal() {
   `;
 }
 
-
 function signalsPage() {
   return `
     <section class="section">
@@ -941,39 +939,39 @@ function signalsPage() {
         <div>
           <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">100% Free Telegram</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
-          <p class="lead">Join our official Telegram community (@bullandbeartradingcomm) for daily market signals, video & text lectures, financial news, and curated investment ideas—completely free.</p>
+          <p class="lead" style="font-weight: 700; color: #fff; margin-top: 12px;">Here is what we drop in this channel 100% Free:</p>
           <div class="hero-actions" style="margin-top:20px;">
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
             <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
           </div>
         </div>
         <div class="card pad" style="border-color: rgba(0, 136, 204, 0.3);">
           <div class="price" style="color: #38bdf8;">100% Free <span>/ channel</span></div>
-          <ul class="feature-list" style="margin-top: 16px;">
-            <li>🔹 <strong>1 Free Signal Daily</strong> (Market opportunities delivered every day)</li>
-            <li>🔹 <strong>2–3 Video/Text Lectures Weekly</strong> (Step-by-step trading & investing lessons)</li>
-            <li>🔹 <strong>Latest Financial News</strong> (Stay ahead of market-moving events)</li>
-            <li>🔹 <strong>Investment Ideas</strong> (Curated insights on top assets to buy)</li>
+          <ul class="feature-list" style="margin-top: 16px; font-size: 0.95rem;">
+            <li>🔹 1 Free Signal Daily (Market opportunities delivered every day)</li>
+            <li>🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)</li>
+            <li>🔹 Latest Financial News (Stay ahead of market-moving events)</li>
+            <li>🔹 Investment Ideas (Curated insights on top assets to buy)</li>
           </ul>
         </div>
       </div>
       <div class="grid four" style="margin-top:24px;">
         <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: #38bdf8;">🔹 Daily Free Signal</h2>
-          <p class="muted" style="margin-top: 8px;">1 high-probability market opportunity delivered straight to your phone every day.</p>
-          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="margin-top:14px; background: #0088cc;">Join Telegram</a>
+          <h2 class="h3" style="color: #38bdf8;">🔹 1 Free Signal Daily</h2>
+          <p class="muted" style="margin-top: 8px;">Market opportunities delivered every day</p>
+          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="margin-top:14px; background: #0088cc;">Join Channel</a>
         </div>
         <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: var(--gold);">🔹 Weekly Lectures</h2>
-          <p class="muted" style="margin-top: 8px;">2–3 educational video & text lessons weekly covering technicals, macro, and risk management.</p>
+          <h2 class="h3" style="color: var(--gold);">🔹 2–3 Video/Text Lectures Weekly</h2>
+          <p class="muted" style="margin-top: 8px;">Step-by-step trading & investing lessons</p>
         </div>
         <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: var(--green);">🔹 Breaking News</h2>
-          <p class="muted" style="margin-top: 8px;">Real-time analysis of central bank decisions, CPI releases, and geopolitical events.</p>
+          <h2 class="h3" style="color: var(--green);">🔹 Latest Financial News</h2>
+          <p class="muted" style="margin-top: 8px;">Stay ahead of market-moving events</p>
         </div>
         <div class="card pad glassmorphism">
           <h2 class="h3" style="color: #a855f7;">🔹 Investment Ideas</h2>
-          <p class="muted" style="margin-top: 8px;">Deep-dive research and trade ideas on high-performing Crypto, Forex, and Stock assets.</p>
+          <p class="muted" style="margin-top: 8px;">Curated insights on top assets to buy</p>
         </div>
       </div>
     </section>
