@@ -4305,41 +4305,14 @@ canvas {
 }
 
 /* Scroll-driven reveals */
-@keyframes fade-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(40px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
 
-.scroll-reveal,
-.section,
-.card,
-.academy-panel,
-.discord-panel,
-.hub-control-panel,
-.analyzer-result {
-  animation: fade-slide-up linear both;
-  animation-timeline: view();
-  animation-range: entry 5% cover 15%;
-}
-
-/* Fallback for browsers not supporting animation-timeline */
-@supports not (animation-timeline: view()) {
-  .scroll-reveal,
-  .section,
-  .card,
-  .academy-panel,
-  .discord-panel,
-  .hub-control-panel,
-  .analyzer-result {
-    animation: fade-slide-up 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-  }
-}
+/* A scroll-linked fade used to run here, applied to .scroll-reveal (which sits
+   on <main>) as well as .section and .card nested inside it. Because <main>
+   spans the whole document, its view() range never resolved, so the animation
+   parked near opacity 0 — and the nested selectors multiplied that, leaving
+   page content barely legible while the header stayed bright.
+   The [data-reveal] system in motion.js does this per element instead, so the
+   whole block is removed rather than repaired. */
 
 /* View Transitions for DOM updates */
 ::view-transition-old(root),
