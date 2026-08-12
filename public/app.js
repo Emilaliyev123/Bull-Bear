@@ -2786,12 +2786,21 @@ function updateDocumentMeta() {
   if (canonical) canonical.href = `https://bullandbear.az${path === "/" ? "/" : path}`;
 }
 
+let lastRenderedRoute = null;
+
 function render() {
   const app = document.getElementById("app");
   if (!state.content) {
     app.innerHTML = `<main class="main"><section class="section"><div class="empty">Loading...</div></section></main>`;
     return;
   }
+
+  // The scanner polls every 12s and each poll re-renders the whole page. Only
+  // an actual route change should get the transition and the reveal entrance —
+  // replaying both on every price refresh made the page look like it was
+  // reloading itself twice a cycle.
+  const isNavigation = state.route !== lastRenderedRoute;
+  lastRenderedRoute = state.route;
 
   const updateDOM = () => {
     if (typeof disposeTradingViewCharts === "function") disposeTradingViewCharts();
@@ -2804,10 +2813,10 @@ function render() {
     if (typeof initTradingViewCharts === "function") initTradingViewCharts();
     if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
     // Rebuild scroll choreography against the markup this render just produced.
-    if (window.BullBearMotion) window.BullBearMotion.refresh();
+    if (window.BullBearMotion) window.BullBearMotion.refresh(!isNavigation);
   };
 
-  if (document.startViewTransition) {
+  if (isNavigation && document.startViewTransition) {
     // A fast second navigation skips the in-flight transition, rejecting `ready`.
     // The DOM still updates, so swallow the expected rejections instead of
     // leaking them as unhandled promise errors.
