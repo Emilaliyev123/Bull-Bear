@@ -4689,3 +4689,126 @@ button:active {
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* ── Condensing header ──────────────────────────────────────────────────── */
+.site-header {
+  transition:
+    padding var(--dur-fast) var(--ease-out-quart),
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    backdrop-filter var(--dur-fast) ease;
+}
+
+.site-header.is-condensed {
+  background: rgba(2, 4, 10, 0.82);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  border-bottom-color: rgba(251, 191, 36, 0.16);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.site-header.is-condensed .header-inner {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.site-header.is-condensed .brand img {
+  width: 38px;
+  height: 38px;
+}
+
+.site-header .brand img {
+  transition:
+    width var(--dur-fast) var(--ease-out-quart),
+    height var(--dur-fast) var(--ease-out-quart);
+}
+
+.site-header.is-condensed .brand small {
+  opacity: 0;
+  /* Collapses the tagline row so the whole bar tightens rather than just
+     fading text and leaving a gap. */
+  max-height: 0;
+  transition:
+    opacity 180ms ease,
+    max-height var(--dur-fast) var(--ease-out-quart);
+}
+
+.site-header .brand small {
+  max-height: 20px;
+  transition:
+    opacity 220ms ease,
+    max-height var(--dur-fast) var(--ease-out-quart);
+}
+
+/* ── Card depth ─────────────────────────────────────────────────────────── */
+.card:hover,
+.product-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(251, 191, 36, 0.28);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 18px 48px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(251, 191, 36, 0.06);
+}
+
+/* ── Button polish ──────────────────────────────────────────────────────── */
+.btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) ease,
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+/* Sheen sweep on hover. Pointer-only: it reads as a smudge under a finger. */
+@media (hover: hover) {
+  .btn.primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.28) 50%,
+      transparent 80%
+    );
+    transform: translateX(-120%);
+    transition: transform 720ms var(--ease-out-quart);
+    pointer-events: none;
+  }
+
+  .btn.primary:hover::after {
+    transform: translateX(120%);
+  }
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+/* A magnetic button must not have its translate overwritten by :active, so the
+   scale rides on the inner sheen layer's parent transform instead. */
+[data-magnetic]:active {
+  transform: translate3d(var(--magnet-x, 0), var(--magnet-y, 0), 0) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header .brand img,
+  .site-header .brand small,
+  .card,
+  .btn {
+    transition: none !important;
+  }
+
+  .btn.primary::after {
+    display: none;
+  }
+
+  .card:hover,
+  .product-card:hover {
+    transform: none;
+  }
+}

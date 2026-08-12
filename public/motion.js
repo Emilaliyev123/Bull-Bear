@@ -128,6 +128,14 @@
     const offset = window.scrollY || doc.scrollTop || 0;
     doc.style.setProperty("--scroll-progress", max > 0 ? String(offset / max) : "0");
 
+    // Header condenses once the hero is behind you. Hysteresis (condense at 80,
+    // release at 40) stops it flickering when a scroll settles near the edge.
+    const header = document.querySelector(".site-header");
+    if (header) {
+      if (offset > 80) header.classList.add("is-condensed");
+      else if (offset < 40) header.classList.remove("is-condensed");
+    }
+
     revealVisible();
 
     if (parallaxItems.length && !parallaxTicking) {
