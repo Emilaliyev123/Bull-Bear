@@ -69,7 +69,12 @@
      change re-checks from scratch. */
   function revealVisible() {
     if (!revealTargets.length) return;
-    const limit = window.innerHeight * 0.92;
+    // Normally hold the last band of the viewport back so content animates in
+    // as you scroll to it. On a page too short to scroll no scroll event can
+    // ever fire, so anything in that band would stay hidden forever — there,
+    // reveal the whole viewport instead.
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight > 1;
+    const limit = scrollable ? window.innerHeight * 0.92 : window.innerHeight;
     let remaining = false;
 
     for (const el of revealTargets) {

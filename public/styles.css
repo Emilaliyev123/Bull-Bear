@@ -4812,3 +4812,554 @@ button:active {
     transform: none;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PAGE TRANSITIONS
+   app.js already routes renders through document.startViewTransition; these
+   rules give that swap a shape. Browsers without the API fall back to an
+   instant swap, which is the current behaviour.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@view-transition {
+  navigation: auto;
+}
+
+::view-transition-old(root) {
+  animation: bb-page-out 240ms var(--ease-out-quart) forwards;
+}
+
+::view-transition-new(root) {
+  animation: bb-page-in 420ms var(--ease-out-expo) 60ms backwards;
+}
+
+@keyframes bb-page-out {
+  to {
+    opacity: 0;
+    /* Falls back rather than sliding sideways: the outgoing page recedes,
+       which reads as depth instead of a carousel. */
+    transform: scale(0.995) translateY(-6px);
+  }
+}
+
+@keyframes bb-page-in {
+  from {
+    opacity: 0;
+    transform: scale(1.004) translateY(10px);
+  }
+}
+
+/* The header is persistent chrome — letting it cross-fade with the body makes
+   the whole window feel like it blinks. Hold it still across the swap. */
+.site-header {
+  view-transition-name: bb-header;
+}
+
+::view-transition-old(bb-header),
+::view-transition-new(bb-header) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FOCUS & FORM CONTROLS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* :focus-visible rather than :focus, so a mouse click on a button does not
+   leave a ring behind while keyboard users still get a clear one. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+/* The ring is the affordance keyboard users navigate by — if anything below
+   removes an outline it must supply its own visible replacement. */
+:where(a, button, input, select, textarea):focus:not(:focus-visible) {
+  outline: none;
+}
+
+.field input,
+.field select,
+.field textarea,
+.scanner-filters input,
+.scanner-filters select {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  transition:
+    border-color var(--dur-fast) ease,
+    background var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  border-color: rgba(251, 191, 36, 0.55);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.12);
+}
+
+/* Native select arrows render grey-on-grey in a dark UI. Draw our own and keep
+   room for it so long option text never slides under the chevron. */
+.field select,
+.scanner-filters select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 38px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 20px) calc(50% + 2px), calc(100% - 14px) calc(50% + 2px);
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.field select:focus,
+.scanner-filters select:focus {
+  background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%),
+                    linear-gradient(135deg, var(--gold) 50%, transparent 50%);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+::placeholder {
+  color: rgba(255, 255, 255, 0.42);
+}
+
+/* Text selection picked up the browser default blue, which clashed against
+   the gold and green the rest of the palette is built on. */
+::selection {
+  background: rgba(251, 191, 36, 0.28);
+  color: #fff;
+}
+
+/* Scrollbars are chrome too — a bright default rail undoes a dark surface. */
+* {
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(251, 191, 36, 0.4);
+  background-clip: content-box;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MARKET HUB — data presentation
+   Restrained by design. This is a tool people read entry zones and stop
+   losses from; clarity outranks decoration and nothing here animates.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Proportional digits make a column of prices ragged and hard to compare at a
+   glance. Tabular figures give every digit the same advance width so decimal
+   points line up down the column. */
+.result-tile strong,
+.tp-stack strong,
+.confidence-card strong,
+.scanner-row strong,
+.metric-strip strong,
+.price,
+.hub-price,
+.analyzer-result .value,
+.stat strong {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+.result-grid {
+  gap: 14px;
+}
+
+.result-tile {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px 16px 15px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 60%),
+    rgba(255, 255, 255, 0.015);
+  transition: border-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+
+.result-tile:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 60%),
+    rgba(255, 255, 255, 0.02);
+}
+
+.result-tile span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--faint);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* The number is what the trader came for — give it the size and let the label
+   recede. */
+.result-tile strong {
+  display: block;
+  color: var(--text);
+  font-size: clamp(1.05rem, 1.1vw + 0.8rem, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.result-tile small {
+  display: block;
+  margin-top: 6px;
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+/* Risk reads as colour before it reads as a word. */
+.result-tile strong.risk-low { color: var(--green); }
+.result-tile strong.risk-medium { color: var(--gold); }
+.result-tile strong.risk-high { color: #fb923c; }
+.result-tile strong.risk-extreme { color: var(--red); }
+
+/* Take-profit ladder: rungs should scan top-to-bottom as a sequence. */
+.tp-stack > div {
+  border: 1px solid var(--line-soft);
+  border-left: 3px solid rgba(16, 185, 129, 0.55);
+  border-radius: 10px;
+  padding: 13px 15px;
+  background: rgba(16, 185, 129, 0.045);
+  transition: border-left-color var(--dur-fast) ease, background var(--dur-fast) ease;
+}
+
+.tp-stack > div:hover {
+  border-left-color: var(--green);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.tp-stack strong {
+  color: var(--text);
+  font-size: 1.12rem;
+  letter-spacing: -0.015em;
+}
+
+.confidence-card {
+  border-radius: 14px;
+}
+
+.confidence-card strong {
+  letter-spacing: -0.02em;
+}
+
+/* Status pills: uniform shape so the eye reads colour, not silhouette. */
+.data-status-badge,
+.analysis-source-badge,
+.signal-badge,
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.data-status-badge.live {
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.42);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.data-status-badge.live::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+}
+
+.data-status-badge.demo,
+.data-status-badge.fallback-demo {
+  color: #fed7aa;
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  background: rgba(249, 115, 22, 0.12);
+}
+
+.hub-control-panel {
+  border-radius: 16px;
+}
+
+.hub-control-panel .h3 {
+  letter-spacing: -0.025em;
+}
+
+/* Scanner rows are read in bulk — a hairline separator and a hover tint beat
+   heavier card chrome at this density. */
+.scanner-row {
+  transition: background var(--dur-fast) ease;
+}
+
+.scanner-row:hover {
+  background: rgba(255, 255, 255, 0.032);
+}
+
+/* ── Assurance strip (Products) ─────────────────────────────────────────── */
+.assurance-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  /* The 1px grid gap over a light background paints the dividers, so each cell
+     needs its own solid fill rather than a border per cell. */
+  background: var(--line);
+}
+
+.assurance-strip > div {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 18px 20px;
+  background: #0b0b0d;
+}
+
+.assurance-strip strong {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.assurance-strip span {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.assurance-strip a {
+  color: var(--gold);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .assurance-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .assurance-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Telegram page ──────────────────────────────────────────────────────── */
+.tg-facts {
+  display: grid;
+  gap: 1px;
+  margin: 18px 0 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--line-soft);
+}
+
+.tg-facts > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 14px;
+  background: #0a0a0c;
+}
+
+.tg-facts dt {
+  color: var(--faint);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tg-facts dd {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.perk-card {
+  position: relative;
+  overflow: hidden;
+  border-top: 2px solid var(--perk-accent, var(--gold));
+}
+
+/* Oversized ghost numeral: gives each card a distinct anchor without adding
+   another line of copy to read. */
+.perk-index {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  color: var(--perk-accent, var(--gold));
+  font-size: 46px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  opacity: 0.13;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.perk-card .h3 {
+  position: relative;
+  color: var(--perk-accent, var(--gold));
+  font-size: 1.02rem;
+  letter-spacing: -0.015em;
+  /* Keeps the title clear of the ghost numeral on narrow cards. */
+  padding-right: 48px;
+}
+
+.perk-card .muted {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ── Account dashboard ──────────────────────────────────────────────────── */
+.account-grid .card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.account-grid .h3 {
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--faint);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.account-grid .card > .muted {
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.account-grid .btn,
+.account-grid .hero-actions {
+  margin-top: 4px;
+}
+
+/* Watchlist rows read as a list, so keep the chrome light and let the symbol
+   carry the weight. */
+.table-list .table-row {
+  border-radius: 10px;
+  transition: background var(--dur-fast) ease;
+}
+
+.table-list .table-row:hover {
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.table-list .table-row strong {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Icon buttons were a bare glyph with no hit area worth the name. */
+.btn.small.icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.btn.small.icon:hover {
+  color: var(--red);
+  border-color: rgba(239, 68, 68, 0.45);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Support page ───────────────────────────────────────────────────────── */
+.contact-card .kv a {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(251, 191, 36, 0.32);
+  transition: color var(--dur-fast) ease, border-color var(--dur-fast) ease;
+  overflow-wrap: anywhere;
+}
+
+.contact-card .kv a:hover {
+  color: var(--gold);
+  border-bottom-color: var(--gold);
+}
+
+/* ── How to Use ─────────────────────────────────────────────────────────── */
+.grid-2 .card.glassmorphism .h3 {
+  letter-spacing: -0.015em;
+}
+
+/* ── Section rhythm ─────────────────────────────────────────────────────── */
+.section-head.center {
+  text-align: center;
+  justify-items: center;
+}
+
+.section-head.center .lead {
+  margin-left: auto;
+  margin-right: auto;
+}
