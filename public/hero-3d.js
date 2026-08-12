@@ -1,4 +1,9 @@
-import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.min.js";
+// Self-hosted (three r164, MIT). Loading this from a public CDN made the hero
+// dependent on a third party's uptime and reachability — it silently rendered
+// nothing whenever that request failed, and some networks block public CDNs
+// outright. Served from our own origin it also skips an extra DNS and TLS
+// handshake. Update by replacing public/vendor/three.module.min.js.
+import * as THREE from "/vendor/three.module.min.js";
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let activeScene = null;
