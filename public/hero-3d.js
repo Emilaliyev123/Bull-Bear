@@ -173,10 +173,20 @@ function initHero3D() {
   scene.add(rig);
 
   const pointer = { x: 0, y: 0 };
+  // Eased toward the raw pointer each frame so the rig glides instead of
+  // snapping — the difference between "interactive" and "expensive".
+  const smoothed = { x: 0, y: 0 };
   const onPointerMove = (event) => {
     const rect = stage.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / Math.max(1, rect.width) - 0.5) * 2;
     pointer.y = ((event.clientY - rect.top) / Math.max(1, rect.height) - 0.5) * 2;
+  };
+
+  // Hero drifts and recedes as the page scrolls away from it.
+  let scrollDepth = 0;
+  const onScroll = () => {
+    const rect = stage.getBoundingClientRect();
+    scrollDepth = Math.min(1, Math.max(0, -rect.top / Math.max(1, rect.height)));
   };
 
   const resize = () => {
@@ -197,16 +207,34 @@ function initHero3D() {
     }
     frame += 1;
     const t = time * 0.001;
-    rig.rotation.y = Math.sin(t * 0.22) * 0.11 + pointer.x * 0.055;
-    rig.rotation.x = -0.035 + pointer.y * -0.025;
+
+    smoothed.x += (pointer.x - smoothed.x) * 0.045;
+    smoothed.y += (pointer.y - smoothed.y) * 0.045;
+
+    rig.rotation.y = Math.sin(t * 0.22) * 0.11 + smoothed.x * 0.14;
+    rig.rotation.x = -0.035 + smoothed.y * -0.075;
+    // Sink and fade the rig as the hero scrolls out, so it hands off to the
+    // content below instead of competing with it.
+    rig.position.y = scrollDepth * -1.5;
+    rig.position.z = scrollDepth * -2.2;
+
     rings.rotation.y = t * 0.8;
     rings.rotation.z = Math.sin(t * 0.4) * 0.12;
     particles.rotation.y = t * 0.15;
+
+    // Breathing key light keeps the metals from reading as flat stills.
+    key.intensity = 2.4 + Math.sin(t * 0.9) * 0.55;
+    greenLight.intensity = 0.95 + Math.sin(t * 0.6 + 1.4) * 0.35;
+
     candles.children.forEach((child) => {
       if (child.userData.phase !== undefined) {
         child.scale.y = 1 + Math.sin(t * 1.8 + child.userData.phase) * 0.028;
       }
     });
+
+    camera.position.z = 7.2 + scrollDepth * 1.1;
+    camera.lookAt(0, rig.position.y * 0.4, 0);
+
     renderer.render(scene, camera);
     raf = requestAnimationFrame(animate);
   };
@@ -214,6 +242,7 @@ function initHero3D() {
   function destroy() {
     cancelAnimationFrame(raf);
     window.removeEventListener("resize", resize);
+    window.removeEventListener("scroll", onScroll);
     stage.removeEventListener("pointermove", onPointerMove);
     disposeObject(scene);
     renderer.dispose();
@@ -222,8 +251,10 @@ function initHero3D() {
   }
 
   window.addEventListener("resize", resize);
+  window.addEventListener("scroll", onScroll, { passive: true });
   stage.addEventListener("pointermove", onPointerMove);
   resize();
+  onScroll();
   raf = requestAnimationFrame(animate);
   activeScene = { stage, destroy };
 }
