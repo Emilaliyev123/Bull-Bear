@@ -93,12 +93,23 @@
     if (!remaining) revealTargets = revealTargets.filter((el) => !el.classList.contains("is-revealed"));
   }
 
-  function setupReveals() {
+  function setupReveals(instant) {
     revealTargets = Array.from(document.querySelectorAll("[data-reveal]"));
     if (!revealTargets.length) return;
 
-    if (reduceMotion.matches || isCalmRoute()) {
-      revealTargets.forEach((el) => el.classList.add("is-revealed"));
+    if (instant || reduceMotion.matches || isCalmRoute()) {
+      // Suppress the transition while flipping the class, otherwise the
+      // elements would still animate from opacity 0 and we would have changed
+      // nothing. The reflow between the two loops is what makes the browser
+      // commit the transition-less state before it is restored.
+      revealTargets.forEach((el) => {
+        el.style.transition = "none";
+        el.classList.add("is-revealed");
+      });
+      void document.body.offsetHeight;
+      revealTargets.forEach((el) => {
+        el.style.transition = "";
+      });
       revealTargets = [];
       return;
     }
@@ -248,9 +259,12 @@
     magneticCleanups = [];
   }
 
-  function refresh() {
+  // instant: skip the entrance animation. Used when the page is re-rendered by
+  // a background data refresh rather than a navigation — replaying reveals on
+  // every price poll reads as the page reloading itself.
+  function refresh(instant) {
     teardown();
-    setupReveals();
+    setupReveals(instant);
     setupParallax();
     setupMagnetic();
     onScroll();
