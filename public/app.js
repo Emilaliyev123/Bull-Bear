@@ -858,9 +858,27 @@ function productsPage() {
         <p class="lead">Unlock the AI Market Scanner, join our 100% free Telegram channel, or upgrade to Market Hub Pro.</p>
       </div>
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
-      <div class="discord-mini" style="border-color: rgba(0, 136, 204, 0.3);">
+      <div class="discord-mini" data-reveal style="border-color: rgba(0, 136, 204, 0.3);">
         <span>Free Telegram community (@bullandbeartradingcomm) is open to everyone.</span>
-        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="background: #0088cc;">Join Free Telegram</a>
+        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" data-magnetic="0.16" style="background: #0088cc;">Join Free Telegram</a>
+      </div>
+      <div class="assurance-strip" data-reveal>
+        <div>
+          <strong>Digital access</strong>
+          <span>Account access is granted once payment is confirmed.</span>
+        </div>
+        <div>
+          <strong>Cancel renewals</strong>
+          <span>Monthly plans can be cancelled before the next billing date. <a href="/cancellation-policy" data-link>Payment policy</a></span>
+        </div>
+        <div>
+          <strong>Card details never stored</strong>
+          <span>Payments are handled by a third-party processor. <a href="/privacy-policy" data-link>Privacy policy</a></span>
+        </div>
+        <div>
+          <strong>Educational tooling</strong>
+          <span>Analysis is scenario-based and is not financial advice. <a href="/terms-and-conditions" data-link>Terms</a></span>
+        </div>
       </div>
     </section>
   `;
@@ -904,34 +922,28 @@ function signalsPage() {
             <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
           </div>
         </div>
-        <div class="card pad" style="border-color: rgba(0, 136, 204, 0.3);">
+        <div class="card pad tg-price-card" style="border-color: rgba(0, 136, 204, 0.3);">
           <div class="price" style="color: #38bdf8;">100% Free <span>/ channel</span></div>
-          <ul class="feature-list" style="margin-top: 16px; font-size: 0.95rem;">
-            <li>🔹 1 Free Signal Daily (Market opportunities delivered every day)</li>
-            <li>🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)</li>
-            <li>🔹 Latest Financial News (Stay ahead of market-moving events)</li>
-            <li>🔹 Investment Ideas (Curated insights on top assets to buy)</li>
-          </ul>
+          <dl class="tg-facts">
+            <div><dt>Channel</dt><dd>@bullandbeartradingcomm</dd></div>
+            <div><dt>Cost</dt><dd>Nothing, now or later</dd></div>
+            <div><dt>Account needed</dt><dd>Telegram only</dd></div>
+          </dl>
         </div>
       </div>
-      <div class="grid four" style="margin-top:24px;">
-        <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: #38bdf8;">🔹 1 Free Signal Daily</h2>
-          <p class="muted" style="margin-top: 8px;">Market opportunities delivered every day</p>
-          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" style="margin-top:14px; background: #0088cc;">Join Channel</a>
-        </div>
-        <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: var(--gold);">🔹 2–3 Video/Text Lectures Weekly</h2>
-          <p class="muted" style="margin-top: 8px;">Step-by-step trading & investing lessons</p>
-        </div>
-        <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: var(--green);">🔹 Latest Financial News</h2>
-          <p class="muted" style="margin-top: 8px;">Stay ahead of market-moving events</p>
-        </div>
-        <div class="card pad glassmorphism">
-          <h2 class="h3" style="color: #a855f7;">🔹 Investment Ideas</h2>
-          <p class="muted" style="margin-top: 8px;">Curated insights on top assets to buy</p>
-        </div>
+      <div class="grid four perk-grid" style="margin-top:24px;">
+        ${[
+          ["01", "#38bdf8", "1 Free Signal Daily", "Market opportunities delivered every day"],
+          ["02", "var(--gold)", "2–3 Video/Text Lectures Weekly", "Step-by-step trading &amp; investing lessons"],
+          ["03", "var(--green)", "Latest Financial News", "Stay ahead of market-moving events"],
+          ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"]
+        ].map(([index, accent, title, copy], i) => `
+          <article class="card pad glassmorphism perk-card" data-reveal="scale" data-reveal-delay="${i * 90}" style="--perk-accent: ${accent};">
+            <span class="perk-index">${index}</span>
+            <h2 class="h3">${title}</h2>
+            <p class="muted">${copy}</p>
+          </article>
+        `).join("")}
       </div>
     </section>
   `;
@@ -2233,7 +2245,7 @@ function renderAiManager() {
 function supportPage() {
   return `
     <section class="section">
-      <div class="support-hero">
+      <div class="support-hero" data-reveal>
         <div>
           <div class="eyebrow">Support</div>
           <h1 class="h2" style="margin-top:12px;">Contact Support</h1>
@@ -2241,14 +2253,14 @@ function supportPage() {
         </div>
         <div class="card pad contact-card">
           <div class="kv">
-            <div><span>Email</span><strong>${CONTACT_EMAIL}</strong></div>
-            <div><span>Phone</span><strong>+994 55 388 66 10</strong></div>
+            <div><span>Email</span><strong><a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a></strong></div>
+            <div><span>Phone</span><strong><a href="tel:+994553886610">+994 55 388 66 10</a></strong></div>
             <div><span>Location</span><strong>Azerbaijan</strong></div>
           </div>
         </div>
       </div>
-      <div class="grid three" style="margin-top:22px;">
-        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with AI bundle access, free Discord, and Market Hub Pro subscriptions.</p></div>
+      <div class="grid three" data-reveal style="margin-top:22px;">
+        <div class="card pad"><h2 class="h3">Product Access</h2><p class="muted">Help with Market Hub Pro subscriptions, the AI desk, and the free Telegram channel.</p></div>
         <div class="card pad"><h2 class="h3">Payments</h2><p class="muted">Questions about checkout, subscription cancellation, and digital purchase records.</p></div>
         <div class="card pad"><h2 class="h3">Account Help</h2><p class="muted">Support for login, access, billing, and member dashboard questions.</p></div>
       </div>
@@ -2404,7 +2416,7 @@ function profilePage() {
         </div>
         <button class="btn secondary small" data-logout>Logout</button>
       </div>
-      <div class="grid three">
+      <div class="grid three account-grid" data-reveal>
         <div class="card pad">
           <h2 class="h3">Active Subscription</h2>
           <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeUntil).toLocaleDateString()}` : "No active subscription yet."}</p>
@@ -2428,7 +2440,7 @@ function profilePage() {
           <a href="/products" data-link class="btn secondary small">Plans</a>
         </div>
       </div>
-      <div class="grid two" style="margin-top:24px;">
+      <div class="grid two" data-reveal style="margin-top:24px;">
         <div class="card pad">
           <h2 class="h3">Your Watchlist</h2>
           <div class="table-list">
@@ -3584,19 +3596,19 @@ function howToUsePage() {
         <div class="spacer"></div>
         
         <div class="grid-2">
-          <div class="card pad glassmorphism">
+          <div class="card pad glassmorphism" data-reveal="scale" data-reveal-delay="0">
             <h3 class="h3" style="color: var(--blue);">1. Choose Your Market</h3>
             <p class="muted">Select from Crypto, Forex, Gold, Stocks, or Commodities. Our live nodes connect to real-world financial data in milliseconds.</p>
           </div>
-          <div class="card pad glassmorphism">
+          <div class="card pad glassmorphism" data-reveal="scale" data-reveal-delay="90">
             <h3 class="h3" style="color: var(--blue);">2. Read the Risk Engine</h3>
             <p class="muted">The AI scans global economic calendars (FOMC, NFP) to determine real-time volatility. If risk is <strong style="color: var(--red);">EXTREME</strong>, do not trade.</p>
           </div>
-          <div class="card pad glassmorphism">
+          <div class="card pad glassmorphism" data-reveal="scale" data-reveal-delay="180">
             <h3 class="h3" style="color: var(--green);">3. Analyze the Signal</h3>
             <p class="muted">Review the calculated Entry Zones and Stop Losses. We calculate optimal risk/reward ratios based on structural liquidity.</p>
           </div>
-          <div class="card pad glassmorphism">
+          <div class="card pad glassmorphism" data-reveal="scale" data-reveal-delay="270">
             <h3 class="h3" style="color: var(--green);">4. Follow the Invalidation</h3>
             <p class="muted">If a candle closes beyond the Stop Loss, the setup is dead. The market structure has shifted. <strong>Do not hold onto hope.</strong></p>
           </div>
