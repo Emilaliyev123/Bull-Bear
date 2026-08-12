@@ -184,9 +184,14 @@ function initHero3D() {
 
   // Hero drifts and recedes as the page scrolls away from it.
   let scrollDepth = 0;
+  let onStage = true;
   const onScroll = () => {
     const rect = stage.getBoundingClientRect();
     scrollDepth = Math.min(1, Math.max(0, -rect.top / Math.max(1, rect.height)));
+    // Once the hero is fully past, there is nothing to look at. Skipping the
+    // draw call frees the GPU for the rest of the page and stops a decorative
+    // canvas from draining a phone battery while someone reads pricing.
+    onStage = rect.bottom > 0 && rect.top < window.innerHeight;
   };
 
   const resize = () => {
@@ -205,6 +210,13 @@ function initHero3D() {
       destroy();
       return;
     }
+    // Keep the rAF loop alive (browsers already throttle it when the tab is
+    // hidden) but skip the simulation and draw while nothing is on screen.
+    if (!onStage || document.hidden) {
+      raf = requestAnimationFrame(animate);
+      return;
+    }
+
     frame += 1;
     const t = time * 0.001;
 
