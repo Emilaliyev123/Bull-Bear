@@ -651,7 +651,7 @@ function productCard(product) {
     : `<div class="price">Free <span>/ community</span></div>`;
 
   return `
-    <article class="card product-card" data-product="${esc(product.id)}">
+    <article class="card product-card" data-reveal="scale" data-product="${esc(product.id)}">
       ${badge}
       <div class="body">
         <div class="product-top">
@@ -685,7 +685,7 @@ function scannerPricingCards() {
   return `
     <div class="pricing-grid">
       ${plans.map((plan) => `
-        <article class="pricing-card">
+        <article class="pricing-card" data-reveal="scale">
           <span>${esc(plan.badge)}</span>
           <h3 class="h3">${esc(plan.name)}</h3>
           <div class="price">$${money(plan.price)} <span>/ monthly</span></div>
@@ -726,21 +726,21 @@ function heroSection() {
       <div class="hero-3d-stage" id="market3dStage" aria-hidden="true"></div>
       <div class="hero-inner">
         <div class="hero-copy">
-          <h1 class="h1">Bull & Bear <span class="gold-text">Market Command</span></h1>
-          <p class="lead">
+          <h1 class="h1" data-reveal="split">Bull & Bear Market Command</h1>
+          <p class="lead" data-reveal data-reveal-delay="520">
             The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our 100% Free Telegram community today.
           </p>
-          <div class="hero-kpis" aria-label="Platform highlights">
+          <div class="hero-kpis" aria-label="Platform highlights" data-reveal data-reveal-delay="640">
             <span><strong>AI Market Scanner</strong><small>Institutional Risk Engine</small></span>
             <span><strong>Free Telegram</strong><small>Trading Community</small></span>
             <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
           </div>
-          <div class="hero-actions">
-            <a href="/products" data-link class="btn primary glowing-btn">Unlock Market Hub</a>
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary">Join Free Telegram</a>
+          <div class="hero-actions" data-reveal data-reveal-delay="760">
+            <a href="/products" data-link class="btn primary glowing-btn" data-magnetic="0.22">Unlock Market Hub</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary" data-magnetic="0.18">Join Free Telegram</a>
           </div>
         </div>
-        <aside class="hero-console" aria-label="Bull and Bear platform preview">
+        <aside class="hero-console" aria-label="Bull and Bear platform preview" data-reveal="scale" data-reveal-delay="400" data-parallax="0.5">
           <div class="console-top">
             <span>Market Command</span>
             <strong>Live Desk</strong>
@@ -769,7 +769,7 @@ function homePage() {
   return `
     ${heroSection()}
     <section class="section compact">
-      <div class="metric-strip">
+      <div class="metric-strip" data-reveal>
         <div><strong>2</strong><span>Core products</span></div>
         <div><strong>Live</strong><span>Market Analyzer</span></div>
         <div><strong>Telegram</strong><span>100% Free Community</span></div>
@@ -777,7 +777,7 @@ function homePage() {
       </div>
     </section>
     <section class="section compact">
-      <div class="ai-home-band">
+      <div class="ai-home-band" data-reveal="scale">
         <div>
           <div class="eyebrow">AI Included</div>
           <h2 class="h2" style="margin-top:12px;">AI Trading Desk</h2>
@@ -787,7 +787,7 @@ function homePage() {
       </div>
     </section>
     <section class="section">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <div class="eyebrow">Products</div>
           <h2 class="h2" style="margin-top:12px;">Choose Your Trading Journey</h2>
@@ -797,7 +797,7 @@ function homePage() {
       <div class="grid products">${products.map(productCard).join("")}</div>
     </section>
     <section class="section compact">
-      <div class="academy-panel">
+      <div class="academy-panel" data-reveal>
         <div>
           <div class="eyebrow">Method</div>
           <h2 class="h2" style="margin-top:12px;">Built for Repeatable Trading Workflows</h2>
@@ -815,7 +815,7 @@ function homePage() {
       </div>
     </section>
     <section class="section compact">
-      <div class="discord-panel" style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(9, 9, 11, 0.95) 100%);">
+      <div class="discord-panel" data-reveal style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(9, 9, 11, 0.95) 100%);">
         <div>
           <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">Telegram Community</div>
           <h2 class="h2" style="margin-top:12px;">100% Free Telegram Channel</h2>
@@ -894,7 +894,7 @@ function courseModal() {
 function signalsPage() {
   return `
     <section class="section">
-      <div class="discord-hero" style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.12) 0%, rgba(9, 9, 11, 0.95) 100%);">
+      <div class="discord-hero" data-reveal style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.12) 0%, rgba(9, 9, 11, 0.95) 100%);">
         <div>
           <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">100% Free Telegram</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
@@ -2395,7 +2395,7 @@ function profilePage() {
   const watchlist = dashboard.watchlist || [];
   return `
     <section class="section">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <div class="eyebrow">Account</div>
           <h1 class="h2" style="margin-top:12px;">Welcome, ${esc(state.user.name || "Trader")}</h1>
@@ -2482,7 +2482,7 @@ function adminPage() {
   }
   return `
     <section class="section">
-      <div class="section-head">
+      <div class="section-head" data-reveal>
         <div>
           <div class="eyebrow">Admin Panel</div>
           <h1 class="h2" style="margin-top:12px;">SaaS Management</h1>
@@ -2791,6 +2791,8 @@ function render() {
     bindInteractiveEffects();
     if (typeof initTradingViewCharts === "function") initTradingViewCharts();
     if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
+    // Rebuild scroll choreography against the markup this render just produced.
+    if (window.BullBearMotion) window.BullBearMotion.refresh();
   };
 
   if (document.startViewTransition) {

@@ -4416,3 +4416,399 @@ button:active {
   background: rgba(250, 204, 21, 0.1);
   border-radius: 4px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CINEMATIC LAYER
+   Motion choreography + refined typographic scale.
+   Paired with public/motion.js — class names here are its contract.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Easing. Expo-out carries the "settling into place" feel that reads as
+     expensive; the spring is for interactive elements only. */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --dur-fast: 260ms;
+  --dur-base: 620ms;
+  --dur-slow: 1100ms;
+
+  /* Fluid type: scales with viewport so headings stay proportional without
+     a cascade of breakpoints. */
+  --step-hero: clamp(2.75rem, 7vw + 0.5rem, 6.5rem);
+  --step-h1: clamp(2.1rem, 4.2vw + 0.5rem, 3.9rem);
+  --step-h2: clamp(1.6rem, 2.4vw + 0.5rem, 2.6rem);
+  --step-lead: clamp(1.02rem, 0.6vw + 0.85rem, 1.28rem);
+
+  --scroll-progress: 0;
+}
+
+/* ── Scroll reveals ─────────────────────────────────────────────────────── */
+.motion-ready [data-reveal] {
+  opacity: 0;
+  transform: translate3d(0, 26px, 0);
+  transition:
+    opacity var(--dur-base) var(--ease-out-quart),
+    transform var(--dur-base) var(--ease-out-expo);
+  will-change: opacity, transform;
+}
+
+.motion-ready [data-reveal="fade"] {
+  transform: none;
+}
+
+.motion-ready [data-reveal="scale"] {
+  transform: translate3d(0, 26px, 0) scale(0.97);
+}
+
+.motion-ready [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  /* Released after the transition so the compositor can reclaim the layer. */
+  will-change: auto;
+}
+
+/* ── Word-mask heading reveal ───────────────────────────────────────────── */
+.split-mask {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  /* Descenders (g, y, p) get clipped by a tight mask — pad and pull back. */
+  padding-bottom: 0.12em;
+  margin-bottom: -0.12em;
+}
+
+.motion-ready .split-word {
+  display: inline-block;
+  transform: translate3d(0, 105%, 0);
+  transition: transform var(--dur-slow) var(--ease-out-expo);
+}
+
+.motion-ready [data-reveal].is-revealed .split-word {
+  transform: none;
+}
+
+/* ── Parallax ───────────────────────────────────────────────────────────── */
+[data-parallax] {
+  transform: translate3d(0, var(--parallax-y, 0), 0);
+  will-change: transform;
+}
+
+/* ── Magnetic controls ──────────────────────────────────────────────────── */
+[data-magnetic] {
+  transform: translate3d(var(--magnet-x, 0), var(--magnet-y, 0), 0);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+/* ── Intro sequence ─────────────────────────────────────────────────────── */
+.bb-intro-active,
+.bb-intro-active body {
+  overflow: hidden;
+}
+
+.bb-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  background: #02040a;
+  transition:
+    opacity 700ms var(--ease-out-quart),
+    visibility 700ms;
+}
+
+.bb-intro.is-done {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.bb-intro-inner {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+}
+
+.bb-intro-mark {
+  font-size: clamp(1.9rem, 5vw, 3.4rem);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  background: linear-gradient(100deg, #fafafa 20%, var(--gold) 55%, #fafafa 85%);
+  background-size: 220% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: bb-intro-sheen 2.4s linear infinite;
+}
+
+@keyframes bb-intro-sheen {
+  to { background-position: 220% center; }
+}
+
+.bb-intro-sub {
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  /* Tracking pushes the block visually right; nudge it back to centre. */
+  text-indent: 0.42em;
+}
+
+.bb-intro-bar {
+  width: min(220px, 46vw);
+  height: 2px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.bb-intro-bar i {
+  display: block;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--gold), var(--green));
+}
+
+.bb-intro-count {
+  color: var(--faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+}
+
+.bb-intro-count::after {
+  content: "%";
+  margin-left: 2px;
+}
+
+/* ── Scroll progress ────────────────────────────────────────────────────── */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  transform: scaleX(var(--scroll-progress, 0));
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--gold), var(--green), var(--blue));
+  pointer-events: none;
+}
+
+/* ── Typographic refinement ─────────────────────────────────────────────── */
+.hero h1,
+.hero .h1 {
+  font-size: var(--step-hero);
+  letter-spacing: -0.045em;
+  line-height: 0.94;
+}
+
+.h2 {
+  font-size: var(--step-h2);
+  letter-spacing: -0.028em;
+}
+
+.lead {
+  font-size: var(--step-lead);
+  line-height: 1.62;
+  max-width: 62ch;
+}
+
+.eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* ── Depth ──────────────────────────────────────────────────────────────── */
+.card {
+  transition:
+    transform var(--dur-fast) var(--ease-out-quart),
+    border-color var(--dur-fast) ease,
+    box-shadow var(--dur-fast) ease;
+}
+
+.section {
+  position: relative;
+}
+
+/* Motion is opt-in, never imposed. Everything above degrades to a static,
+   fully-legible page when the user asks for less movement. */
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal],
+  [data-reveal].is-revealed,
+  .split-word {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  [data-parallax],
+  [data-magnetic] {
+    transform: none !important;
+  }
+
+  .bb-intro,
+  .scroll-progress {
+    display: none !important;
+  }
+
+  .bb-intro-mark {
+    animation: none;
+  }
+}
+
+/* Hero headline: the split reveal flattens inline spans, so the gold accent
+   moves to a gradient across the whole line. Reads richer than a coloured word
+   and survives word-splitting intact. */
+.hero .h1 {
+  /* Runs top-to-bottom: on a stacked headline this lands the gold on the final
+     line, which recovers the accent the old <span> used to carry. */
+  background: linear-gradient(168deg, #ffffff 0%, #fafafa 30%, var(--gold-2) 68%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* The clip is painted per-span once split, so the mask needs the gradient too. */
+.hero .h1 .split-mask,
+.hero .h1 .split-word {
+  background: inherit;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ── Condensing header ──────────────────────────────────────────────────── */
+.site-header {
+  transition:
+    padding var(--dur-fast) var(--ease-out-quart),
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease,
+    backdrop-filter var(--dur-fast) ease;
+}
+
+.site-header.is-condensed {
+  background: rgba(2, 4, 10, 0.82);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  border-bottom-color: rgba(251, 191, 36, 0.16);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+.site-header.is-condensed .header-inner {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.site-header.is-condensed .brand img {
+  width: 38px;
+  height: 38px;
+}
+
+.site-header .brand img {
+  transition:
+    width var(--dur-fast) var(--ease-out-quart),
+    height var(--dur-fast) var(--ease-out-quart);
+}
+
+.site-header.is-condensed .brand small {
+  opacity: 0;
+  /* Collapses the tagline row so the whole bar tightens rather than just
+     fading text and leaving a gap. */
+  max-height: 0;
+  transition:
+    opacity 180ms ease,
+    max-height var(--dur-fast) var(--ease-out-quart);
+}
+
+.site-header .brand small {
+  max-height: 20px;
+  transition:
+    opacity 220ms ease,
+    max-height var(--dur-fast) var(--ease-out-quart);
+}
+
+/* ── Card depth ─────────────────────────────────────────────────────────── */
+.card:hover,
+.product-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(251, 191, 36, 0.28);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 18px 48px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(251, 191, 36, 0.06);
+}
+
+/* ── Button polish ──────────────────────────────────────────────────────── */
+.btn {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform var(--dur-fast) var(--ease-spring),
+    box-shadow var(--dur-fast) ease,
+    background var(--dur-fast) ease,
+    border-color var(--dur-fast) ease;
+}
+
+/* Sheen sweep on hover. Pointer-only: it reads as a smudge under a finger. */
+@media (hover: hover) {
+  .btn.primary::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 20%,
+      rgba(255, 255, 255, 0.28) 50%,
+      transparent 80%
+    );
+    transform: translateX(-120%);
+    transition: transform 720ms var(--ease-out-quart);
+    pointer-events: none;
+  }
+
+  .btn.primary:hover::after {
+    transform: translateX(120%);
+  }
+}
+
+.btn:active {
+  transform: scale(0.985);
+}
+
+/* A magnetic button must not have its translate overwritten by :active, so the
+   scale rides on the inner sheen layer's parent transform instead. */
+[data-magnetic]:active {
+  transform: translate3d(var(--magnet-x, 0), var(--magnet-y, 0), 0) scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header,
+  .site-header .brand img,
+  .site-header .brand small,
+  .card,
+  .btn {
+    transition: none !important;
+  }
+
+  .btn.primary::after {
+    display: none;
+  }
+
+  .card:hover,
+  .product-card:hover {
+    transform: none;
+  }
+}
