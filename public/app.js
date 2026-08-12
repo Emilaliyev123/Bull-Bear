@@ -1366,9 +1366,9 @@ function renderCryptoAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCryptoAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2</span>
         <h2 class="h3">Crypto Analyzer</h2>
-        <p class="muted">Server-side confluence analysis for top crypto assets. Results remain educational demo scenarios until a live data provider is connected.</p>
+        <p class="muted">Server-side confluence analysis for top crypto assets. Every result shows its data source and update time.</p>
         <div class="form-grid">
           <div class="field"><label for="crypto-asset">Asset</label><select id="crypto-asset" name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
           <div class="field"><label for="crypto-style">Trading Style</label><select id="crypto-style" name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
@@ -1390,7 +1390,7 @@ function renderForexAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitForexAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2</span>
         <h2 class="h3">Forex Analyzer</h2>
         <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
         <div class="form-grid">
@@ -1414,7 +1414,7 @@ function renderCommoditiesAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitCommodityAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2</span>
         <h2 class="h3">Gold & Commodities Analyzer</h2>
         <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
         <div class="form-grid">
@@ -1451,7 +1451,7 @@ function renderStockAnalyzer() {
   return `
     <div class="hub-workspace">
       <form class="hub-control-panel" onsubmit="return submitStockAnalyzer(event)">
-        <span class="demo-label">Protected Analyzer V2 · Demo Data</span>
+        <span class="demo-label">Protected Analyzer V2</span>
         <h2 class="h3">Stock Market Analyzer</h2>
         <p class="muted">Trading modes provide structured levels. Investment, market, and sector modes remain research-only without short-term trade targets.</p>
         <div class="form-grid">
@@ -1530,9 +1530,9 @@ function renderEducationHub() {
     },
     {
       title: "Demo Data vs Live Data",
-      summary: "Demo data powers the interface and educational scoring logic until a live market provider is connected for that market.",
-      meaning: "A Demo badge means prices and scenarios are simulated. A Live badge will mean current data came through the protected backend, with its source and update time shown.",
-      use: "Always check the data-status badge and Last Updated time before reading any result. Live providers will be added market by market later.",
+      summary: "Every result carries a badge naming the data behind it, so you always know whether you are reading current prices or a simulated scenario.",
+      meaning: "A Live badge means current data came through the protected backend, with its source and update time shown. A Demo badge means prices and scenarios are simulated, which happens when a provider is unavailable.",
+      use: "Always check the data-status badge and Last Updated time before reading any result.",
       risks: "Demo values must never be treated as current prices. Even live feeds can be delayed, unavailable, or different from a broker's executable price.",
       points: ["Demo is for learning and interface testing", "Live data still needs risk controls", "Never compare stale analysis with a current chart"]
     }
@@ -1768,7 +1768,7 @@ function arbitragePage() {
       <div class="market-hub-shell">
         <div class="market-hub-hero">
           <div>
-            <span class="demo-label">Demo analysis until live market data API is connected</span>
+            <span class="demo-label">Every result shows its data source and update time</span>
             <h1 class="h2">Bull & Bear Market Hub</h1>
             <p class="lead">Arbitrage scanner, multi-market analyzer, strategy breakdowns, and risk education in one premium dashboard.</p>
           </div>

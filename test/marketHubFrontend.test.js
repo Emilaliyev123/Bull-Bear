@@ -173,13 +173,21 @@ test("premium shell and arbitrage scanner remain present", () => {
 
   assert.match(frontend.source, /Protected Backend Analyzer/);
   assert.match(frontend.source, /Demo \/ Live Data Status/);
-  assert.match(frontend.source, /Always check the data-status badge and Last Updated time before reading any result\. Live providers will be added market by market later\./);
+  assert.match(frontend.source, /Always check the data-status badge and Last Updated time before reading any result\./);
   assert.match(frontend.source, /Data", "Strategies", "Scoring", "Risk Filters", "Result/);
   assert.match(frontend.source, /fetch\("\/api\/market-hub\/analyze"/);
-  assert.match(crypto, /Protected Analyzer V2 · Demo Data/);
-  assert.match(forex, /Protected Analyzer V2 · Demo Data/);
-  assert.match(commodities, /Protected Analyzer V2 · Demo Data/);
-  assert.match(stocks, /Protected Analyzer V2 · Demo Data/);
+  assert.match(crypto, /Protected Analyzer V2/);
+  assert.match(forex, /Protected Analyzer V2/);
+  assert.match(commodities, /Protected Analyzer V2/);
+  assert.match(stocks, /Protected Analyzer V2/);
+
+  // A live provider is connected, so the analyzer chrome must not hardcode a
+  // "Demo Data" claim. The per-result badge (renderAnalyzerResult) reports the
+  // real status; a static label here would tell paying users their live
+  // analysis is simulated.
+  for (const [name, markup] of Object.entries({ crypto, forex, commodities, stocks })) {
+    assert.doesNotMatch(markup, /Demo Data/, `${name} analyzer must not hardcode a Demo Data label`);
+  }
   assert.match(scanner, /Real-Time Crypto Arbitrage Scanner/);
   assert.match(scanner, /data-refresh-scanner/);
 });
