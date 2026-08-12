@@ -25,9 +25,8 @@
   }
 
   const observer = new MutationObserver(() => requestAnimationFrame(enhance));
-  observer.observe(document.documentElement, { childList: true, subtree: true });
+  observer.observe(document.getElementById("app") || document.body, { childList: true });
   document.addEventListener("DOMContentLoaded", enhance);
   window.addEventListener("popstate", () => setTimeout(enhance, 80));
-  document.addEventListener("click", () => setTimeout(enhance, 120));
   setTimeout(enhance, 300);
 })();

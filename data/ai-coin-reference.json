@@ -1,0 +1,109 @@
+{
+  "coinMap": {
+    "bitcoin": "BTC",
+    "btc": "BTC",
+    "ethereum": "ETH",
+    "eth": "ETH",
+    "solana": "SOL",
+    "sol": "SOL",
+    "xrp": "XRP",
+    "ripple": "XRP",
+    "bnb": "BNB",
+    "binancecoin": "BNB",
+    "doge": "DOGE",
+    "dogecoin": "DOGE",
+    "cardano": "ADA",
+    "ada": "ADA",
+    "avalanche": "AVAX",
+    "avax": "AVAX",
+    "polkadot": "DOT",
+    "dot": "DOT",
+    "chainlink": "LINK",
+    "link": "LINK",
+    "polygon": "MATIC",
+    "matic": "MATIC",
+    "pol": "MATIC",
+    "shiba": "SHIB",
+    "shib": "SHIB",
+    "litecoin": "LTC",
+    "ltc": "LTC",
+    "tron": "TRX",
+    "trx": "TRX",
+    "uniswap": "UNI",
+    "uni": "UNI",
+    "aave": "AAVE",
+    "pepe": "PEPE",
+    "sui": "SUI",
+    "aptos": "APT",
+    "apt": "APT",
+    "near": "NEAR",
+    "atom": "ATOM",
+    "cosmos": "ATOM",
+    "ton": "TON",
+    "arbitrum": "ARB",
+    "arb": "ARB",
+    "optimism": "OP",
+    "ftx": "FTX",
+    "usdt": "USDT",
+    "tether": "USDT",
+    "usdc": "USDC"
+  },
+  "coinInfo": {
+    "BTC": {
+      "name": "Bitcoin",
+      "desc": "The first and largest cryptocurrency by market cap. Created by Satoshi Nakamoto in 2009 as a decentralized peer-to-peer digital currency. Bitcoin operates on Proof-of-Work consensus and has a fixed supply of 21 million coins. It halves its block reward roughly every 4 years.",
+      "use": "Store of value ('digital gold'), hedge against inflation, global settlement layer",
+      "key": "**Halving cycles** drive major bull markets. **Institutional adoption** (ETFs, corporate treasuries) is a major tailwind. **DXY correlation** is strongly inverse — dollar weak = Bitcoin bid.",
+      "risk": "Extreme volatility (50–80% drawdowns in bear markets). Regulatory risk. Concentration in large holders (whales)."
+    },
+    "ETH": {
+      "name": "Ethereum",
+      "desc": "The leading smart contract platform, launched in 2015 by Vitalik Buterin. Ethereum hosts the vast majority of DeFi protocols, NFT markets, and Layer-2 networks. Transitioned from Proof-of-Work to Proof-of-Stake ('The Merge') in 2022, making ETH deflationary during high activity periods.",
+      "use": "Smart contracts, DeFi (lending, DEXs), NFTs, stablecoins (USDC, DAI), Layer-2 scaling (Arbitrum, Optimism)",
+      "key": "**ETH/BTC ratio** shows relative strength. **Staking yield** (~3–4% annually) makes it attractive vs cash. **EIP-1559** burns ETH on transactions.",
+      "risk": "Competition from Solana, Avalanche. High gas fees during congestion. L2 fragmentation."
+    },
+    "XRP": {
+      "name": "XRP (Ripple)",
+      "desc": "XRP is the native token of the XRP Ledger, created by Ripple Labs in 2012. It was designed primarily for cross-border payment settlements and interbank transfers. Unlike Bitcoin, XRP uses a consensus protocol (not mining) and can settle transactions in 3–5 seconds for fractions of a cent.",
+      "use": "International money transfers, bank settlement layers (RippleNet), liquidity bridging between currencies",
+      "key": "**Ripple's legal battle with the SEC** (mostly resolved in 2023) was a major overhang — XRP now has clearer regulatory standing in the US. **Bank partnerships** (Santander, SBI Holdings) provide real-world use case. Supply: 100 billion XRP, with Ripple holding ~45% in escrow.",
+      "risk": "Centralization concerns (Ripple controls large supply). Banks may prefer their own CBDC solutions. Speculative rallies often not backed by fundamental news."
+    },
+    "SOL": {
+      "name": "Solana",
+      "desc": "A high-performance Layer-1 blockchain launched in 2020, designed for speed and low cost. Solana uses Proof-of-History (PoH) combined with Proof-of-Stake, achieving ~65,000 TPS theoretical throughput. It became a major DeFi and NFT hub and hosts Pump.fun (meme coin launchpad).",
+      "use": "DeFi (Jupiter DEX, Raydium), NFTs (Magic Eden), meme coins, payment apps (Solana Pay)",
+      "key": "**Low fees** (~$0.0001 per transaction) and **fast finality** are core advantages. Strong developer ecosystem and VC backing (a16z, FTX historically). **Token burn** mechanisms reduce supply.",
+      "risk": "Network outages have occurred multiple times. FTX collapse (2022) devastated ecosystem — recovered strongly since. High competition from Ethereum L2s."
+    },
+    "BNB": {
+      "name": "BNB (Binance Coin)",
+      "desc": "The native token of Binance, the world's largest crypto exchange, and the BNB Chain ecosystem. Originally an ERC-20 token for exchange fee discounts, it now powers the BNB Smart Chain (BSC), a parallel blockchain to Ethereum.",
+      "use": "Trading fee discounts on Binance, gas fees on BNB Chain, DeFi on PancakeSwap, token launches (Launchpad)",
+      "key": "**Quarterly burns** (BNB Auto-Burn based on BNB price and blocks) reduce supply. Binance exchange volume drives demand. Tied to Binance's business health.",
+      "risk": "Highly centralized (Binance controls chain validators). Regulatory risk (Binance under scrutiny globally). Ecosystem depends on Binance's survival."
+    },
+    "DOGE": {
+      "name": "Dogecoin",
+      "desc": "Originally a joke/meme cryptocurrency created in 2013, Dogecoin became a cultural phenomenon driven by social media (Reddit, Twitter) and Elon Musk's tweets. It uses a Proof-of-Work algorithm similar to Litecoin.",
+      "use": "Tipping, micropayments, speculation, community-driven rallies. Elon Musk has hinted at Tesla and X (Twitter) payment integration.",
+      "key": "**Meme and sentiment driven** — fundamentals matter less than social momentum. No supply cap (unlimited issuance, ~5 billion DOGE/year). Massive retail holder base.",
+      "risk": "Unlimited inflation (5B new DOGE per year). No major protocol upgrades. Entirely driven by sentiment, not fundamentals. Can drop 80-90% from peak very fast."
+    },
+    "ADA": {
+      "name": "Cardano (ADA)",
+      "desc": "A Proof-of-Stake blockchain founded by Charles Hoskinson (Ethereum co-founder) in 2017. Cardano is known for its research-driven, peer-reviewed development approach. It uses the Ouroboros consensus protocol.",
+      "use": "Smart contracts (Plutus), DeFi, NFTs, identity solutions in developing markets (Africa partnerships)",
+      "key": "**Academic rigor** — all protocol changes go through peer review. **Staking yield** (~3–4%). ADA supply: 45 billion, with ~35 billion in circulation. Slow but methodical development.",
+      "risk": "Slow development pace vs competitors. DeFi ecosystem significantly smaller than Ethereum/Solana. Has historically underperformed in bull markets despite strong fundamentals."
+    },
+    "LINK": {
+      "name": "Chainlink (LINK)",
+      "desc": "Chainlink is the leading decentralized oracle network. It connects smart contracts to real-world data — price feeds, weather data, sports results, etc. Without oracles like Chainlink, DeFi protocols cannot access off-chain information.",
+      "use": "Price feeds for DeFi (Aave, Compound, Synthetix), verifiable randomness (VRF) for NFTs/gaming, cross-chain interoperability (CCIP)",
+      "key": "**Essential infrastructure** for DeFi — most major protocols depend on Chainlink. **Staking v0.2** launched, enabling node operators and stakers to earn LINK. Network effects are strong (switching costs high).",
+      "risk": "Competition from Pyth Network (Solana ecosystem). LINK token needs to capture more value from the network's usage. Slow DeFi growth period hurts demand."
+    }
+  }
+}

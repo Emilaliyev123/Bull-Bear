@@ -1,6 +1,5 @@
 const CONTACT_EMAIL = "bullbearacademy.su@gmail.com";
 const FREE_TELEGRAM_URL = "https://t.me/bullandbeartradingcomm";
-const DISCORD_COURSE_URL = "https://t.me/bullandbeartradingcomm";
 const CHECKOUT_PROVIDER = "payriff";
 const productPlanIds = {
   
@@ -8,6 +7,8 @@ const productPlanIds = {
   arbitrage: "arbitrage-only"
 };
 const retiredCheckoutPlanIds = new Set(["premium-discord-signals", "investor-trader-ai"]);
+// Single source of truth — payment-buttons.js reads this rather than keeping its own copy.
+window.retiredCheckoutPlanIds = retiredCheckoutPlanIds;
 
 const state = {
   content: null,
@@ -96,6 +97,7 @@ const state = {
 };
 
 let canvasFrame = 0;
+let canvasResizeHandler = null;
 let scannerPollTimer = null;
 let scannerFilterTimer = null;
 let adminPlatformLoadedAt = 0;
@@ -248,8 +250,6 @@ function hasScannerAccess() {
   return plans.includes("arbitrage-only") || plans.includes("bull-bear-premium");
 }
 
-function hasEducationAccess() { return false; }
-
 function setSession(token, user) {
   state.token = token;
   state.user = user;
@@ -394,8 +394,14 @@ async function connectDiscordAccount(button = null) {
     }
     throw new Error("Discord connect link was not created.");
   } catch (error) {
-    setMessage(error.message, "err");
-    alert(error.message);
+    const message = error?.message || "Discord connection failed.";
+    if (/user not found|session expired/i.test(message)) {
+      alert("Your login session expired. Please log in again, then connect Discord.");
+      navigate("/login");
+      return;
+    }
+    setMessage(message, "err");
+    alert(`Discord connect failed: ${message}`);
     if (button) {
       button.disabled = false;
       button.textContent = originalText || "Connect Discord";
@@ -556,7 +562,7 @@ function header() {
     <header class="site-header">
       <div class="header-inner">
         <a href="/" data-link class="brand" aria-label="Bull and Bear home">
-          <img src="/assets/logo.png" alt="Bull & Bear logo">
+          <img src="/assets/logo.png" alt="Bull & Bear logo" width="46" height="46">
           <span>Bull & Bear<small>Trading Academy</small></span>
         </a>
         <nav class="nav" aria-label="Main navigation">
@@ -590,7 +596,7 @@ function footer() {
       <div class="footer-inner">
         <div class="footer-brand">
           <a href="/" data-link class="brand" aria-label="Bull and Bear home">
-            <img src="/assets/logo.png" alt="Bull & Bear logo">
+            <img src="/assets/logo.png" alt="Bull & Bear logo" width="46" height="46">
             <span>Bull & Bear<small>Trading Academy</small></span>
           </a>
           <p>Professional trading education, market tools, and digital products for disciplined traders.</p>
@@ -634,9 +640,7 @@ function productCard(product) {
   const badge = product.id === "discord" || product.id === "signals" ? `<div class="badge" style="background:#0088cc;color:#fff;">FREE TELEGRAM</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
   const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" || product.id === "signals" ? "/signals" : "/market-hub";
   const planId = product.id === "discord" || product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
-  const primaryLabel = planId === "education-bundle"
-    ? (state.user ? "Buy Now" : "Log In to Buy")
-    : (state.user ? "Subscribe Now" : "Log In to Subscribe");
+  const primaryLabel = state.user ? "Subscribe Now" : "Log In to Subscribe";
   const primaryAction = product.id === "discord" || product.id === "signals"
     ? `<a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn">Join Free Telegram</a>`
     : planId
@@ -757,51 +761,6 @@ function heroSection() {
       </div>
       ${ticker()}
     </section>
-  `;
-}
-
-function howToUsePage() {
-  document.title = "How to Use - Bull & Bear Trading Academy";
-  return `
-    <div class="pad layout-center">
-      <div class="glass-card pad" style="max-width: 900px; width: 100%; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 40px rgba(16, 185, 129, 0.1);">
-        <div class="text-center">
-          <h1 class="h2 neon-text">How to Use the Analyzer Pro</h1>
-          <p class="lead muted">Master the AI Market Scanner in 4 Simple Steps.</p>
-        </div>
-        
-        <div class="spacer"></div>
-        
-        <div class="grid-2">
-          <div class="card pad glassmorphism">
-            <h3 class="h3" style="color: var(--blue);">1. Choose Your Market</h3>
-            <p class="muted">Select from Crypto, Forex, Gold, Stocks, or Commodities. Our live nodes connect to real-world financial data in milliseconds.</p>
-          </div>
-          <div class="card pad glassmorphism">
-            <h3 class="h3" style="color: var(--blue);">2. Read the Risk Engine</h3>
-            <p class="muted">The AI scans global economic calendars (FOMC, NFP) to determine real-time volatility. If risk is <strong style="color: var(--red);">EXTREME</strong>, do not trade.</p>
-          </div>
-          <div class="card pad glassmorphism">
-            <h3 class="h3" style="color: var(--green);">3. Analyze the Signal</h3>
-            <p class="muted">Review the calculated Entry Zones and Stop Losses. We calculate optimal risk/reward ratios based on structural liquidity.</p>
-          </div>
-          <div class="card pad glassmorphism">
-            <h3 class="h3" style="color: var(--green);">4. Follow the Invalidation</h3>
-            <p class="muted">If a candle closes beyond the Stop Loss, the setup is dead. The market structure has shifted. <strong>Do not hold onto hope.</strong></p>
-          </div>
-        </div>
-
-        <div class="spacer"></div>
-        
-        <div class="card pad" style="background: rgba(16, 185, 129, 0.05); border: 1px solid var(--green);">
-          <h3 class="h3 neon-text-green text-center">Ready to Dominate?</h3>
-          <p class="lead text-center">Stop trading on emotion. Use the data.</p>
-          <div style="display: flex; justify-content: center; gap: 1rem; margin-top: 1rem;">
-            <a href="/analyzer" data-link class="btn primary glowing-btn">Open Analyzer</a>
-          </div>
-        </div>
-      </div>
-    </div>
   `;
 }
 
@@ -1411,14 +1370,14 @@ function renderCryptoAnalyzer() {
         <h2 class="h3">Crypto Analyzer</h2>
         <p class="muted">Server-side confluence analysis for top crypto assets. Results remain educational demo scenarios until a live data provider is connected.</p>
         <div class="form-grid">
-          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
-          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
-          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["5m", "15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
+          <div class="field"><label for="crypto-asset">Asset</label><select id="crypto-asset" name="asset">${selectedOptionTags(service.cryptoAssets || [], form.asset)}</select></div>
+          <div class="field"><label for="crypto-style">Trading Style</label><select id="crypto-style" name="style">${selectedOptionTags(["Scalping", "Day Trading", "Swing Trading", "Long-Term Investment"], form.style)}</select></div>
+          <div class="field"><label for="crypto-timeframe">Timeframe</label><select id="crypto-timeframe" name="timeframe">${selectedOptionTags(["5m", "15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Crypto"}</button>
       </form>
       <div class="hub-right-column">
-        <div id="tv-advanced-chart" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+        <div id="tv-advanced-chart-crypto" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1435,14 +1394,14 @@ function renderForexAnalyzer() {
         <h2 class="h3">Forex Analyzer</h2>
         <p class="muted">Read bias, key levels, liquidity zones, session context, dollar strength, and news-risk placeholders.</p>
         <div class="form-grid">
-          <div class="field"><label>Pair</label><select name="pair">${selectedOptionTags(service.forexPairs || [], form.pair)}</select></div>
-          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
-          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
+          <div class="field"><label for="forex-pair">Pair</label><select id="forex-pair" name="pair">${selectedOptionTags(service.forexPairs || [], form.pair)}</select></div>
+          <div class="field"><label for="forex-style">Trading Style</label><select id="forex-style" name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label for="forex-timeframe">Timeframe</label><select id="forex-timeframe" name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Forex"}</button>
       </form>
       <div class="hub-right-column">
-        <div id="tv-advanced-chart" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+        <div id="tv-advanced-chart-forex" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1459,14 +1418,14 @@ function renderCommoditiesAnalyzer() {
         <h2 class="h3">Gold & Commodities Analyzer</h2>
         <p class="muted">Focus on trend, volatility, key levels, macro/news risk, and long/short scenario quality.</p>
         <div class="form-grid">
-          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(service.commodityAssets || [], form.asset)}</select></div>
-          <div class="field"><label>Trading Style</label><select name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
-          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
+          <div class="field"><label for="commodities-asset">Asset</label><select id="commodities-asset" name="asset">${selectedOptionTags(service.commodityAssets || [], form.asset)}</select></div>
+          <div class="field"><label for="commodities-style">Trading Style</label><select id="commodities-style" name="style">${selectedOptionTags(["Day Trading", "Swing Trading", "Long-Term Macro View"], form.style)}</select></div>
+          <div class="field"><label for="commodities-timeframe">Timeframe</label><select id="commodities-timeframe" name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Gold / Commodity"}</button>
       </form>
       <div class="hub-right-column">
-        <div id="tv-advanced-chart" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+        <div id="tv-advanced-chart-commodities" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(state.marketHub.result)}
       </div>
     </div>
@@ -1496,15 +1455,15 @@ function renderStockAnalyzer() {
         <h2 class="h3">Stock Market Analyzer</h2>
         <p class="muted">Trading modes provide structured levels. Investment, market, and sector modes remain research-only without short-term trade targets.</p>
         <div class="form-grid">
-          <div class="field"><label>Asset</label><select name="asset">${selectedOptionTags(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"], form.asset)}</select></div>
-          <div class="field"><label>Mode</label><select name="mode" data-stock-mode>${selectedOptionTags(stockModes, form.mode)}</select></div>
-          <div class="field"><label>Research Focus</label><select name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
-          <div class="field"><label>Timeframe</label><select name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
+          <div class="field"><label for="stocks-asset">Asset</label><select id="stocks-asset" name="asset">${selectedOptionTags(["SPY", "QQQ", "DIA", "AAPL", "MSFT", "NVDA", "AMZN", "META", "TSLA"], form.asset)}</select></div>
+          <div class="field"><label for="stocks-mode">Mode</label><select id="stocks-mode" name="mode" data-stock-mode>${selectedOptionTags(stockModes, form.mode)}</select></div>
+          <div class="field"><label for="stocks-focus">Research Focus</label><select id="stocks-focus" name="selectedOption">${selectedOptionTags(options, form.selectedOption)}</select></div>
+          <div class="field"><label for="stocks-timeframe">Timeframe</label><select id="stocks-timeframe" name="timeframe">${selectedOptionTags(["15m", "1H", "4H", "1D", "1W"], form.timeframe)}</select></div>
         </div>
         <button class="btn primary" type="submit" ${state.marketHub.loading ? `disabled aria-busy="true"` : ""}>${state.marketHub.loading ? "Analyzing..." : "Analyze Stock Market"}</button>
       </form>
       <div class="hub-right-column">
-        <div id="tv-advanced-chart" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
+        <div id="tv-advanced-chart-stocks" style="height: 250px; width: 100%; margin-bottom: 24px; border-radius: 8px; overflow: hidden; background: #050505;"></div>
         ${renderAnalyzerResult(result)}
       </div>
     </div>
@@ -1678,40 +1637,40 @@ function renderArbitrageScanner() {
 
         <form class="scanner-filters" data-scanner-form>
           <div class="field">
-            <label>Min Spread %</label>
-            <input type="number" step="0.01" min="0" name="minSpread" value="${esc(filters.minSpread)}" data-scanner-filter>
+            <label for="scanner-min-spread">Min Spread %</label>
+            <input id="scanner-min-spread" type="number" step="0.01" min="0" name="minSpread" value="${esc(filters.minSpread)}" data-scanner-filter>
           </div>
           <div class="field">
-            <label>Exchange</label>
-            <select name="exchange" data-scanner-filter>
+            <label for="scanner-exchange">Exchange</label>
+            <select id="scanner-exchange" name="exchange" data-scanner-filter>
               <option value="all">All exchanges</option>
               ${["binance", "bybit", "okx", "kucoin", "gate", "mexc", "bitget"].map((id) => `<option value="${id}" ${filters.exchange === id ? "selected" : ""}>${id.toUpperCase()}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label>Coin</label>
-            <input name="coin" placeholder="BTC, ETH, SOL" value="${esc(filters.coin)}" data-scanner-filter>
+            <label for="scanner-coin">Coin</label>
+            <input id="scanner-coin" name="coin" placeholder="BTC, ETH, SOL" value="${esc(filters.coin)}" data-scanner-filter>
           </div>
           <div class="field">
-            <label>Market</label>
-            <select name="marketType" data-scanner-filter>
+            <label for="scanner-market-type">Market</label>
+            <select id="scanner-market-type" name="marketType" data-scanner-filter>
               <option value="spot" ${filters.marketType === "spot" ? "selected" : ""}>Spot</option>
               <option value="all" ${filters.marketType === "all" ? "selected" : ""}>Spot + Futures</option>
             </select>
           </div>
           <div class="field">
-            <label>Min Volume</label>
-            <input type="number" step="1000" min="0" name="minVolume" value="${esc(filters.minVolume)}" data-scanner-filter>
+            <label for="scanner-min-volume">Min Volume</label>
+            <input id="scanner-min-volume" type="number" step="1000" min="0" name="minVolume" value="${esc(filters.minVolume)}" data-scanner-filter>
           </div>
           <div class="field">
-            <label>Risk</label>
-            <select name="risk" data-scanner-filter>
+            <label for="scanner-risk">Risk</label>
+            <select id="scanner-risk" name="risk" data-scanner-filter>
               ${["all", "low", "medium", "high"].map((item) => `<option value="${item}" ${filters.risk === item ? "selected" : ""}>${item}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label>Network</label>
-            <select name="network" data-scanner-filter>
+            <label for="scanner-network">Network</label>
+            <select id="scanner-network" name="network" data-scanner-filter>
               <option value="all" ${filters.network === "all" ? "selected" : ""}>All networks</option>
               <option value="bitcoin" ${filters.network === "bitcoin" ? "selected" : ""}>Bitcoin</option>
               <option value="ethereum" ${filters.network === "ethereum" ? "selected" : ""}>Ethereum</option>
@@ -1720,14 +1679,14 @@ function renderArbitrageScanner() {
             </select>
           </div>
           <div class="field">
-            <label>Transfer Speed</label>
-            <select name="transferSpeed" data-scanner-filter>
+            <label for="scanner-transfer-speed">Transfer Speed</label>
+            <select id="scanner-transfer-speed" name="transferSpeed" data-scanner-filter>
               ${["all", "fast", "medium"].map((item) => `<option value="${item}" ${filters.transferSpeed === item ? "selected" : ""}>${item}</option>`).join("")}
             </select>
           </div>
           <div class="field">
-            <label>Sort</label>
-            <select name="sort" data-scanner-filter>
+            <label for="scanner-sort">Sort</label>
+            <select id="scanner-sort" name="sort" data-scanner-filter>
               <option value="highest-spread" ${filters.sort === "highest-spread" ? "selected" : ""}>Highest spread</option>
               <option value="most-volume" ${filters.sort === "most-volume" ? "selected" : ""}>Most volume</option>
               <option value="lowest-risk" ${filters.sort === "lowest-risk" ? "selected" : ""}>Lowest risk</option>
@@ -2007,6 +1966,16 @@ function renderAiChart(chartData) {
   `;
 }
 
+window._tvActiveCharts = window._tvActiveCharts || [];
+
+window.disposeTradingViewCharts = function() {
+  for (const entry of window._tvActiveCharts) {
+    try { entry.ro.disconnect(); } catch (e) { /* already detached */ }
+    try { entry.chart.remove(); } catch (e) { /* already disposed */ }
+  }
+  window._tvActiveCharts = [];
+};
+
 window.initTradingViewCharts = function() {
   if (!window._tvChartsToInit || !window._tvChartsToInit.length) return;
   if (!window.LightweightCharts) {
@@ -2095,8 +2064,9 @@ window.initTradingViewCharts = function() {
       chart.applyOptions({ width: newRect.width, height: newRect.height });
     });
     ro.observe(container);
+    window._tvActiveCharts.push({ chart, ro });
     } catch (e) {
-      container.innerHTML = `<div style="color: #ef4444; padding: 20px; font-family: monospace;"><b>Chart Error:</b> ${e.message}<br>${e.stack}</div>`;
+      container.innerHTML = `<div style="color: #ef4444; padding: 20px; font-family: monospace;"><b>Chart Error:</b> ${esc(e.message || "Unable to load chart.")}</div>`;
       console.error("TV Chart Error:", e);
     }
   }
@@ -2423,7 +2393,6 @@ function profilePage() {
   const payments = dashboard.payments || [];
   const recent = dashboard.recentOpportunities || state.scanner.opportunities.slice(0, 5);
   const watchlist = dashboard.watchlist || [];
-  const courseProgress = dashboard.courseProgress || [];
   return `
     <section class="section">
       <div class="section-head">
@@ -2450,7 +2419,7 @@ function profilePage() {
           }</p>
           <div class="hero-actions small-actions">
             <button class="btn primary small" type="button" data-connect-discord>${dashboard.discord?.connected ? "Reconnect Discord" : "Connect Discord"}</button>
-            <a href="${FREE_DISCORD_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Discord</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary small">Free Telegram</a>
           </div>
         </div>
         <div class="card pad">
@@ -2459,21 +2428,6 @@ function profilePage() {
           <a href="/products" data-link class="btn secondary small">Plans</a>
         </div>
       </div>
-      ${hasEducationAccess() ? `
-        <div class="card pad" style="margin-top:24px;">
-          <div class="discord-access-row">
-            <div>
-              <div class="eyebrow">Education Bundle</div>
-              <h2 class="h3" style="margin-top:10px;">Your Discord channel is unlocked</h2>
-              <p class="muted">Use Discord for premium discussion and VIP market updates.</p>
-            </div>
-            <div class="hero-actions">
-              <a href="${DISCORD_COURSE_URL}" target="_blank" rel="noopener" class="btn primary">Open Discord Course Channel</a>
-              <a href="/book" data-link class="btn secondary">Open Book</a>
-            </div>
-          </div>
-        </div>
-      ` : ""}
       <div class="grid two" style="margin-top:24px;">
         <div class="card pad">
           <h2 class="h3">Your Watchlist</h2>
@@ -2481,7 +2435,7 @@ function profilePage() {
             ${watchlist.length ? watchlist.map(w => `
               <div class="table-row">
                 <div><strong>${esc(w.symbol)}</strong><div class="faint">${esc(w.market)} ${w.note ? `- ${esc(w.note)}` : ''}</div></div>
-                <button class="btn small icon" onclick="removeWatchlist('${esc(w.symbol)}')">✕</button>
+                <button class="btn small icon" aria-label="Remove ${esc(w.symbol)} from watchlist" onclick="removeWatchlist('${esc(w.symbol)}')">✕</button>
               </div>
             `).join("") : `<div class="empty compact-empty">Your watchlist is empty. Add assets from the scanner or analyzer.</div>`}
           </div>
@@ -2544,8 +2498,6 @@ function adminPage() {
           ${adminTabButton("payments", "Payments")}
           ${adminTabButton("scanner", "Scanner")}
           ${adminTabButton("announcements", "Announcements")}
-          ${adminTabButton("courses", "Videos")}
-          
         </aside>
         <div>
           ${adminActivePanel()}
@@ -2590,18 +2542,12 @@ function adminDashboardPanel() {
         <div class="hero-actions">
           <button class="btn primary" data-admin-tab="scanner">Scanner Controls</button>
           <button class="btn secondary" data-admin-tab="payments">Payment Logs</button>
-          <button class="btn primary" data-admin-tab="courses">Upload Video</button>
-          <button class="btn secondary" data-admin-tab="book">Upload Book</button>
         </div>
       </div>
       <div class="grid three">
         <div class="card pad">
           <h2 class="h3">Scanner</h2>
           <p class="muted">${state.scanner.exchanges.filter((item) => item.status === "online").length || "Live"} exchanges online. ${state.scanner.lastUpdated ? `Updated ${new Date(state.scanner.lastUpdated).toLocaleTimeString()}.` : "Open scanner to refresh live data."}</p>
-        </div>
-        <div class="card pad">
-          <h2 class="h3">Book PDF</h2>
-          <p class="muted">${content.book.pdfUrl ? "A PDF is uploaded and visible on the book page." : "No PDF uploaded yet."}</p>
         </div>
         <div class="card pad">
           <h2 class="h3">Discord Bot</h2>
@@ -2705,12 +2651,12 @@ function adminScannerPanel() {
           </label>
           <div class="form-grid two">
             <div class="field">
-              <label>Minimum Spread %</label>
-              <input name="minSpread" type="number" step="0.01" min="0" value="${esc(controls.minSpread ?? 0.25)}">
+              <label for="admin-min-spread">Minimum Spread %</label>
+              <input id="admin-min-spread" name="minSpread" type="number" step="0.01" min="0" value="${esc(controls.minSpread ?? 0.25)}">
             </div>
             <div class="field">
-              <label>Notional USD</label>
-              <input name="notionalUsd" type="number" step="100" min="100" value="${esc(controls.notionalUsd ?? 1000)}">
+              <label for="admin-notional-usd">Notional USD</label>
+              <input id="admin-notional-usd" name="notionalUsd" type="number" step="100" min="100" value="${esc(controls.notionalUsd ?? 1000)}">
             </div>
           </div>
           <button class="btn primary" type="submit">Save Scanner Controls</button>
@@ -2740,12 +2686,12 @@ function adminAnnouncementsPanel() {
         <h2 class="h3">Send Announcement</h2>
         <form class="form-grid" onsubmit="return submitAnnouncement(event)">
           <div class="field">
-            <label>Title</label>
-            <input name="title" required placeholder="New live stream tonight">
+            <label for="announcement-title">Title</label>
+            <input id="announcement-title" name="title" required placeholder="New live stream tonight">
           </div>
           <div class="field">
-            <label>Message</label>
-            <textarea name="body" required placeholder="Write the update for members"></textarea>
+            <label for="announcement-body">Message</label>
+            <textarea id="announcement-body" name="body" required placeholder="Write the update for members"></textarea>
           </div>
           <button class="btn primary" type="submit">Send Announcement</button>
           <div data-status>${state.message}</div>
@@ -2799,14 +2745,45 @@ function page() {
   return notFoundPage();
 }
 
+const routeTitles = {
+  "/": "Bull & Bear Trading Academy",
+  "/products": "Products - Bull & Bear Trading Academy",
+  "/how-to-use": "How to Use - Bull & Bear Trading Academy",
+  "/signals": "Free Telegram Community - Bull & Bear Trading Academy",
+  "/discord": "Free Telegram Community - Bull & Bear Trading Academy",
+  "/arbitrage": "Market Hub - Bull & Bear Trading Academy",
+  "/scanner": "Market Hub - Bull & Bear Trading Academy",
+  "/market-hub": "Market Hub - Bull & Bear Trading Academy",
+  "/ai": "Investor AI - Bull & Bear Trading Academy",
+  "/support": "Support - Bull & Bear Trading Academy",
+  "/login": "Log In - Bull & Bear Trading Academy",
+  "/register": "Sign Up - Bull & Bear Trading Academy",
+  "/profile": "Dashboard - Bull & Bear Trading Academy",
+  "/dashboard": "Dashboard - Bull & Bear Trading Academy",
+  "/admin": "Admin - Bull & Bear Trading Academy",
+  "/privacy-policy": "Privacy Policy - Bull & Bear Trading Academy",
+  "/terms-and-conditions": "Terms of Service - Bull & Bear Trading Academy",
+  "/refund-policy": "Refund & Exchange Policy - Bull & Bear Trading Academy",
+  "/cancellation-policy": "Cancellation & Payment Policy - Bull & Bear Trading Academy"
+};
+
+function updateDocumentMeta() {
+  const path = state.route.replace(/\/$/, "") || "/";
+  document.title = routeTitles[path] || "Bull & Bear Trading Academy";
+  const canonical = document.getElementById("canonical-link");
+  if (canonical) canonical.href = `https://bullandbear.az${path === "/" ? "/" : path}`;
+}
+
 function render() {
   const app = document.getElementById("app");
   if (!state.content) {
     app.innerHTML = `<main class="main"><section class="section"><div class="empty">Loading...</div></section></main>`;
     return;
   }
-  
+
   const updateDOM = () => {
+    if (typeof disposeTradingViewCharts === "function") disposeTradingViewCharts();
+    updateDocumentMeta();
     app.innerHTML = `<div class="app">${header()}<main class="main scroll-reveal">${page()}</main>${footer()}</div>`;
     bindCheckoutButtons();
     initMarketCanvas();
@@ -2817,7 +2794,12 @@ function render() {
   };
 
   if (document.startViewTransition) {
-    document.startViewTransition(updateDOM);
+    // A fast second navigation skips the in-flight transition, rejecting `ready`.
+    // The DOM still updates, so swallow the expected rejections instead of
+    // leaking them as unhandled promise errors.
+    const transition = document.startViewTransition(updateDOM);
+    transition.ready.catch(() => {});
+    transition.finished.catch(() => {});
   } else {
     updateDOM();
   }
@@ -2858,6 +2840,10 @@ function bindInteractiveEffects() {
 
 function initMarketCanvas() {
   cancelAnimationFrame(canvasFrame);
+  if (canvasResizeHandler) {
+    window.removeEventListener("resize", canvasResizeHandler);
+    canvasResizeHandler = null;
+  }
   const canvas = document.getElementById("marketCanvas");
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
@@ -2875,7 +2861,8 @@ function initMarketCanvas() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   };
   resize();
-  window.addEventListener("resize", resize, { once: true });
+  canvasResizeHandler = resize;
+  window.addEventListener("resize", resize);
 
   const draw = (time) => {
     const rect = canvas.getBoundingClientRect();
@@ -3407,13 +3394,6 @@ function logout(shouldRender = true) {
 }
 
 document.addEventListener("click", async (event) => {
-  const bookPdf = event.target.closest("[data-book-pdf]");
-  if (bookPdf) {
-    event.preventDefault();
-    await openBookPdf(bookPdf.getAttribute("data-book-pdf") === "download");
-    return;
-  }
-
   const link = event.target.closest("a[data-link]");
   if (link) {
     event.preventDefault();
@@ -3538,17 +3518,6 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const deleteBtn = event.target.closest("[data-delete-course]");
-  if (deleteBtn) {
-    const id = deleteBtn.getAttribute("data-delete-course");
-    if (!confirm("Delete this lesson?")) return;
-    try {
-      await api(`/api/admin/courses/${encodeURIComponent(id)}`, { method: "DELETE" });
-      await refreshAfterAdmin("Lesson deleted.");
-    } catch (error) {
-      setMessage(error.message, "err");
-    }
-  }
 });
 
 document.addEventListener("input", (event) => {
@@ -3602,7 +3571,6 @@ window.addEventListener("popstate", () => {
 })();
 
 function howToUsePage() {
-  document.title = "How to Use - Bull & Bear Trading Academy";
   return `
     <div class="pad layout-center">
       <div class="glass-card pad" style="max-width: 900px; width: 100%; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 40px rgba(16, 185, 129, 0.1);">
@@ -3647,7 +3615,7 @@ function howToUsePage() {
 }
 
 window.initAdvancedTradingViewWidget = function() {
-  const container = document.getElementById("tv-advanced-chart");
+  const container = document.querySelector('[id^="tv-advanced-chart-"]');
   if (!container) return;
   if (container.hasChildNodes()) return;
 
@@ -3665,7 +3633,12 @@ window.initAdvancedTradingViewWidget = function() {
   if (!window.TradingView) {
     const script = document.createElement("script");
     script.src = "https://s3.tradingview.com/tv.js";
-    script.onload = () => createWidget(container.id, symbol);
+    // The container may have already been torn down by a subsequent render()
+    // by the time this async script finishes loading — skip creating a widget
+    // for a detached node.
+    script.onload = () => {
+      if (document.body.contains(container)) createWidget(container.id, symbol);
+    };
     document.head.appendChild(script);
   } else {
     createWidget(container.id, symbol);

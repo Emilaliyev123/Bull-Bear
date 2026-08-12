@@ -243,4 +243,6 @@ if (document.readyState === "loading") {
   queueBoot();
 }
 
-new MutationObserver(queueBoot).observe(document.body, { childList: true, subtree: true });
+// render() replaces #app's children wholesale, so a non-recursive childList
+// watch on #app catches every route change without walking the whole document.
+new MutationObserver(queueBoot).observe(document.getElementById("app") || document.body, { childList: true });

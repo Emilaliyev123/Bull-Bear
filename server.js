@@ -2,7 +2,6 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
-const multer = require("multer");
 const helmet = require("helmet");
 const xss = require("xss");
 const rateLimit = require("express-rate-limit");
@@ -10,6 +9,7 @@ const {
   AnalyzerValidationError,
   analyzeMarketHubWithLiveData
 } = require("./services/marketHubAnalyzer");
+const { coinMap, coinInfo } = require("./data/ai-coin-reference.json");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -74,21 +74,19 @@ const AI_USE_OPENAI = String(process.env.AI_USE_OPENAI || "false").toLowerCase()
 const AI_MAX_REQUESTS_PER_WINDOW = Number(process.env.AI_MAX_REQUESTS_PER_WINDOW || 10);
 const AI_RATE_WINDOW_MS = Number(process.env.AI_RATE_WINDOW_MS || 10 * 60 * 1000);
 
-app.set("trust proxy", true);
-
-const uploadFolders = {
-  
-  coverFile: "images",
-  
-  imageFile: "images"
-};
-
-
+// Trust exactly one hop: the platform's own reverse proxy (Render / DigitalOcean App Platform).
+// This makes req.ip reflect the real client IP without letting a client spoof X-Forwarded-For
+// to bypass IP-based rate limiting.
+app.set("trust proxy", 1);
 
 function validateEnvironmentConfiguration() {
   const missing = [];
   if (!process.env.ADMIN_SECRET) {
-    console.warn("⚠️  WARNING: ADMIN_SECRET is missing. A random one will be generated, invalidating sessions on restart.");
+    if (process.env.NODE_ENV === "production") {
+      missing.push("ADMIN_SECRET is required in production (a per-restart random secret would invalidate every session on deploy/restart).");
+    } else {
+      console.warn("⚠️  WARNING: ADMIN_SECRET is missing. A random one will be generated, invalidating sessions on restart.");
+    }
   } else if (process.env.ADMIN_SECRET.length < 16) {
     missing.push("ADMIN_SECRET is too short (must be >= 16 chars).");
   }
@@ -108,9 +106,7 @@ validateEnvironmentConfiguration();
 function ensureProjectFiles() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    for (const folder of Object.values(uploadFolders)) {
-      fs.mkdirSync(path.join(UPLOAD_DIR, folder), { recursive: true });
-    }
+    fs.mkdirSync(path.join(UPLOAD_DIR, "images"), { recursive: true });
   } catch (err) {
     console.warn("Failed to create project directories:", err.message);
   }
@@ -135,6 +131,7 @@ function ensureProjectFiles() {
 
 let dbCache = null;
 let writeTimeout = null;
+let writeMaxTimeout = null;
 
 function readDb() {
   if (dbCache) return dbCache;
@@ -186,13 +183,23 @@ function flushDbSync() {
   }
 }
 
+function scheduleFlush() {
+  if (writeTimeout) clearTimeout(writeTimeout);
+  if (writeMaxTimeout) clearTimeout(writeMaxTimeout);
+  writeTimeout = null;
+  writeMaxTimeout = null;
+  flushDbSync();
+}
+
 function writeDb(db) {
   dbCache = db;
   if (writeTimeout) clearTimeout(writeTimeout);
-  writeTimeout = setTimeout(() => {
-    flushDbSync();
-    writeTimeout = null;
-  }, 500); // 500ms debounce
+  writeTimeout = setTimeout(scheduleFlush, 500); // 500ms debounce, reset on every write
+  // Guarantees a flush at least every 2s even under sustained write bursts that
+  // keep resetting the debounce above, so unflushed data can't pile up indefinitely.
+  if (!writeMaxTimeout) {
+    writeMaxTimeout = setTimeout(scheduleFlush, 2000);
+  }
 }
 
 // Graceful shutdown to prevent data loss
@@ -204,48 +211,6 @@ process.on('SIGTERM', () => {
   if (writeTimeout) flushDbSync();
   process.exit(0);
 });
-
-function slug(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 80) || "item";
-}
-
-function safeFileName(file) {
-  const ext = path.extname(file.originalname || "").toLowerCase();
-  const base = slug(path.basename(file.originalname || "upload", ext));
-  return `${Date.now()}-${crypto.randomBytes(5).toString("hex")}-${base}${ext}`;
-}
-
-function publicFileUrl(file) {
-  if (!file) return "";
-  const rel = path.relative(UPLOAD_DIR, file.path).split(path.sep).join("/");
-  return `/uploads/${rel}`;
-}
-
-function resolveUploadFile(publicUrl, folder) {
-  const value = String(publicUrl || "").replace(/^\/+/, "");
-  const expectedPrefix = `uploads/${folder}/`;
-  if (!value.startsWith(expectedPrefix)) return "";
-  const fullPath = path.resolve(STORAGE_ROOT, value);
-  const expectedRoot = path.resolve(UPLOAD_DIR, folder);
-  if (fullPath !== expectedRoot && !fullPath.startsWith(`${expectedRoot}${path.sep}`)) return "";
-  return fullPath;
-}
-
-function removeUploadFile(publicUrl, folder) {
-  const filePath = resolveUploadFile(publicUrl, folder);
-  if (!filePath || !fs.existsSync(filePath)) return;
-  try {
-    fs.unlinkSync(filePath);
-  } catch (error) {
-    console.warn("Could not delete uploaded file:", error.message);
-  }
-}
-
-
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
@@ -962,32 +927,6 @@ function upsertOauthUser(db, provider, profile) {
   user.updatedAt = nowIso();
   return user;
 }
-
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    const folder = uploadFolders[file.fieldname] || "images";
-    cb(null, path.join(UPLOAD_DIR, folder));
-  },
-  filename(req, file, cb) {
-    cb(null, safeFileName(file));
-  }
-});
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 900 * 1024 * 1024
-  },
-  fileFilter(req, file, cb) {
-    const name = file.fieldname;
-    const type = file.mimetype || "";
-    const original = file.originalname || "";
-    if (name === "videoFile" && type.startsWith("video/")) return cb(null, true);
-    if (name === "bookFile" && (type === "application/pdf" || original.toLowerCase().endsWith(".pdf"))) return cb(null, true);
-    if (["thumbnailFile", "coverFile", "imageFile"].includes(name) && type.startsWith("image/")) return cb(null, true);
-    return cb(new Error(`Unsupported file type for ${name}`));
-  }
-});
 
 const exchangeAdapters = [
   {
@@ -1778,36 +1717,6 @@ function aiDirectAnswer(request, primary, riskText, scannerText, topics) {
   const raw = String(request.question || "").trim();
 
   // ─── Coin/Token detection (broad) ──────────────────────────────────────────
-  const coinMap = {
-    bitcoin: "BTC", btc: "BTC",
-    ethereum: "ETH", eth: "ETH",
-    solana: "SOL", sol: "SOL",
-    xrp: "XRP", ripple: "XRP",
-    bnb: "BNB", binancecoin: "BNB",
-    doge: "DOGE", dogecoin: "DOGE",
-    cardano: "ADA", ada: "ADA",
-    avalanche: "AVAX", avax: "AVAX",
-    polkadot: "DOT", dot: "DOT",
-    chainlink: "LINK", link: "LINK",
-    polygon: "MATIC", matic: "MATIC", pol: "MATIC",
-    shiba: "SHIB", shib: "SHIB",
-    litecoin: "LTC", ltc: "LTC",
-    tron: "TRX", trx: "TRX",
-    uniswap: "UNI", uni: "UNI",
-    aave: "AAVE",
-    pepe: "PEPE",
-    sui: "SUI",
-    aptos: "APT", apt: "APT",
-    near: "NEAR",
-    atom: "ATOM", cosmos: "ATOM",
-    ton: "TON",
-    arbitrum: "ARB", arb: "ARB",
-    optimism: "OP",
-    ftx: "FTX",
-    usdt: "USDT", tether: "USDT",
-    usdc: "USDC",
-  };
-
   const detectedCoin = Object.keys(coinMap).find(k => q.includes(k));
   const coinTicker = detectedCoin ? coinMap[detectedCoin] : null;
 
@@ -1846,64 +1755,6 @@ function aiDirectAnswer(request, primary, riskText, scannerText, topics) {
   const isWhatIsQuestion = /^(what is|what's|explain|tell me about|describe|give me info|overview of|about)\s/i.test(raw);
 
   if (coinTicker && (isWhatIsQuestion || q.length < 30)) {
-    const coinInfo = {
-      BTC: {
-        name: "Bitcoin",
-        desc: "The first and largest cryptocurrency by market cap. Created by Satoshi Nakamoto in 2009 as a decentralized peer-to-peer digital currency. Bitcoin operates on Proof-of-Work consensus and has a fixed supply of 21 million coins. It halves its block reward roughly every 4 years.",
-        use: "Store of value ('digital gold'), hedge against inflation, global settlement layer",
-        key: "**Halving cycles** drive major bull markets. **Institutional adoption** (ETFs, corporate treasuries) is a major tailwind. **DXY correlation** is strongly inverse — dollar weak = Bitcoin bid.",
-        risk: "Extreme volatility (50–80% drawdowns in bear markets). Regulatory risk. Concentration in large holders (whales)."
-      },
-      ETH: {
-        name: "Ethereum",
-        desc: "The leading smart contract platform, launched in 2015 by Vitalik Buterin. Ethereum hosts the vast majority of DeFi protocols, NFT markets, and Layer-2 networks. Transitioned from Proof-of-Work to Proof-of-Stake ('The Merge') in 2022, making ETH deflationary during high activity periods.",
-        use: "Smart contracts, DeFi (lending, DEXs), NFTs, stablecoins (USDC, DAI), Layer-2 scaling (Arbitrum, Optimism)",
-        key: "**ETH/BTC ratio** shows relative strength. **Staking yield** (~3–4% annually) makes it attractive vs cash. **EIP-1559** burns ETH on transactions.",
-        risk: "Competition from Solana, Avalanche. High gas fees during congestion. L2 fragmentation."
-      },
-      XRP: {
-        name: "XRP (Ripple)",
-        desc: "XRP is the native token of the XRP Ledger, created by Ripple Labs in 2012. It was designed primarily for cross-border payment settlements and interbank transfers. Unlike Bitcoin, XRP uses a consensus protocol (not mining) and can settle transactions in 3–5 seconds for fractions of a cent.",
-        use: "International money transfers, bank settlement layers (RippleNet), liquidity bridging between currencies",
-        key: "**Ripple's legal battle with the SEC** (mostly resolved in 2023) was a major overhang — XRP now has clearer regulatory standing in the US. **Bank partnerships** (Santander, SBI Holdings) provide real-world use case. Supply: 100 billion XRP, with Ripple holding ~45% in escrow.",
-        risk: "Centralization concerns (Ripple controls large supply). Banks may prefer their own CBDC solutions. Speculative rallies often not backed by fundamental news."
-      },
-      SOL: {
-        name: "Solana",
-        desc: "A high-performance Layer-1 blockchain launched in 2020, designed for speed and low cost. Solana uses Proof-of-History (PoH) combined with Proof-of-Stake, achieving ~65,000 TPS theoretical throughput. It became a major DeFi and NFT hub and hosts Pump.fun (meme coin launchpad).",
-        use: "DeFi (Jupiter DEX, Raydium), NFTs (Magic Eden), meme coins, payment apps (Solana Pay)",
-        key: "**Low fees** (~$0.0001 per transaction) and **fast finality** are core advantages. Strong developer ecosystem and VC backing (a16z, FTX historically). **Token burn** mechanisms reduce supply.",
-        risk: "Network outages have occurred multiple times. FTX collapse (2022) devastated ecosystem — recovered strongly since. High competition from Ethereum L2s."
-      },
-      BNB: {
-        name: "BNB (Binance Coin)",
-        desc: "The native token of Binance, the world's largest crypto exchange, and the BNB Chain ecosystem. Originally an ERC-20 token for exchange fee discounts, it now powers the BNB Smart Chain (BSC), a parallel blockchain to Ethereum.",
-        use: "Trading fee discounts on Binance, gas fees on BNB Chain, DeFi on PancakeSwap, token launches (Launchpad)",
-        key: "**Quarterly burns** (BNB Auto-Burn based on BNB price and blocks) reduce supply. Binance exchange volume drives demand. Tied to Binance's business health.",
-        risk: "Highly centralized (Binance controls chain validators). Regulatory risk (Binance under scrutiny globally). Ecosystem depends on Binance's survival."
-      },
-      DOGE: {
-        name: "Dogecoin",
-        desc: "Originally a joke/meme cryptocurrency created in 2013, Dogecoin became a cultural phenomenon driven by social media (Reddit, Twitter) and Elon Musk's tweets. It uses a Proof-of-Work algorithm similar to Litecoin.",
-        use: "Tipping, micropayments, speculation, community-driven rallies. Elon Musk has hinted at Tesla and X (Twitter) payment integration.",
-        key: "**Meme and sentiment driven** — fundamentals matter less than social momentum. No supply cap (unlimited issuance, ~5 billion DOGE/year). Massive retail holder base.",
-        risk: "Unlimited inflation (5B new DOGE per year). No major protocol upgrades. Entirely driven by sentiment, not fundamentals. Can drop 80-90% from peak very fast."
-      },
-      ADA: {
-        name: "Cardano (ADA)",
-        desc: "A Proof-of-Stake blockchain founded by Charles Hoskinson (Ethereum co-founder) in 2017. Cardano is known for its research-driven, peer-reviewed development approach. It uses the Ouroboros consensus protocol.",
-        use: "Smart contracts (Plutus), DeFi, NFTs, identity solutions in developing markets (Africa partnerships)",
-        key: "**Academic rigor** — all protocol changes go through peer review. **Staking yield** (~3–4%). ADA supply: 45 billion, with ~35 billion in circulation. Slow but methodical development.",
-        risk: "Slow development pace vs competitors. DeFi ecosystem significantly smaller than Ethereum/Solana. Has historically underperformed in bull markets despite strong fundamentals."
-      },
-      LINK: {
-        name: "Chainlink (LINK)",
-        desc: "Chainlink is the leading decentralized oracle network. It connects smart contracts to real-world data — price feeds, weather data, sports results, etc. Without oracles like Chainlink, DeFi protocols cannot access off-chain information.",
-        use: "Price feeds for DeFi (Aave, Compound, Synthetix), verifiable randomness (VRF) for NFTs/gaming, cross-chain interoperability (CCIP)",
-        key: "**Essential infrastructure** for DeFi — most major protocols depend on Chainlink. **Staking v0.2** launched, enabling node operators and stakers to earn LINK. Network effects are strong (switching costs high).",
-        risk: "Competition from Pyth Network (Solana ecosystem). LINK token needs to capture more value from the network's usage. Slow DeFi growth period hurts demand."
-      }
-    };
 
     const info = coinInfo[coinTicker];
     if (info) {
@@ -2940,6 +2791,13 @@ const authLimiter = rateLimit({
 app.use("/api/auth", authLimiter);
 app.use("/api/payments/checkout", authLimiter);
 
+const webhookLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: "Too many payment status checks from this IP, please try again later." }
+});
+app.use("/api/payments/webhook", webhookLimiter);
+
 // Custom recursive XSS sanitizer
 function sanitizeInput(obj) {
   if (typeof obj === "string") return xss(obj);
@@ -3533,7 +3391,7 @@ app.post("/api/auth/login", (req, res) => {
   const identifier = String(req.body?.identifier || req.body?.email || "").trim();
   const password = String(req.body?.password || "");
 
-  if (ADMIN_LOGIN_ENABLED && identifier === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+  if (ADMIN_LOGIN_ENABLED && identifier === ADMIN_USERNAME && timingSafeStringEqual(password, ADMIN_PASSWORD)) {
     const token = signToken({
       admin: true,
       username: ADMIN_USERNAME,
@@ -3614,36 +3472,6 @@ app.delete("/api/user/watchlist/:symbol", requireAuth, (req, res) => {
   return res.json({ success: true, watchlist: user.watchlist });
 });
 
-app.get("/api/user/progress", requireAuth, (req, res) => {
-  if (req.auth.admin) return res.json({ progress: [] });
-  const db = readDb();
-  const user = findUserForAuth(db, req.auth);
-  if (!user) return res.status(401).json({ error: "Session expired." });
-  return res.json({ progress: user.courseProgress || [] });
-});
-
-app.post("/api/user/progress", requireAuth, (req, res) => {
-  if (req.auth.admin) return res.json({ success: true, progress: [] });
-  const db = readDb();
-  const user = findUserForAuth(db, req.auth);
-  if (!user) return res.status(401).json({ error: "Session expired." });
-  
-  const { courseId, status } = req.body;
-  if (!courseId || !status) return res.status(400).json({ error: "courseId and status required." });
-  
-  user.courseProgress = user.courseProgress || [];
-  const existing = user.courseProgress.find(p => p.courseId === courseId);
-  if (existing) {
-    existing.status = status;
-    existing.updatedAt = new Date().toISOString();
-  } else {
-    user.courseProgress.push({ courseId, status, updatedAt: new Date().toISOString() });
-  }
-  
-  writeDb(db);
-  return res.json({ success: true, progress: user.courseProgress });
-});
-
 app.get("/api/dashboard", requireAuth, (req, res) => {
   if (req.auth.admin) {
     return res.json({
@@ -3670,8 +3498,7 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
       premiumRole: activePlanIdsForUser(db, userId).some(isPremiumDiscordPlan)
     },
     recentOpportunities: canUseScanner ? scannerState.opportunities.slice(0, 8) : [],
-    watchlist: user.watchlist || [],
-    courseProgress: user.courseProgress || []
+    watchlist: user.watchlist || []
   });
 });
 
@@ -3693,9 +3520,6 @@ app.post("/api/subscriptions/cancel", requireAuth, (req, res) => {
 app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
   const db = readDb();
   res.json({
-    courses: db.courses.length,
-    uploadedVideos: db.courses.filter((course) => course.videoUrl).length,
-    bookUploaded: Boolean(db.book?.pdfUrl),
     users: db.users.length,
     activeSubscriptions: db.subscriptions.map(normalizeSubscriptionRecord).filter(isSubscriptionActive).length,
     revenue: db.payments.filter((item) => item.status === "paid").reduce((sum, item) => sum + Number(item.amount || 0), 0),
@@ -3706,9 +3530,7 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
       exchangesOnline: Object.values(scannerState.exchanges).filter((item) => item.status === "online").length
     },
     storage: {
-      videos: "/uploads/videos",
-      images: "/uploads/images",
-      books: "/uploads/books"
+      images: "/uploads/images"
     }
   });
 });

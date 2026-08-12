@@ -1,7 +1,7 @@
 (function () {
-  const retiredPlans = new Set(["premium-discord-signals", "investor-trader-ai"]);
+  // Read lazily off window: app.js owns the list and may not have run yet.
+  const retiredPlans = () => window.retiredCheckoutPlanIds || new Set();
   const productPlans = {
-    course: "education-bundle",
     signals: "",
     arbitrage: "arbitrage-only"
   };
@@ -21,11 +21,8 @@
     return Boolean(userToken());
   }
 
-  function buttonLabel(planId) {
-    if (!isLoggedIn()) {
-      return planId === "education-bundle" ? "Log In to Buy" : "Log In to Subscribe";
-    }
-    return planId === "education-bundle" ? "Buy Now" : "Subscribe Now";
+  function buttonLabel() {
+    return isLoggedIn() ? "Subscribe Now" : "Log In to Subscribe";
   }
 
   function setText(element, text) {
@@ -35,17 +32,17 @@
   }
 
   function makeBuyButton(planId) {
-    if (!planId || retiredPlans.has(planId)) return null;
+    if (!planId || retiredPlans().has(planId)) return null;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "btn primary bb-buy-button";
     button.setAttribute("data-checkout-plan", planId);
-    button.textContent = buttonLabel(planId);
+    button.textContent = buttonLabel();
     return button;
   }
 
   function addButton(container, planId) {
-    if (!container || !planId || retiredPlans.has(planId)) return;
+    if (!container || !planId || retiredPlans().has(planId)) return;
     const selector = `[data-bb-checkout-plan="${planId}"], [data-checkout-plan="${planId}"]`;
     if (container.querySelector(selector)) return;
 
@@ -60,7 +57,7 @@
   }
 
   function removeRetiredCheckoutButtons() {
-    retiredPlans.forEach((planId) => {
+    retiredPlans().forEach((planId) => {
       document
         .querySelectorAll(`[data-bb-checkout-plan="${planId}"], [data-checkout-plan="${planId}"], a[href="/checkout/${planId}"]`)
         .forEach((button) => button.remove());
@@ -79,23 +76,17 @@
         if (planId) addButton(card.querySelector(".body") || card, planId);
       });
 
-      const bundle = document.querySelector(".bundle-callout");
-      if (bundle) addButton(bundle.lastElementChild || bundle, "education-bundle");
-
-      const bookActions = document.querySelector(".book-layout .hero-actions");
-      if (bookActions) addButton(bookActions, "education-bundle");
-
       document.querySelectorAll("[data-bb-checkout-plan], [data-checkout-plan]").forEach((button) => {
         const planId = button.getAttribute("data-bb-checkout-plan") || button.getAttribute("data-checkout-plan");
-        if (retiredPlans.has(planId)) {
+        if (retiredPlans().has(planId)) {
           button.remove();
         } else if (planId && !button.disabled) {
-          setText(button, buttonLabel(planId));
+          setText(button, buttonLabel());
         }
       });
     } finally {
       const target = document.getElementById("app") || document.body;
-      if (observer && target) observer.observe(target, { childList: true, subtree: true });
+      if (observer && target) observer.observe(target, { childList: true });
     }
   }
 
