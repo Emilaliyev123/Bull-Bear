@@ -637,7 +637,15 @@ function ticker() {
 function productCard(product) {
   const cls = product.id === "analyzer" ? "blue" : product.id === "discord" || product.id === "signals" ? "gold" : product.id === "market-hub" ? "green" : "red";
   const mark = product.id === "analyzer" ? "AI" : product.id === "discord" || product.id === "signals" ? "TG" : "M";
-  const badge = product.id === "discord" || product.id === "signals" ? `<div class="badge" style="background:#0088cc;color:#fff;">FREE TELEGRAM</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
+  // Lapis for the free channel, gold for the paid tier. Lapis lazuli was the
+  // pigment Rome imported to make ultramarine, so it keeps a blue for Telegram
+  // without the cyan that read as software against the stone. Both carry their
+  // ink at AA (6.97:1 and 7.66:1).
+  const badge = product.id === "discord" || product.id === "signals"
+    ? `<div class="badge badge-lapis">FREE TELEGRAM</div>`
+    : product.id === "market-hub"
+      ? `<div class="badge badge-gilt">MARKET HUB PRO</div>`
+      : `<div class="badge">AI PRO</div>`;
   const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" || product.id === "signals" ? "/signals" : "/market-hub";
   const planId = product.id === "discord" || product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
   const primaryLabel = state.user ? "Subscribe Now" : "Log In to Subscribe";
@@ -839,7 +847,7 @@ function homePage() {
             </div>
           </div>
           <div class="hero-actions">
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis glowing-btn">Join Free Telegram (@bullandbeartradingcomm)</a>
             <a href="/signals" data-link class="btn secondary">View Telegram Details</a>
           </div>
         </div>
@@ -860,7 +868,7 @@ function productsPage() {
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="discord-mini" data-reveal style="border-color: rgba(0, 136, 204, 0.3);">
         <span>Free Telegram community (@bullandbeartradingcomm) is open to everyone.</span>
-        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" data-magnetic="0.16" style="background: #0088cc;">Join Free Telegram</a>
+        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small btn-lapis" data-magnetic="0.16">Join Free Telegram</a>
       </div>
       <div class="assurance-strip" data-reveal>
         <div>
@@ -918,7 +926,7 @@ function signalsPage() {
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
           <p class="lead" style="font-weight: 700; color: #fff; margin-top: 12px;">Here is what we drop in this channel 100% Free:</p>
           <div class="hero-actions" style="margin-top:20px;">
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis glowing-btn">Join Free Telegram (@bullandbeartradingcomm)</a>
             <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
           </div>
         </div>
