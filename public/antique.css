@@ -829,3 +829,12 @@ input, select, textarea,
 @media (prefers-reduced-motion: reduce) {
   .descend i { animation: none; }
 }
+
+/* The 2D candle canvas recedes once WebGL is up, so the colonnade is the only
+   backdrop competing for the headline. styles.css scopes this to .hero; the
+   portico needs its own rule, and a deeper fade because the colonnade already
+   fills the frame. */
+.portico.three-ready .hero-canvas {
+  opacity: 0.14;
+  transition: opacity 900ms var(--ease-out-quart);
+}

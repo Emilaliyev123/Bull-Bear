@@ -197,7 +197,11 @@ function initHero3D() {
   if (!stage || stage.dataset.ready === "true" || reduceMotion.matches) return;
   if (activeScene) activeScene.destroy();
 
-  const hero = stage.closest(".hero");
+  // The homepage hero is now .portico; .hero remains for any other page that
+  // still uses the old shell. Matching only .hero left the marker unset, so the
+  // 2D candle canvas stayed at full opacity and competed with the colonnade
+  // instead of receding behind it.
+  const hero = stage.closest(".portico, .hero");
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.8));
   renderer.setClearColor(0x000000, 0);

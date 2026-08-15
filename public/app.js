@@ -620,20 +620,6 @@ function footer() {
   `;
 }
 
-function ticker() {
-  const items = (state.scanner.exchanges.length ? state.scanner.exchanges : [
-    { name: "Binance", status: "ready" },
-    { name: "Bybit", status: "ready" },
-    { name: "OKX", status: "ready" },
-    { name: "KuCoin", status: "ready" },
-    { name: "Gate.io", status: "ready" },
-    { name: "MEXC", status: "ready" },
-    { name: "Bitget", status: "ready" }
-  ]).map((exchange) => [exchange.name, exchange.status === "online" ? "online" : "API ready", exchange.status === "online" ? "up" : ""]);
-  const row = items.map(([asset, move, cls]) => `<span class="ticker-item"><strong>${asset}</strong><span class="${cls}">${move}</span></span>`).join("");
-  return `<div class="ticker"><div class="ticker-track">${row}${row}</div></div>`;
-}
-
 function productCard(product) {
   const cls = product.id === "analyzer" ? "blue" : product.id === "discord" || product.id === "signals" ? "gold" : product.id === "market-hub" ? "green" : "red";
   const mark = product.id === "analyzer" ? "AI" : product.id === "discord" || product.id === "signals" ? "TG" : "M";
@@ -724,51 +710,6 @@ function courseCard(course) {
         <p class="faint" style="margin-bottom:0;">${esc(course.duration || "Self paced")}</p>
       </div>
     </article>
-  `;
-}
-
-function heroSection() {
-  return `
-    <section class="hero">
-      <canvas class="hero-canvas" id="marketCanvas" aria-hidden="true"></canvas>
-      <div class="hero-3d-stage" id="market3dStage" aria-hidden="true"></div>
-      <div class="hero-inner">
-        <div class="hero-copy">
-          <h1 class="h1" data-reveal="split">Bull & Bear Market Command</h1>
-          <p class="lead" data-reveal data-reveal-delay="520">
-            The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our 100% Free Telegram community today.
-          </p>
-          <div class="hero-kpis" aria-label="Platform highlights" data-reveal data-reveal-delay="640">
-            <span><strong>AI Market Scanner</strong><small>Institutional Risk Engine</small></span>
-            <span><strong>Free Telegram</strong><small>Trading Community</small></span>
-            <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
-          </div>
-          <div class="hero-actions" data-reveal data-reveal-delay="760">
-            <a href="/products" data-link class="btn primary glowing-btn" data-magnetic="0.22">Unlock Market Hub</a>
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary" data-magnetic="0.18">Join Free Telegram</a>
-          </div>
-        </div>
-        <aside class="hero-console" aria-label="Bull and Bear platform preview" data-reveal="scale" data-reveal-delay="400" data-parallax="0.5">
-          <div class="console-top">
-            <span>Market Command</span>
-            <strong>Live Desk</strong>
-          </div>
-          <div class="console-grid">
-            <div><small>BTC</small><strong>Breakout Watch</strong><em>Risk 0.8%</em></div>
-            <div><small>XAUUSD</small><strong>Trend Retest</strong><em>London session</em></div>
-            <div><small>EURUSD</small><strong>Liquidity Sweep</strong><em>Wait for close</em></div>
-          </div>
-          <div class="console-wave" aria-hidden="true">
-            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-          </div>
-          <div class="console-foot">
-            <span>AI model</span>
-            <strong>Scenario-based, risk-first analysis</strong>
-          </div>
-        </aside>
-      </div>
-      ${ticker()}
-    </section>
   `;
 }
 
