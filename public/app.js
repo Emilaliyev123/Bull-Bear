@@ -118,7 +118,8 @@ const productFeatures = {
     "🔹 1 Free Signal Daily (Market opportunities delivered every day)",
     "🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)",
     "🔹 Latest Financial News (Stay ahead of market-moving events)",
-    "🔹 Investment Ideas (Curated insights on top assets to buy)"
+    "🔹 Investment Ideas (Curated insights on top assets to buy)",
+    "🔹 Free Trading Book (Yours to keep when you join)"
   ],
   "market-hub": [
     "AI Market Scanner & Risk Engine",
@@ -919,7 +920,8 @@ function signalsPage() {
           ["01", "#38bdf8", "1 Free Signal Daily", "Market opportunities delivered every day"],
           ["02", "var(--gold)", "2–3 Video/Text Lectures Weekly", "Step-by-step trading &amp; investing lessons"],
           ["03", "var(--green)", "Latest Financial News", "Stay ahead of market-moving events"],
-          ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"]
+          ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"],
+          ["05", "var(--gold-lit)", "Free Trading Book", "Yours to keep when you join the channel"]
         ].map(([index, accent, title, copy], i) => `
           <article class="card pad glassmorphism perk-card" data-reveal="scale" data-reveal-delay="${i * 90}" style="--perk-accent: ${accent};">
             <span class="perk-index">${index}</span>

@@ -838,3 +838,19 @@ input, select, textarea,
   opacity: 0.14;
   transition: opacity 900ms var(--ease-out-quart);
 }
+
+/* ══ Telegram perks ═══════════════════════════════════════════════════════
+   The markup carried a `.four` class that was never defined, so the perks
+   fell back to a single column. Auto-fit rather than a fixed count: the list
+   is five now and may not stay five, and a hard `repeat(4, …)` would strand
+   the last card alone in its own row. */
+.perk-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+/* Five cards across a wide viewport leave an awkward 4+1 break, so the row is
+   held to three at the widest sizes, giving a clean 3+2. */
+@media (min-width: 1100px) {
+  .perk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
