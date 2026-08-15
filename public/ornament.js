@@ -16,21 +16,28 @@
   /** Greek key / meander border, tiled horizontally as a repeating pattern. */
   function meander(options) {
     const opts = options || {};
-    const height = opts.height || 18;
+    const height = opts.height || 20;
     const id = "meander-" + (opts.id || "default");
-    // One unit of the key drawn on a 24x18 grid, then tiled by <pattern> so a
-    // divider of any width costs the same markup.
+    // A meander is one unbroken line that never lifts — that continuity is the
+    // whole motif. The first attempt tiled a key figure with a gap at the tile
+    // edge, so it read as a row of separate boxes. The unit now runs the full
+    // 24 units wide and carries its own baseline, so consecutive tiles join
+    // into a single continuous band.
+    //
+    // preserveAspectRatio is left at its default: stretching the band to an
+    // arbitrary width skews the right angles, and a meander with non-square
+    // corners stops looking Greek.
     return `
-      <svg class="orn orn-meander" height="${height}" width="100%" viewBox="0 0 240 18"
-           preserveAspectRatio="none" aria-hidden="true" focusable="false">
+      <svg class="orn orn-meander" height="${height}" width="100%" viewBox="0 0 240 20"
+           aria-hidden="true" focusable="false" role="presentation">
         <defs>
-          <pattern id="${id}" x="0" y="0" width="24" height="18" patternUnits="userSpaceOnUse">
-            <path d="M0 17 L0 4 L16 4 L16 13 L8 13 L8 8.5 L12 8.5"
-                  fill="none" stroke="currentColor" stroke-width="2"
-                  stroke-linecap="square" stroke-linejoin="miter" />
+          <pattern id="${id}" x="0" y="0" width="24" height="20" patternUnits="userSpaceOnUse">
+            <path d="M0 18 L24 18 M0 18 L0 3 L17 3 L17 14 L7 14 L7 8 L12 8"
+                  fill="none" stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="butt" stroke-linejoin="miter" />
           </pattern>
         </defs>
-        <rect x="0" y="0" width="240" height="18" fill="url(#${id})" />
+        <rect x="0" y="0" width="240" height="20" fill="url(#${id})" />
       </svg>`;
   }
 

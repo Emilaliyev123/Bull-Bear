@@ -457,3 +457,375 @@ input, select, textarea,
 .product-card:hover {
   transform: translateY(-2px);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE BUILDING — structural layout, not a restyle
+   The homepage is composed as architecture: a portico you arrive at, chambers
+   you descend through, stelae standing in a row. These rules define rooms and
+   proportion; the earlier sections only defined material.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── I. Portico ───────────────────────────────────────────────────────────
+   Full height, because you should meet the building before you meet any copy.
+   svh rather than vh: on mobile, vh is measured against the largest viewport,
+   so a 100vh hero is cut off by the browser chrome on arrival. */
+.portico {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 132px 0 96px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.portico .hero-canvas,
+.portico .hero-3d-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+/* Floor shadow: grounds the colonnade so it stands on something. */
+.portico::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, var(--ob-sunken) 88%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.portico-inner {
+  width: min(1080px, 100% - 40px);
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.entablature {
+  width: min(560px, 80%);
+  color: var(--gold-leaf);
+  opacity: 0.65;
+}
+
+.dedication {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--aged);
+  text-indent: 0.42em;
+}
+
+/* The inscription. Centred, wide-tracked, cut rather than printed: the light
+   top edge and dark lower edge are what make letters read as incised. */
+.inscription {
+  margin: 0;
+  max-width: 15ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 8.2vw, 6.6rem);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: linear-gradient(176deg, #FFFDF7 0%, var(--bone) 34%, var(--gold-lit) 74%, var(--gold-leaf) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
+}
+
+.architrave {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(420px, 74%);
+  color: var(--gold-leaf);
+}
+
+.architrave-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-rule), transparent);
+}
+
+.portico-lead {
+  margin: 0;
+  max-width: 58ch;
+  font-size: clamp(1rem, 0.5vw + 0.9rem, 1.16rem);
+  line-height: 1.75;
+  color: var(--stone);
+}
+
+.portico-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.descend {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--aged);
+  text-indent: 0.34em;
+}
+
+.descend i {
+  width: 1px;
+  height: 34px;
+  background: linear-gradient(180deg, var(--gold-rule), transparent);
+  animation: descend-drift 2.6s ease-in-out infinite;
+}
+
+@keyframes descend-drift {
+  0%, 100% { opacity: 0.35; transform: scaleY(0.7); transform-origin: top; }
+  50%      { opacity: 1;    transform: scaleY(1);   transform-origin: top; }
+}
+
+/* ── II. Chambers ─────────────────────────────────────────────────────────
+   Rooms rather than sections. The hairline at the top of each is the joint
+   between courses of stone. */
+.chamber {
+  position: relative;
+  padding: clamp(64px, 8vw, 116px) 0;
+  border-top: 1px solid var(--chisel-soft);
+}
+
+.chamber-inner {
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+}
+
+.chamber-head { margin-bottom: 38px; }
+.chamber-head.center { text-align: center; }
+.chamber-head .h2 { margin: 10px 0 0; }
+
+.chamber-copy {
+  max-width: 56ch;
+  margin: 14px 0 22px;
+  color: var(--stone);
+  line-height: 1.75;
+}
+
+/* ── The record: figures cut into a single course of stone ────────────── */
+.record-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--chisel);
+  border-bottom: 1px solid var(--chisel);
+}
+
+.record-cut {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 30px 16px;
+  text-align: center;
+  border-left: 1px solid var(--chisel-soft);
+}
+
+.record-cut:first-child { border-left: 0; }
+
+.record-cut strong {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.6rem, 2.6vw, 2.5rem);
+  font-weight: 700;
+  color: var(--marble);
+  line-height: 1;
+}
+
+.record-cut span {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--aged);
+}
+
+/* ── The stelae: standing slabs with a real column between them ─────────── */
+.stelae {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+
+.stele {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 0 0 34px;
+  background:
+    linear-gradient(180deg, #17140F 0%, #100E0B 62%, #0C0A08 100%);
+  border: 1px solid var(--chisel);
+  border-radius: 3px;
+  box-shadow: var(--carve), var(--relief);
+}
+
+.stele .orn-pediment {
+  width: 100%;
+  height: 40px;
+  margin-top: -1px;
+}
+
+.stele-body {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 26px clamp(22px, 3vw, 38px) 0;
+}
+
+.stele-kind {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--gold-leaf);
+  text-indent: 0.26em;
+}
+
+.stele .h3 { margin: 0; color: var(--bone); }
+
+.stele-copy {
+  margin: 0;
+  color: var(--stone);
+  line-height: 1.7;
+}
+
+.stele-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--chisel-soft);
+}
+
+.stele-price strong {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  font-weight: 700;
+  color: var(--marble);
+  line-height: 1;
+}
+
+.stele-price span {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--aged);
+}
+
+.stele .btn { justify-self: start; margin-top: 4px; }
+
+/* The divider is a load-bearing column, not a rule: it is the one place the
+   layout is literally architectural rather than decorated. */
+.stele-divider {
+  display: grid;
+  place-items: stretch;
+  padding: 0 14px;
+}
+
+.stele-divider .orn-column {
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+}
+
+/* ── The oracle: seal set beside the copy ─────────────────────────────── */
+.oracle-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+}
+
+.oracle-seal {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gold-rule);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(201, 162, 39, 0.1), transparent 62%);
+}
+
+/* ── The creed: three articles, numbered in Roman ───────────────────────── */
+.creed {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--chisel);
+}
+
+.creed li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 40px);
+  align-items: baseline;
+  padding: 28px 4px;
+  border-bottom: 1px solid var(--chisel-soft);
+}
+
+.creed-numeral {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--gold-leaf);
+  opacity: 0.85;
+}
+
+.creed p {
+  margin: 0;
+  color: var(--stone);
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+/* ── Narrow viewports: the colonnade collapses to a single file ─────────── */
+@media (max-width: 900px) {
+  .stelae { grid-template-columns: 1fr; gap: 22px; }
+  /* The column divider only reads as structure when it stands between two
+     things. Stacked, it becomes a stray graphic, so it is removed. */
+  .stele-divider { display: none; }
+  .oracle-grid { grid-template-columns: 1fr; }
+  .oracle-seal { max-width: 210px; }
+  .record-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-cut:nth-child(3) { border-left: 0; }
+  .record-cut:nth-child(-n + 2) { border-bottom: 1px solid var(--chisel-soft); }
+}
+
+@media (max-width: 560px) {
+  .creed li { grid-template-columns: 54px minmax(0, 1fr); }
+  .portico { padding-top: 116px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .descend i { animation: none; }
+}
