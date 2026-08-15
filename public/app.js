@@ -119,7 +119,7 @@ const productFeatures = {
     "🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)",
     "🔹 Latest Financial News (Stay ahead of market-moving events)",
     "🔹 Investment Ideas (Curated insights on top assets to buy)",
-    "🔹 Free Trading Book (Yours to keep when you join)"
+    "🔹 Free 233-Page Trading Book (Technical analysis, fundamental analysis, and trading psychology)"
   ],
   "market-hub": [
     "AI Market Scanner & Risk Engine",
@@ -901,6 +901,7 @@ function signalsPage() {
           <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">100% Free Telegram</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
           <p class="lead" style="font-weight: 700; color: #fff; margin-top: 12px;">Here is what we drop in this channel 100% Free:</p>
+          <p class="tg-hook">Including a <strong>233-page trading book</strong> covering technical analysis, fundamental analysis and the psychology of trading &mdash; yours to keep on joining.</p>
           <div class="hero-actions" style="margin-top:20px;">
             <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis glowing-btn">Join Free Telegram (@bullandbeartradingcomm)</a>
             <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
@@ -911,6 +912,7 @@ function signalsPage() {
           <dl class="tg-facts">
             <div><dt>Channel</dt><dd>@bullandbeartradingcomm</dd></div>
             <div><dt>Cost</dt><dd>Nothing, now or later</dd></div>
+            <div><dt>Book included</dt><dd>233 pages</dd></div>
             <div><dt>Account needed</dt><dd>Telegram only</dd></div>
           </dl>
         </div>
@@ -921,7 +923,7 @@ function signalsPage() {
           ["02", "var(--gold)", "2–3 Video/Text Lectures Weekly", "Step-by-step trading &amp; investing lessons"],
           ["03", "var(--green)", "Latest Financial News", "Stay ahead of market-moving events"],
           ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"],
-          ["05", "var(--gold-lit)", "Free Trading Book", "Yours to keep when you join the channel"]
+          ["05", "var(--gold-lit)", "Free 233-Page Book", "Technical analysis, fundamental analysis, and the psychology of trading &mdash; yours to keep"]
         ].map(([index, accent, title, copy], i) => `
           <article class="card pad glassmorphism perk-card" data-reveal="scale" data-reveal-delay="${i * 90}" style="--perk-accent: ${accent};">
             <span class="perk-index">${index}</span>

@@ -854,3 +854,23 @@ input, select, textarea,
 @media (min-width: 1100px) {
   .perk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* The book is the strongest single reason to join a free channel, so it gets
+   its own line under the lead rather than waiting at fifth place in a list. */
+.tg-hook {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-left: 2px solid var(--gold-leaf);
+  background: rgba(201, 162, 39, 0.07);
+  color: var(--stone);
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+
+.tg-hook strong {
+  color: var(--gold-lit);
+  font-weight: 600;
+}
+
+/* Page counts are figures: tabular, so they read as data not decoration. */
+.tg-facts dd { font-variant-numeric: tabular-nums; }
