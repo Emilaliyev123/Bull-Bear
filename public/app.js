@@ -781,6 +781,7 @@ function homePage() {
               <h3 class="h3">${esc(free.title || "Free Telegram Community")}</h3>
               <p class="stele-copy">${esc(free.description || "")}</p>
               <p class="stele-price"><strong>Free</strong><span>in perpetuity</span></p>
+              <p class="stele-note">Includes a <strong>233-page</strong> trading book &mdash; technical, fundamental and psychology.</p>
               <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis small">Join the Forum</a>
             </div>
           </article>

@@ -874,3 +874,66 @@ input, select, textarea,
 
 /* Page counts are figures: tabular, so they read as data not decoration. */
 .tg-facts dd { font-variant-numeric: tabular-nums; }
+
+/* ══ Reclaiming gradient-filled headings ══════════════════════════════════
+   styles.css paints every .h2 with an animated white/cyan/emerald gradient and
+   sets -webkit-text-fill-color: transparent. Because a transparent fill wins
+   over `color`, setting a colour in this theme was never going to take effect —
+   every section heading on the site was still rendering cyan.
+
+   Headings are reset to a solid fill here. The two places gradient text is
+   wanted (the portico inscription and the hero headline) opt back in below,
+   after this rule. */
+.h1, .h2, .h3, h1, h2, h3 {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: currentColor;
+  animation: none;
+  color: var(--bone);
+}
+
+/* Opt back in: the inscription is the one heading meant to be gilded. */
+.inscription {
+  background: linear-gradient(176deg, #FFFDF7 0%, var(--bone) 34%, var(--gold-lit) 74%, var(--gold-leaf) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.hero .h1 {
+  background: linear-gradient(168deg, #ffffff 0%, #fafafa 30%, var(--gold-2) 68%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ══ The book, noted on the free stele ════════════════════════════════════
+   A single quiet line rather than another block: the stele's job is to make
+   the choice between free and paid legible, and a second panel inside it would
+   compete with the price. */
+.stele-note {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.stele-note::before {
+  content: "+";
+  flex: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gold-leaf);
+}
+
+.stele-note strong {
+  color: var(--gold-lit);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
