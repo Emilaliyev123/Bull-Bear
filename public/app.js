@@ -2849,22 +2849,15 @@ function bindInteractiveEffects() {
       const x = e.clientX - rect.left; // x position within the element.
       const y = e.clientY - rect.top;  // y position within the element.
       
-      // Update CSS variables for the spotlight glow
+      // Position the raking highlight. Light travels across a cut surface;
+      // the surface itself stays put.
       el.style.setProperty('--x', `${x}px`);
       el.style.setProperty('--y', `${y}px`);
-      
-      // Calculate 3D tilt
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const rotateX = ((y - centerY) / centerY) * -5; // max 5 degrees
-      const rotateY = ((x - centerX) / centerX) * 5;  // max 5 degrees
-      
-      el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
     });
-    
+
     el.addEventListener('mouseleave', () => {
-      // Reset transform when mouse leaves
-      el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+      el.style.removeProperty('--x');
+      el.style.removeProperty('--y');
     });
   });
 }
@@ -2900,9 +2893,9 @@ function initMarketCanvas() {
     const width = rect.width;
     const height = rect.height;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#050505";
+    ctx.fillStyle = "#0B0A08";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(255,255,255,0.055)";
+    ctx.strokeStyle = "rgba(226,207,166,0.05)";
     ctx.lineWidth = 1;
     for (let x = (time / 24) % 44; x < width; x += 44) {
       ctx.beginPath();
@@ -2928,15 +2921,15 @@ function initMarketCanvas() {
       const highY = toY(candle.high);
       const lowY = toY(candle.low);
       const up = closeY < openY;
-      ctx.strokeStyle = up ? "rgba(16,185,129,0.78)" : "rgba(239,68,68,0.7)";
-      ctx.fillStyle = up ? "rgba(16,185,129,0.76)" : "rgba(239,68,68,0.72)";
+      ctx.strokeStyle = up ? "rgba(232,223,206,0.5)" : "rgba(154,143,123,0.42)";
+      ctx.fillStyle = up ? "rgba(232,223,206,0.42)" : "rgba(154,143,123,0.34)";
       ctx.beginPath();
       ctx.moveTo(x, highY);
       ctx.lineTo(x, lowY);
       ctx.stroke();
       ctx.fillRect(x - candleWidth / 2, Math.min(openY, closeY), candleWidth, Math.max(3, Math.abs(closeY - openY)));
     });
-    ctx.strokeStyle = "rgba(245,158,11,0.42)";
+    ctx.strokeStyle = "rgba(201,162,39,0.4)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let x = width * 0.32, i = 0; x < width; x += 18, i++) {

@@ -447,3 +447,13 @@ input, select, textarea,
   font-weight: 900;
   letter-spacing: 0.04em;
 }
+
+/* ══ Material honesty ═════════════════════════════════════════════════════
+   The previous theme tilted cards in perspective on hover — a 5° rotateX/
+   rotateY plus scale3d, driven from JS, with a matching CSS rule on
+   .product-card:hover. Glass can plausibly float and tip; a cut stone panel
+   cannot, and the warp was the single strongest thing fighting the material.
+   The JS tilt is removed at source; this neutralises the CSS half. */
+.product-card:hover {
+  transform: translateY(-2px);
+}

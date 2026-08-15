@@ -44,8 +44,8 @@ function buildParticleField() {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   const material = new THREE.PointsMaterial({
-    color: 0x38bdf8,
-    size: 0.024,
+    color: 0xD8C9A6,
+    size: 0.021,
     transparent: true,
     opacity: 0.85,
     depthWrite: false
@@ -53,50 +53,103 @@ function buildParticleField() {
   return new THREE.Points(geometry, material);
 }
 
-function buildCandles() {
+/**
+ * The colonnade. Each column's shaft height is one bar of the price series, so
+ * the architecture is not a backdrop standing behind the data — it IS the data.
+ * That is the whole idea: a temple front whose columns rise and fall because
+ * the market did.
+ *
+ * A rising bar is carved travertine catching the light; a falling bar is
+ * shadowed and shorter. Colour does not carry the direction on its own —
+ * height does — so the meaning survives for a colour-blind viewer, which a
+ * green/red candle field never manages.
+ */
+function buildColonnade() {
   const group = new THREE.Group();
-  const green = new THREE.MeshStandardMaterial({
-    color: 0x10b981,
-    emissive: 0x064e3b,
-    metalness: 0.6,
-    roughness: 0.25
-  });
-  const red = new THREE.MeshStandardMaterial({
-    color: 0xef4444,
-    emissive: 0x450a0a,
-    metalness: 0.5,
-    roughness: 0.3
-  });
-  const wick = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.85 });
 
-  for (let i = 0; i < 72; i += 1) {
-    const up = i % 5 !== 0 && i % 7 !== 0;
-    const height = 0.35 + Math.abs(Math.sin(i * 0.41)) * 1.15 + (i % 9) * 0.025;
-    const body = new THREE.Mesh(new THREE.BoxGeometry(0.075, height, 0.075), up ? green : red);
-    const wickMesh = new THREE.Mesh(new THREE.BoxGeometry(0.018, height + 0.34, 0.018), wick);
-    const x = -4.9 + i * 0.145;
-    const z = Math.sin(i * 0.25) * 0.55 + Math.cos(i * 0.11) * 0.36;
-    const y = -0.82 + height / 2 + Math.sin(i * 0.22) * 0.1;
-    body.position.set(x, y, z);
-    wickMesh.position.set(x, y, z);
-    body.userData.phase = i * 0.19;
-    group.add(wickMesh, body);
+  const travertine = new THREE.MeshStandardMaterial({
+    color: 0xE8DFCE,
+    roughness: 0.82,
+    metalness: 0.04
+  });
+  const shadowed = new THREE.MeshStandardMaterial({
+    color: 0x9A8F7B,
+    roughness: 0.9,
+    metalness: 0.03
+  });
+  const gilt = new THREE.MeshStandardMaterial({
+    color: 0xC9A227,
+    emissive: 0x3A2E08,
+    metalness: 0.95,
+    roughness: 0.22
+  });
+
+  const COUNT = 34;
+  // One deterministic series, so the skyline is composed rather than random —
+  // a trend with a correction in it, which reads as a market.
+  const series = [];
+  for (let i = 0; i < COUNT; i += 1) {
+    const t = i / (COUNT - 1);
+    const trend = Math.pow(t, 0.85) * 1.5;
+    const swing = Math.sin(i * 0.55) * 0.26 + Math.sin(i * 0.21 + 1.3) * 0.34;
+    const correction = t > 0.62 && t < 0.78 ? -0.55 : 0;
+    series.push(Math.max(0.42, 0.62 + trend + swing + correction));
   }
-  group.rotation.set(-0.08, -0.42, 0.04);
+
+  // Shared geometry across every column: 34 shafts on one buffer rather than
+  // 34 allocations, which keeps the draw cost flat on a phone.
+  const shaftGeo = new THREE.CylinderGeometry(0.066, 0.076, 1, 14, 1, false);
+  const drumGeo = new THREE.BoxGeometry(0.2, 0.05, 0.2);
+  const abacusGeo = new THREE.BoxGeometry(0.185, 0.042, 0.185);
+
+  for (let i = 0; i < COUNT; i += 1) {
+    const h = series[i];
+    const rising = i === 0 ? true : series[i] >= series[i - 1];
+    const stoneMat = rising ? travertine : shadowed;
+
+    const x = -4.6 + i * 0.285;
+    const z = Math.sin(i * 0.18) * 0.28;
+
+    const shaft = new THREE.Mesh(shaftGeo, stoneMat);
+    shaft.scale.y = h;
+    shaft.position.set(x, -1.05 + h / 2, z);
+
+    // Capital and base: the two details that separate a column from a bar.
+    const capital = new THREE.Mesh(abacusGeo, rising ? gilt : stoneMat);
+    capital.position.set(x, -1.05 + h + 0.02, z);
+
+    const base = new THREE.Mesh(drumGeo, stoneMat);
+    base.position.set(x, -1.05, z);
+
+    shaft.userData.phase = i * 0.27;
+    shaft.userData.baseHeight = h;
+    group.add(shaft, capital, base);
+  }
+
+  // Stylobate — the platform the colonnade stands on. Without it the columns
+  // float and the whole thing stops reading as architecture.
+  const stylobate = new THREE.Mesh(
+    new THREE.BoxGeometry(10.4, 0.16, 1.15),
+    new THREE.MeshStandardMaterial({ color: 0x2A251C, roughness: 0.95, metalness: 0.02 })
+  );
+  stylobate.position.set(0, -1.13, 0);
+  group.add(stylobate);
+
+  group.rotation.set(-0.05, -0.34, 0.02);
   return group;
 }
 
 function buildRings() {
   const group = new THREE.Group();
   const gold = new THREE.MeshStandardMaterial({
-    color: 0xfbbf24,
-    emissive: 0x78350f,
+    color: 0xC9A227,
+    emissive: 0x4A3A0C,
     metalness: 0.95,
     roughness: 0.15
   });
   const emerald = new THREE.MeshStandardMaterial({
-    color: 0x10b981,
-    emissive: 0x064e3b,
+    color: 0x5FA88A,
+    emissive: 0x123A2C,
     metalness: 0.9,
     roughness: 0.2,
     transparent: true,
@@ -116,9 +169,9 @@ function buildRings() {
 function buildScannerPlanes() {
   const group = new THREE.Group();
   const materials = [
-    new THREE.MeshBasicMaterial({ color: 0x00f0ff, transparent: true, opacity: 0.14, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ color: 0x10b981, transparent: true, opacity: 0.12, side: THREE.DoubleSide }),
-    new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.09, side: THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ color: 0xE4C76A, transparent: true, opacity: 0.075, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0xC9A227, transparent: true, opacity: 0.06, side: THREE.DoubleSide }),
+    new THREE.MeshBasicMaterial({ color: 0x9A8F7B, transparent: true, opacity: 0.05, side: THREE.DoubleSide })
   ];
   for (let i = 0; i < 8; i += 1) {
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(1.6 - i * 0.05, 0.18), materials[i % materials.length]);
@@ -153,16 +206,16 @@ function initHero3D() {
   if (hero) hero.classList.add("three-ready");
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x050505, 0.055);
+  scene.fog = new THREE.FogExp2(0x0B0A08, 0.05);
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
   camera.position.set(0.25, 0.45, 7.2);
   camera.lookAt(0, 0, 0);
 
-  scene.add(new THREE.AmbientLight(0xf8e7b0, 0.45));
-  const key = new THREE.PointLight(0x00f0ff, 2.8, 14);
+  scene.add(new THREE.AmbientLight(0xF0E4C8, 0.5));
+  const key = new THREE.PointLight(0xFFE9B0, 3.1, 16);
   key.position.set(2.2, 2.4, 3.6);
   scene.add(key);
-  const greenLight = new THREE.PointLight(0x10b981, 1.1, 9);
+  const greenLight = new THREE.PointLight(0x7FA8C4, 0.75, 10);
   greenLight.position.set(-2.8, -0.2, 2.8);
   scene.add(greenLight);
 
@@ -171,10 +224,10 @@ function initHero3D() {
   grid.position.set(0, -1.34, -0.8);
   grid.rotation.x = -0.25;
   const particles = buildParticleField();
-  const candles = buildCandles();
+  const colonnade = buildColonnade();
   const rings = buildRings();
   const planes = buildScannerPlanes();
-  rig.add(grid, particles, candles, rings, planes);
+  rig.add(grid, particles, colonnade, rings, planes);
   scene.add(rig);
 
   const pointer = { x: 0, y: 0 };
@@ -243,9 +296,12 @@ function initHero3D() {
     key.intensity = 2.4 + Math.sin(t * 0.9) * 0.55;
     greenLight.intensity = 0.95 + Math.sin(t * 0.6 + 1.4) * 0.35;
 
-    candles.children.forEach((child) => {
-      if (child.userData.phase !== undefined) {
-        child.scale.y = 1 + Math.sin(t * 1.8 + child.userData.phase) * 0.028;
+    // Stone does not pulse. The columns hold their height; only the light
+    // moving across them changes, which is what makes them read as carved
+    // rather than as glowing bars.
+    colonnade.children.forEach((child) => {
+      if (child.userData.baseHeight !== undefined) {
+        child.scale.y = child.userData.baseHeight * (1 + Math.sin(t * 0.5 + child.userData.phase) * 0.004);
       }
     });
 
