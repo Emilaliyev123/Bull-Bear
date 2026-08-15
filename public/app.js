@@ -118,7 +118,8 @@ const productFeatures = {
     "🔹 1 Free Signal Daily (Market opportunities delivered every day)",
     "🔹 2–3 Video/Text Lectures Weekly (Step-by-step trading & investing lessons)",
     "🔹 Latest Financial News (Stay ahead of market-moving events)",
-    "🔹 Investment Ideas (Curated insights on top assets to buy)"
+    "🔹 Investment Ideas (Curated insights on top assets to buy)",
+    "🔹 Free 233-Page Trading Book (Technical analysis, fundamental analysis, and trading psychology)"
   ],
   "market-hub": [
     "AI Market Scanner & Risk Engine",
@@ -620,24 +621,18 @@ function footer() {
   `;
 }
 
-function ticker() {
-  const items = (state.scanner.exchanges.length ? state.scanner.exchanges : [
-    { name: "Binance", status: "ready" },
-    { name: "Bybit", status: "ready" },
-    { name: "OKX", status: "ready" },
-    { name: "KuCoin", status: "ready" },
-    { name: "Gate.io", status: "ready" },
-    { name: "MEXC", status: "ready" },
-    { name: "Bitget", status: "ready" }
-  ]).map((exchange) => [exchange.name, exchange.status === "online" ? "online" : "API ready", exchange.status === "online" ? "up" : ""]);
-  const row = items.map(([asset, move, cls]) => `<span class="ticker-item"><strong>${asset}</strong><span class="${cls}">${move}</span></span>`).join("");
-  return `<div class="ticker"><div class="ticker-track">${row}${row}</div></div>`;
-}
-
 function productCard(product) {
   const cls = product.id === "analyzer" ? "blue" : product.id === "discord" || product.id === "signals" ? "gold" : product.id === "market-hub" ? "green" : "red";
   const mark = product.id === "analyzer" ? "AI" : product.id === "discord" || product.id === "signals" ? "TG" : "M";
-  const badge = product.id === "discord" || product.id === "signals" ? `<div class="badge" style="background:#0088cc;color:#fff;">FREE TELEGRAM</div>` : product.id === "market-hub" ? `<div class="badge" style="background: var(--green); color:#03130e;">MARKET HUB PRO</div>` : `<div class="badge">AI PRO</div>`;
+  // Lapis for the free channel, gold for the paid tier. Lapis lazuli was the
+  // pigment Rome imported to make ultramarine, so it keeps a blue for Telegram
+  // without the cyan that read as software against the stone. Both carry their
+  // ink at AA (6.97:1 and 7.66:1).
+  const badge = product.id === "discord" || product.id === "signals"
+    ? `<div class="badge badge-lapis">FREE TELEGRAM</div>`
+    : product.id === "market-hub"
+      ? `<div class="badge badge-gilt">MARKET HUB PRO</div>`
+      : `<div class="badge">AI PRO</div>`;
   const href = product.id === "analyzer" ? "/how-to-use" : product.id === "discord" || product.id === "signals" ? "/signals" : "/market-hub";
   const planId = product.id === "discord" || product.id === "signals" ? "" : product.planId || productPlanIds[product.id];
   const primaryLabel = state.user ? "Subscribe Now" : "Log In to Subscribe";
@@ -719,133 +714,123 @@ function courseCard(course) {
   `;
 }
 
-function heroSection() {
-  return `
-    <section class="hero">
-      <canvas class="hero-canvas" id="marketCanvas" aria-hidden="true"></canvas>
-      <div class="hero-3d-stage" id="market3dStage" aria-hidden="true"></div>
-      <div class="hero-inner">
-        <div class="hero-copy">
-          <h1 class="h1" data-reveal="split">Bull & Bear Market Command</h1>
-          <p class="lead" data-reveal data-reveal-delay="520">
-            The ultimate AI Market Analyzer for disciplined traders. Scan Forex, Crypto, Stocks, and Gold with institutional-grade risk engines. Join our 100% Free Telegram community today.
-          </p>
-          <div class="hero-kpis" aria-label="Platform highlights" data-reveal data-reveal-delay="640">
-            <span><strong>AI Market Scanner</strong><small>Institutional Risk Engine</small></span>
-            <span><strong>Free Telegram</strong><small>Trading Community</small></span>
-            <span><strong>Market Hub Pro</strong><small>$99.90 monthly</small></span>
-          </div>
-          <div class="hero-actions" data-reveal data-reveal-delay="760">
-            <a href="/products" data-link class="btn primary glowing-btn" data-magnetic="0.22">Unlock Market Hub</a>
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary" data-magnetic="0.18">Join Free Telegram</a>
-          </div>
-        </div>
-        <aside class="hero-console" aria-label="Bull and Bear platform preview" data-reveal="scale" data-reveal-delay="400" data-parallax="0.5">
-          <div class="console-top">
-            <span>Market Command</span>
-            <strong>Live Desk</strong>
-          </div>
-          <div class="console-grid">
-            <div><small>BTC</small><strong>Breakout Watch</strong><em>Risk 0.8%</em></div>
-            <div><small>XAUUSD</small><strong>Trend Retest</strong><em>London session</em></div>
-            <div><small>EURUSD</small><strong>Liquidity Sweep</strong><em>Wait for close</em></div>
-          </div>
-          <div class="console-wave" aria-hidden="true">
-            <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-          </div>
-          <div class="console-foot">
-            <span>AI model</span>
-            <strong>Scenario-based, risk-first analysis</strong>
-          </div>
-        </aside>
-      </div>
-      ${ticker()}
-    </section>
-  `;
-}
-
 function homePage() {
   const { products } = state.content;
+  const paid = products.find((p) => p.id === "market-hub") || products[1] || products[0];
+  const free = products.find((p) => p.id === "discord" || p.id === "signals") || products[0];
+  const O = window.Ornament || {};
+
+  // Laid out as a building rather than a feed: you arrive at the portico, read
+  // the dedication cut into the entablature, pass between the standing stelae,
+  // and descend to the creed. Each section is a room, not a card rack.
   return `
-    ${heroSection()}
-    <section class="section compact">
-      <div class="metric-strip" data-reveal>
-        <div><strong>2</strong><span>Core products</span></div>
-        <div><strong>Live</strong><span>Market Analyzer</span></div>
-        <div><strong>Telegram</strong><span>100% Free Community</span></div>
-        <div><strong>24/7</strong><span>Digital access</span></div>
-      </div>
-    </section>
-    <section class="section compact">
-      <div class="ai-home-band" data-reveal="scale">
-        <div>
-          <div class="eyebrow">AI Included</div>
-          <h2 class="h2" style="margin-top:12px;">AI Trading Desk</h2>
-          <p class="lead">The platform includes the AI desk, full crypto and forex analysis support, risk rules, and signal-style scenarios.</p>
+    <section class="portico" aria-labelledby="portico-title">
+      <canvas class="hero-canvas" id="marketCanvas" aria-hidden="true"></canvas>
+      <div class="hero-3d-stage" id="market3dStage" aria-hidden="true"></div>
+
+      <div class="portico-inner">
+        <div class="entablature" aria-hidden="true">${O.meander ? O.meander({ id: "portico" }) : ""}</div>
+
+        <p class="dedication">Established for the disciplined trader</p>
+
+        <h1 class="inscription" id="portico-title" data-reveal="split">Bull &amp; Bear Market Command</h1>
+
+        <div class="architrave" aria-hidden="true">
+          <span class="architrave-rule"></span>
+          ${O.volute ? O.volute() : ""}
+          <span class="architrave-rule"></span>
         </div>
-        <a href="/ai" data-link class="btn primary">Open AI Desk</a>
-      </div>
-    </section>
-    <section class="section">
-      <div class="section-head" data-reveal>
-        <div>
-          <div class="eyebrow">Products</div>
-          <h2 class="h2" style="margin-top:12px;">Choose Your Trading Journey</h2>
-        </div>
-        <a href="/products" data-link class="btn secondary small">All Products</a>
-      </div>
-      <div class="grid products">${products.map(productCard).join("")}</div>
-    </section>
-    <section class="section compact">
-      <div class="academy-panel" data-reveal>
-        <div>
-          <div class="eyebrow">Method</div>
-          <h2 class="h2" style="margin-top:12px;">Built for Repeatable Trading Workflows</h2>
-          <p class="lead">The AI tool and Market Hub are now one bundle. Telegram is 100% free for community updates, daily signals, and lectures.</p>
-        </div>
-        <div class="academy-stats">
-          <div class="stat"><span class="h3">5+</span><span class="muted">Live Markets</span></div>
-          <div class="stat"><span class="h3">AI</span><span class="muted">Risk Engine</span></div>
-        </div>
-        <div class="process-list">
-          <div><strong>01</strong><span>Learn structure and risk rules</span></div>
-          <div><strong>02</strong><span>Practice with the AI Desk</span></div>
-          <div><strong>03</strong><span>Join the free Telegram channel</span></div>
+
+        <p class="portico-lead" data-reveal data-reveal-delay="480">
+          Forex, crypto, equities and gold, read through an institutional risk engine.
+          Every result carries its source and the hour it was struck.
+        </p>
+
+        <div class="portico-actions" data-reveal data-reveal-delay="620">
+          <a href="/products" data-link class="btn primary" data-magnetic="0.2">Enter the Hall</a>
+          <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn secondary" data-magnetic="0.16">Join the Forum</a>
         </div>
       </div>
+
+      <div class="descend" aria-hidden="true"><span>Descend</span><i></i></div>
     </section>
-    <section class="section compact">
-      <div class="discord-panel" data-reveal style="border-color: rgba(0, 136, 204, 0.4); background: linear-gradient(135deg, rgba(0, 136, 204, 0.1) 0%, rgba(9, 9, 11, 0.95) 100%);">
-        <div>
-          <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">Telegram Community</div>
-          <h2 class="h2" style="margin-top:12px;">100% Free Telegram Channel</h2>
-          <p class="lead">Here is what we drop in this channel 100% Free:</p>
-          <div class="telegram-features-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 16px 0 24px 0;">
-            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
-              <strong>🔹 1 Free Signal Daily</strong>
-              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Market opportunities delivered every day</p>
-            </div>
-            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
-              <strong>🔹 2–3 Video/Text Lectures Weekly</strong>
-              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Step-by-step trading & investing lessons</p>
-            </div>
-            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
-              <strong>🔹 Latest Financial News</strong>
-              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Stay ahead of market-moving events</p>
-            </div>
-            <div class="card pad compact" style="background: rgba(255,255,255,0.03); border: 1px solid rgba(56, 189, 248, 0.2);">
-              <strong>🔹 Investment Ideas</strong>
-              <p class="muted" style="font-size: 0.88rem; margin: 4px 0 0 0;">Curated insights on top assets to buy</p>
-            </div>
-          </div>
-          <div class="hero-actions">
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
-            <a href="/signals" data-link class="btn secondary">View Telegram Details</a>
-          </div>
+
+    <section class="chamber chamber-record" aria-label="The record">
+      <div class="chamber-inner">
+        <div class="record-row" data-reveal>
+          <div class="record-cut"><strong>5+</strong><span>Markets read</span></div>
+          <div class="record-cut"><strong>1:2</strong><span>Minimum reward</span></div>
+          <div class="record-cut"><strong>Live</strong><span>Price provenance</span></div>
+          <div class="record-cut"><strong>24/7</strong><span>Access</span></div>
         </div>
       </div>
     </section>
 
+    <section class="chamber chamber-stelae" aria-labelledby="stelae-title">
+      <div class="chamber-inner">
+        <header class="chamber-head" data-reveal>
+          <p class="eyebrow">The offering</p>
+          <h2 class="h2" id="stelae-title">Two Ways In</h2>
+        </header>
+
+        <div class="stelae">
+          <article class="stele stele-free" data-reveal="scale">
+            ${O.pediment ? O.pediment() : ""}
+            <div class="stele-body">
+              <p class="stele-kind">Open to all</p>
+              <h3 class="h3">${esc(free.title || "Free Telegram Community")}</h3>
+              <p class="stele-copy">${esc(free.description || "")}</p>
+              <p class="stele-price"><strong>Free</strong><span>in perpetuity</span></p>
+              <p class="stele-note">Includes a <strong>233-page</strong> trading book &mdash; technical, fundamental and psychology.</p>
+              <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis small">Join the Forum</a>
+            </div>
+          </article>
+
+          <div class="stele-divider" aria-hidden="true">${O.column ? O.column() : ""}</div>
+
+          <article class="stele stele-paid" data-reveal="scale" data-reveal-delay="120">
+            ${O.pediment ? O.pediment() : ""}
+            <div class="stele-body">
+              <p class="stele-kind">By subscription</p>
+              <h3 class="h3">${esc(paid.title || "Market Hub Pro")}</h3>
+              <p class="stele-copy">${esc(paid.description || "")}</p>
+              <p class="stele-price"><strong>$${money(paid.price || 99.9)}</strong><span>/ ${esc(paid.cadence || "monthly")}</span></p>
+              ${checkoutCta(paid.planId || productPlanIds["market-hub"] || "arbitrage-only", state.user ? "Take the Hall" : "Log In to Subscribe", "btn primary small")}
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="chamber chamber-oracle" aria-labelledby="oracle-title">
+      <div class="chamber-inner oracle-grid">
+        <div class="oracle-seal" aria-hidden="true">${O.guilloche ? O.guilloche({ loops: 34 }) : ""}</div>
+        <div data-reveal>
+          <p class="eyebrow">The oracle</p>
+          <h2 class="h2" id="oracle-title">Ask Before You Act</h2>
+          <p class="chamber-copy">
+            The AI desk answers on market structure, risk and position sizing, and returns a
+            scenario with its reasoning shown rather than a verdict to be obeyed.
+          </p>
+          <a href="/ai" data-link class="btn secondary small" data-magnetic="0.14">Consult the Desk</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="chamber chamber-creed" aria-labelledby="creed-title">
+      <div class="chamber-inner">
+        <header class="chamber-head center" data-reveal>
+          <p class="eyebrow">The creed</p>
+          <h2 class="h2" id="creed-title">Discipline Over Prediction</h2>
+        </header>
+        <ol class="creed">
+          <li data-reveal><span class="creed-numeral">I</span><p>Read the risk before the reward. A setup below 1:2 is refused, not forced.</p></li>
+          <li data-reveal data-reveal-delay="90"><span class="creed-numeral">II</span><p>Know the provenance of every price. A figure without a source and an hour is a rumour.</p></li>
+          <li data-reveal data-reveal-delay="180"><span class="creed-numeral">III</span><p>The best trade is often no trade. No signal is an answer, not a failure.</p></li>
+        </ol>
+        ${O.divider ? O.divider() : ""}
+      </div>
+    </section>
   `;
 }
 
@@ -860,7 +845,7 @@ function productsPage() {
       <div class="grid products">${state.content.products.map(productCard).join("")}</div>
       <div class="discord-mini" data-reveal style="border-color: rgba(0, 136, 204, 0.3);">
         <span>Free Telegram community (@bullandbeartradingcomm) is open to everyone.</span>
-        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small" data-magnetic="0.16" style="background: #0088cc;">Join Free Telegram</a>
+        <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary small btn-lapis" data-magnetic="0.16">Join Free Telegram</a>
       </div>
       <div class="assurance-strip" data-reveal>
         <div>
@@ -917,8 +902,9 @@ function signalsPage() {
           <div class="eyebrow" style="border-color: rgba(0, 136, 204, 0.4); background: rgba(0, 136, 204, 0.15); color: #38bdf8;">100% Free Telegram</div>
           <h1 class="h2" style="margin-top:12px;">Bull & Bear Telegram Channel</h1>
           <p class="lead" style="font-weight: 700; color: #fff; margin-top: 12px;">Here is what we drop in this channel 100% Free:</p>
+          <p class="tg-hook">Including a <strong>233-page trading book</strong> covering technical analysis, fundamental analysis and the psychology of trading &mdash; yours to keep on joining.</p>
           <div class="hero-actions" style="margin-top:20px;">
-            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary glowing-btn" style="background: #0088cc; color: #fff;">Join Free Telegram (@bullandbeartradingcomm)</a>
+            <a href="${FREE_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn primary btn-lapis glowing-btn">Join Free Telegram (@bullandbeartradingcomm)</a>
             <a href="/products" data-link class="btn secondary">View Market Hub Pro</a>
           </div>
         </div>
@@ -927,6 +913,7 @@ function signalsPage() {
           <dl class="tg-facts">
             <div><dt>Channel</dt><dd>@bullandbeartradingcomm</dd></div>
             <div><dt>Cost</dt><dd>Nothing, now or later</dd></div>
+            <div><dt>Book included</dt><dd>233 pages</dd></div>
             <div><dt>Account needed</dt><dd>Telegram only</dd></div>
           </dl>
         </div>
@@ -936,7 +923,8 @@ function signalsPage() {
           ["01", "#38bdf8", "1 Free Signal Daily", "Market opportunities delivered every day"],
           ["02", "var(--gold)", "2–3 Video/Text Lectures Weekly", "Step-by-step trading &amp; investing lessons"],
           ["03", "var(--green)", "Latest Financial News", "Stay ahead of market-moving events"],
-          ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"]
+          ["04", "#a855f7", "Investment Ideas", "Curated insights on top assets to buy"],
+          ["05", "var(--gold-lit)", "Free 233-Page Book", "Technical analysis, fundamental analysis, and the psychology of trading &mdash; yours to keep"]
         ].map(([index, accent, title, copy], i) => `
           <article class="card pad glassmorphism perk-card" data-reveal="scale" data-reveal-delay="${i * 90}" style="--perk-accent: ${accent};">
             <span class="perk-index">${index}</span>
@@ -2841,22 +2829,15 @@ function bindInteractiveEffects() {
       const x = e.clientX - rect.left; // x position within the element.
       const y = e.clientY - rect.top;  // y position within the element.
       
-      // Update CSS variables for the spotlight glow
+      // Position the raking highlight. Light travels across a cut surface;
+      // the surface itself stays put.
       el.style.setProperty('--x', `${x}px`);
       el.style.setProperty('--y', `${y}px`);
-      
-      // Calculate 3D tilt
-      const centerX = rect.width / 2;
-      const centerY = rect.height / 2;
-      const rotateX = ((y - centerY) / centerY) * -5; // max 5 degrees
-      const rotateY = ((x - centerX) / centerX) * 5;  // max 5 degrees
-      
-      el.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.02, 1.02, 1.02)`;
     });
-    
+
     el.addEventListener('mouseleave', () => {
-      // Reset transform when mouse leaves
-      el.style.transform = `perspective(1000px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)`;
+      el.style.removeProperty('--x');
+      el.style.removeProperty('--y');
     });
   });
 }
@@ -2892,9 +2873,9 @@ function initMarketCanvas() {
     const width = rect.width;
     const height = rect.height;
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#050505";
+    ctx.fillStyle = "#0B0A08";
     ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = "rgba(255,255,255,0.055)";
+    ctx.strokeStyle = "rgba(226,207,166,0.05)";
     ctx.lineWidth = 1;
     for (let x = (time / 24) % 44; x < width; x += 44) {
       ctx.beginPath();
@@ -2920,15 +2901,15 @@ function initMarketCanvas() {
       const highY = toY(candle.high);
       const lowY = toY(candle.low);
       const up = closeY < openY;
-      ctx.strokeStyle = up ? "rgba(16,185,129,0.78)" : "rgba(239,68,68,0.7)";
-      ctx.fillStyle = up ? "rgba(16,185,129,0.76)" : "rgba(239,68,68,0.72)";
+      ctx.strokeStyle = up ? "rgba(232,223,206,0.5)" : "rgba(154,143,123,0.42)";
+      ctx.fillStyle = up ? "rgba(232,223,206,0.42)" : "rgba(154,143,123,0.34)";
       ctx.beginPath();
       ctx.moveTo(x, highY);
       ctx.lineTo(x, lowY);
       ctx.stroke();
       ctx.fillRect(x - candleWidth / 2, Math.min(openY, closeY), candleWidth, Math.max(3, Math.abs(closeY - openY)));
     });
-    ctx.strokeStyle = "rgba(245,158,11,0.42)";
+    ctx.strokeStyle = "rgba(201,162,39,0.4)";
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let x = width * 0.32, i = 0; x < width; x += 18, i++) {

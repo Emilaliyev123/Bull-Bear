@@ -1,0 +1,939 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   BULL & BEAR — ANTIQUE LAYER
+   Loaded after styles.css. Kept as its own file so the whole theme can be
+   reverted by removing one <link>, rather than untangling it from 5,000 lines
+   of existing rules.
+
+   Every colour that carries text below has a measured contrast ratio against
+   the obsidian ground, noted inline. Classical palettes are full of deep earth
+   tones — porphyry, oxblood — that are beautiful as surfaces and illegible as
+   text, so those are restricted to backgrounds and borders by rule, not by
+   good intentions.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Ground ──────────────────────────────────────────────────────────── */
+  /* Warmer than the previous #09090b. A cold near-black reads as software;
+     stone and gold need a warm ground to look like material. */
+  --ob:            #0B0A08;
+  --ob-raised:     #131110;
+  --ob-sunken:     #070605;
+
+  /* ── Text (all AA or better on --ob) ─────────────────────────────────── */
+  --marble:        #F4EFE6;  /* 17.3:1 — primary text */
+  --bone:          #E8DFCE;  /* 15.0:1 — headings on stone panels */
+  --stone:         #B9AE99;  /* 9.0:1  — secondary text */
+  --aged:          #8C8371;  /* 5.3:1  — tertiary text, still AA */
+
+  /* ── Metals ──────────────────────────────────────────────────────────── */
+  --gold-leaf:     #C9A227;  /* 8.2:1  — safe for text */
+  --gold-lit:      #E4C76A;  /* 12.0:1 — highlight, gradient stop */
+  --gold-deep:     #8A6D14;  /* borders and shadows only — 3.8:1 vs button ink */
+  --gold-floor:    #A8851C;  /* darkest stop text may sit on: 5.3:1 vs ink, AA */
+  --bronze:        #6E5A3A;
+  --verdigris:     #5FA88A;  /* 7.0:1  — positive/live state, aged bronze */
+
+  /* ── Surface-only. Never set as a text colour. ───────────────────────── */
+  --porphyry:      #7C2D3A;  /* 2.2:1 vs ground — surfaces and borders only */
+  --oxblood:       #A63D4E;  /* 3.2:1 — large display text at most */
+  --oxblood-lit:   #D96A79;  /* 5.6:1 — the text-safe negative */
+
+  /* ── Structure ───────────────────────────────────────────────────────── */
+  --chisel:        rgba(244, 239, 230, 0.14);
+  --chisel-soft:   rgba(244, 239, 230, 0.07);
+  --gold-rule:     rgba(201, 162, 39, 0.34);
+  --plinth:        linear-gradient(180deg, #16130F 0%, #0E0C0A 100%);
+
+  /* Carved edge: a dark top and light bottom inner shadow reads as incision
+     into stone. One-sided shadows look like a border; both sides look cut. */
+  --carve:
+    inset 0 1px 0 rgba(0, 0, 0, 0.65),
+    inset 0 -1px 0 rgba(244, 239, 230, 0.06);
+  --relief:
+    0 1px 0 rgba(244, 239, 230, 0.05),
+    0 18px 48px rgba(0, 0, 0, 0.6);
+
+  /* ── Type ────────────────────────────────────────────────────────────── */
+  /* Three faces, each with one job. Cinzel is drawn from Roman inscriptional
+     capitals — it is the letterform on Trajan's Column, so it carries the
+     period without costume. Spectral is a screen-built serif for prose.
+     Inter handles data: it has genuine tabular figures, and a decorative
+     serif on a stop-loss price is a legibility failure dressed as style. */
+  --font-display: 'Cinzel', 'Trajan Pro', Georgia, serif;
+  --font-body:    'Spectral', Georgia, 'Times New Roman', serif;
+  --font-data:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* Classical proportion. Each step is roughly the golden ratio from the last,
+     which is the same system the buildings this borrows from were laid out on. */
+  --t-hero:  clamp(2.6rem, 6.4vw + 0.4rem, 5.9rem);
+  --t-h1:    clamp(2.0rem, 3.8vw + 0.5rem, 3.6rem);
+  --t-h2:    clamp(1.5rem, 2.2vw + 0.5rem, 2.4rem);
+  --t-h3:    clamp(1.1rem, 0.9vw + 0.8rem, 1.4rem);
+  --t-body:  clamp(1rem, 0.35vw + 0.92rem, 1.12rem);
+  --t-small: 0.82rem;
+}
+
+/* ══ Ground ═══════════════════════════════════════════════════════════════ */
+
+html {
+  font-family: var(--font-body);
+  background: var(--ob);
+  color: var(--marble);
+}
+
+body {
+  /* Replaces the previous cool multi-colour wash. Warm light from upper left,
+     as if falling through a clerestory, with the room darkening at the base. */
+  background:
+    radial-gradient(ellipse 90% 60% at 18% -10%, rgba(201, 162, 39, 0.13), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 88% 8%, rgba(95, 168, 138, 0.055), transparent 62%),
+    linear-gradient(180deg, #0E0C0A 0%, var(--ob) 42%, var(--ob-sunken) 100%);
+  background-attachment: fixed;
+  color: var(--marble);
+  font-family: var(--font-body);
+  font-size: var(--t-body);
+  line-height: 1.68;
+}
+
+/* ══ Inscriptional headings ═══════════════════════════════════════════════ */
+
+.h1, .h2, .h3, h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  /* Roman capitals were cut with generous letterspacing; set solid they clot.
+     This single value does more for the period feel than any ornament. */
+  letter-spacing: 0.055em;
+  line-height: 1.12;
+  color: var(--bone);
+  text-transform: uppercase;
+}
+
+.hero .h1, h1.h1 {
+  font-size: var(--t-hero);
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  line-height: 1.02;
+}
+
+.h2 { font-size: var(--t-h2); }
+.h3 { font-size: var(--t-h3); letter-spacing: 0.075em; }
+
+/* Body prose stays sentence case and serif — uppercase is for the inscription,
+   not for reading. */
+p, .lead, .muted, li {
+  font-family: var(--font-body);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.lead {
+  font-size: var(--t-body);
+  color: var(--stone);
+  line-height: 1.72;
+}
+
+.muted { color: var(--stone); }
+.faint { color: var(--aged); }
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold-leaf);
+}
+
+/* ══ Data ═════════════════════════════════════════════════════════════════
+   The promise that makes this theme safe: ornament frames the numbers, it
+   never passes through them. Anything a trader reads a price from keeps the
+   data face, tabular figures, and full-contrast marble. */
+
+.result-tile strong,
+.tp-stack strong,
+.confidence-card strong,
+.scanner-row strong,
+.metric-strip strong,
+.price,
+.stat strong,
+.tg-facts dd,
+.table-list .table-row strong,
+input, select, textarea,
+.data-status-badge,
+.signal-badge,
+.status-badge {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.result-tile strong,
+.tp-stack strong,
+.price,
+.metric-strip strong {
+  color: var(--marble);
+  font-weight: 700;
+}
+
+/* Labels may be inscriptional; the values they label may not. */
+.result-tile span,
+.metric-strip span,
+.stat span {
+  font-family: var(--font-display);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--aged);
+}
+
+/* ══ Panels: cut stone rather than glass ══════════════════════════════════ */
+
+.card,
+.academy-panel,
+.hub-control-panel,
+.analyzer-result,
+.contact-card,
+.market-hub-hero,
+.discord-panel,
+.discord-hero {
+  background: var(--plinth) !important;
+  border: 1px solid var(--chisel) !important;
+  border-radius: 3px !important;   /* stone is cut square, not rounded */
+  box-shadow: var(--carve), var(--relief);
+  backdrop-filter: none !important;
+}
+
+/* A hairline of gold along the top edge — the one place gilding belongs on a
+   stone panel, where light would actually catch a cut edge. */
+.card::before,
+.market-hub-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-rule) 22%, var(--gold-rule) 78%, transparent);
+  pointer-events: none;
+}
+
+.card { position: relative; }
+
+.card:hover,
+.product-card:hover {
+  border-color: var(--gold-rule) !important;
+  /* Stone does not lift far. A small rise keeps the material honest. */
+  transform: translateY(-2px);
+  box-shadow: var(--carve), 0 22px 60px rgba(0, 0, 0, 0.72);
+}
+
+/* ══ Controls: struck bronze ══════════════════════════════════════════════ */
+
+.btn {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+.btn.primary,
+.btn.primary.glowing-btn {
+  color: #17130A;
+  /* Bottoms out at --gold-floor, not --gold-deep. The deeper tone made a
+     handsome struck-metal edge but dropped the label to 3.8:1 where the text
+     met it; --gold-floor holds 5.3:1 across the whole face. The darker tone
+     survives as the border, where no text sits on it. */
+  background: linear-gradient(180deg, var(--gold-lit) 0%, var(--gold-leaf) 55%, var(--gold-floor) 100%);
+  border: 1px solid var(--gold-deep);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 248, 220, 0.55),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 8px 22px rgba(201, 162, 39, 0.2);
+  text-shadow: 0 1px 0 rgba(255, 248, 220, 0.35);
+}
+
+.btn.primary:hover {
+  background: linear-gradient(180deg, #F2DC94 0%, var(--gold-lit) 52%, var(--gold-leaf) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 252, 240, 0.7),
+    0 10px 30px rgba(201, 162, 39, 0.34);
+}
+
+.btn.secondary {
+  color: var(--bone);
+  background: linear-gradient(180deg, rgba(244, 239, 230, 0.07), rgba(244, 239, 230, 0.02));
+  border: 1px solid var(--chisel);
+}
+
+.btn.secondary:hover {
+  color: var(--marble);
+  border-color: var(--gold-rule);
+  background: linear-gradient(180deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.04));
+}
+
+/* ══ Semantic states, re-cast in classical material ═══════════════════════ */
+
+.data-status-badge.live {
+  color: var(--verdigris);
+  border-color: rgba(95, 168, 138, 0.45);
+  background: rgba(95, 168, 138, 0.1);
+}
+
+.data-status-badge.live::before { background: var(--verdigris); box-shadow: 0 0 0 3px rgba(95, 168, 138, 0.2); }
+
+.result-tile strong.risk-low     { color: var(--verdigris); }
+.result-tile strong.risk-medium  { color: var(--gold-lit); }
+.result-tile strong.risk-high    { color: #E08A4B; }
+.result-tile strong.risk-extreme { color: var(--oxblood-lit); }  /* 5.6:1, not raw oxblood */
+
+.tp-stack > div {
+  border-left-color: rgba(95, 168, 138, 0.5);
+  background: rgba(95, 168, 138, 0.05);
+}
+
+/* ══ Ornament placement ═══════════════════════════════════════════════════ */
+
+.orn { display: block; color: var(--gold-leaf); }
+
+.orn-meander { opacity: 0.5; }
+
+.orn-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 40px auto;
+  width: min(100%, 620px);
+  color: var(--gold-leaf);
+}
+
+.orn-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-rule), transparent);
+}
+
+.orn-rosette { width: 16px; height: 16px; flex: none; opacity: 0.8; }
+
+.orn-wreath {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--gold-leaf);
+}
+
+.orn-laurel { width: 44px; height: 40px; flex: none; opacity: 0.75; }
+
+.orn-wreath-core {
+  font-family: var(--font-display);
+  font-weight: 900;
+  color: var(--bone);
+}
+
+.orn-guilloche {
+  width: 100%;
+  height: 100%;
+  color: var(--gold-leaf);
+  opacity: 0.16;
+}
+
+.orn-column { color: var(--stone); opacity: 0.16; }
+
+.orn-pediment { color: var(--gold-leaf); opacity: 0.55; }
+
+.orn-volute { width: 26px; height: 26px; color: var(--gold-leaf); opacity: 0.6; }
+
+/* ══ Focus: gold, matching the theme, still unmistakable ══════════════════ */
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--gold-lit);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection { background: rgba(201, 162, 39, 0.3); color: var(--marble); }
+
+/* ══ Motion: stone has mass ═══════════════════════════════════════════════
+   Classical material should not bounce. The spring easing used elsewhere is
+   overridden so buttons settle rather than overshoot. */
+
+[data-magnetic] { transition: transform var(--dur-fast) var(--ease-out-quart); }
+
+@media (prefers-reduced-motion: reduce) {
+  .card:hover, .product-card:hover { transform: none; }
+}
+
+/* ══ Reclaiming the neon accents ══════════════════════════════════════════
+   .neon-text and .neon-text-green are applied in app.js markup on several
+   headings. Rather than edit every call site, the classes are re-cast here in
+   gold and verdigris — the cyan and neon green they carried were the one thing
+   that still read as software rather than stone. */
+
+.neon-text,
+.neon-text-green {
+  background: linear-gradient(100deg, var(--bone) 8%, var(--gold-lit) 52%, var(--gold-leaf) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  text-shadow: none;
+}
+
+.gold-text { color: var(--gold-leaf); }
+
+/* The glow on primary CTAs was a neon halo; gilding catches light instead. */
+.glowing-btn { animation: none; }
+
+/* ══ Badges and the Telegram accent ═══════════════════════════════════════
+   Telegram's cyan was the last thing on the page still reading as software.
+   Lapis lazuli — the stone Rome imported to grind into ultramarine — keeps a
+   blue for the channel while belonging to the material palette. */
+
+:root {
+  --lapis:      #2E5C8A;   /* white ink at 6.97:1 */
+  --lapis-deep: #24486B;   /* white ink at 9.48:1 */
+}
+
+.badge {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+/* Doubled class to reach (0,2,0) — styles.css carries `.product-card .badge`
+   at the same weight, and a single class would lose to it on specificity
+   regardless of load order. Matching the weight lets source order decide,
+   which keeps !important out of the theme. */
+.badge.badge-lapis {
+  color: #FFFFFF;
+  background: linear-gradient(180deg, var(--lapis) 0%, var(--lapis-deep) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.badge.badge-gilt {
+  color: #17130A;
+  background: linear-gradient(180deg, var(--gold-lit) 0%, var(--gold-floor) 100%);
+  border: 1px solid var(--gold-deep);
+}
+
+.btn.primary.btn-lapis {
+  color: #FFFFFF;
+  background: linear-gradient(180deg, #3A6EA0 0%, var(--lapis) 55%, var(--lapis-deep) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 8px 22px rgba(46, 92, 138, 0.28);
+  text-shadow: none;
+}
+
+.btn.primary.btn-lapis:hover {
+  background: linear-gradient(180deg, #4A80B4 0%, #34669A 55%, var(--lapis) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    0 10px 28px rgba(46, 92, 138, 0.4);
+}
+
+/* Product-card marks: struck counters, not app icons. */
+.product-card .mark,
+.mark {
+  border-radius: 2px;
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+/* ══ Material honesty ═════════════════════════════════════════════════════
+   The previous theme tilted cards in perspective on hover — a 5° rotateX/
+   rotateY plus scale3d, driven from JS, with a matching CSS rule on
+   .product-card:hover. Glass can plausibly float and tip; a cut stone panel
+   cannot, and the warp was the single strongest thing fighting the material.
+   The JS tilt is removed at source; this neutralises the CSS half. */
+.product-card:hover {
+  transform: translateY(-2px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE BUILDING — structural layout, not a restyle
+   The homepage is composed as architecture: a portico you arrive at, chambers
+   you descend through, stelae standing in a row. These rules define rooms and
+   proportion; the earlier sections only defined material.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── I. Portico ───────────────────────────────────────────────────────────
+   Full height, because you should meet the building before you meet any copy.
+   svh rather than vh: on mobile, vh is measured against the largest viewport,
+   so a 100vh hero is cut off by the browser chrome on arrival. */
+.portico {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 132px 0 96px;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.portico .hero-canvas,
+.portico .hero-3d-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+/* Floor shadow: grounds the colonnade so it stands on something. */
+.portico::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, var(--ob-sunken) 88%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.portico-inner {
+  width: min(1080px, 100% - 40px);
+  display: grid;
+  justify-items: center;
+  gap: 22px;
+  text-align: center;
+}
+
+.entablature {
+  width: min(560px, 80%);
+  color: var(--gold-leaf);
+  opacity: 0.65;
+}
+
+.dedication {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.42em;
+  text-transform: uppercase;
+  color: var(--aged);
+  text-indent: 0.42em;
+}
+
+/* The inscription. Centred, wide-tracked, cut rather than printed: the light
+   top edge and dark lower edge are what make letters read as incised. */
+.inscription {
+  margin: 0;
+  max-width: 15ch;
+  font-family: var(--font-display);
+  font-size: clamp(2.7rem, 8.2vw, 6.6rem);
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  background: linear-gradient(176deg, #FFFDF7 0%, var(--bone) 34%, var(--gold-lit) 74%, var(--gold-leaf) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.55));
+}
+
+.architrave {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: min(420px, 74%);
+  color: var(--gold-leaf);
+}
+
+.architrave-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold-rule), transparent);
+}
+
+.portico-lead {
+  margin: 0;
+  max-width: 58ch;
+  font-size: clamp(1rem, 0.5vw + 0.9rem, 1.16rem);
+  line-height: 1.75;
+  color: var(--stone);
+}
+
+.portico-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.descend {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--aged);
+  text-indent: 0.34em;
+}
+
+.descend i {
+  width: 1px;
+  height: 34px;
+  background: linear-gradient(180deg, var(--gold-rule), transparent);
+  animation: descend-drift 2.6s ease-in-out infinite;
+}
+
+@keyframes descend-drift {
+  0%, 100% { opacity: 0.35; transform: scaleY(0.7); transform-origin: top; }
+  50%      { opacity: 1;    transform: scaleY(1);   transform-origin: top; }
+}
+
+/* ── II. Chambers ─────────────────────────────────────────────────────────
+   Rooms rather than sections. The hairline at the top of each is the joint
+   between courses of stone. */
+.chamber {
+  position: relative;
+  padding: clamp(64px, 8vw, 116px) 0;
+  border-top: 1px solid var(--chisel-soft);
+}
+
+.chamber-inner {
+  width: min(1180px, 100% - 40px);
+  margin: 0 auto;
+}
+
+.chamber-head { margin-bottom: 38px; }
+.chamber-head.center { text-align: center; }
+.chamber-head .h2 { margin: 10px 0 0; }
+
+.chamber-copy {
+  max-width: 56ch;
+  margin: 14px 0 22px;
+  color: var(--stone);
+  line-height: 1.75;
+}
+
+/* ── The record: figures cut into a single course of stone ────────────── */
+.record-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--chisel);
+  border-bottom: 1px solid var(--chisel);
+}
+
+.record-cut {
+  display: grid;
+  gap: 8px;
+  justify-items: center;
+  padding: 30px 16px;
+  text-align: center;
+  border-left: 1px solid var(--chisel-soft);
+}
+
+.record-cut:first-child { border-left: 0; }
+
+.record-cut strong {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.6rem, 2.6vw, 2.5rem);
+  font-weight: 700;
+  color: var(--marble);
+  line-height: 1;
+}
+
+.record-cut span {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--aged);
+}
+
+/* ── The stelae: standing slabs with a real column between them ─────────── */
+.stelae {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+}
+
+.stele {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 0 0 34px;
+  background:
+    linear-gradient(180deg, #17140F 0%, #100E0B 62%, #0C0A08 100%);
+  border: 1px solid var(--chisel);
+  border-radius: 3px;
+  box-shadow: var(--carve), var(--relief);
+}
+
+.stele .orn-pediment {
+  width: 100%;
+  height: 40px;
+  margin-top: -1px;
+}
+
+.stele-body {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  padding: 26px clamp(22px, 3vw, 38px) 0;
+}
+
+.stele-kind {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--gold-leaf);
+  text-indent: 0.26em;
+}
+
+.stele .h3 { margin: 0; color: var(--bone); }
+
+.stele-copy {
+  margin: 0;
+  color: var(--stone);
+  line-height: 1.7;
+}
+
+.stele-price {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding-top: 16px;
+  border-top: 1px solid var(--chisel-soft);
+}
+
+.stele-price strong {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(1.7rem, 2.4vw, 2.3rem);
+  font-weight: 700;
+  color: var(--marble);
+  line-height: 1;
+}
+
+.stele-price span {
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--aged);
+}
+
+.stele .btn { justify-self: start; margin-top: 4px; }
+
+/* The divider is a load-bearing column, not a rule: it is the one place the
+   layout is literally architectural rather than decorated. */
+.stele-divider {
+  display: grid;
+  place-items: stretch;
+  padding: 0 14px;
+}
+
+.stele-divider .orn-column {
+  width: 100%;
+  height: 100%;
+  opacity: 0.3;
+}
+
+/* ── The oracle: seal set beside the copy ─────────────────────────────── */
+.oracle-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+  align-items: center;
+}
+
+.oracle-seal {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gold-rule);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, rgba(201, 162, 39, 0.1), transparent 62%);
+}
+
+/* ── The creed: three articles, numbered in Roman ───────────────────────── */
+.creed {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--chisel);
+}
+
+.creed li {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: clamp(16px, 3vw, 40px);
+  align-items: baseline;
+  padding: 28px 4px;
+  border-bottom: 1px solid var(--chisel-soft);
+}
+
+.creed-numeral {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 2.4vw, 2.2rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: var(--gold-leaf);
+  opacity: 0.85;
+}
+
+.creed p {
+  margin: 0;
+  color: var(--stone);
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+/* ── Narrow viewports: the colonnade collapses to a single file ─────────── */
+@media (max-width: 900px) {
+  .stelae { grid-template-columns: 1fr; gap: 22px; }
+  /* The column divider only reads as structure when it stands between two
+     things. Stacked, it becomes a stray graphic, so it is removed. */
+  .stele-divider { display: none; }
+  .oracle-grid { grid-template-columns: 1fr; }
+  .oracle-seal { max-width: 210px; }
+  .record-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .record-cut:nth-child(3) { border-left: 0; }
+  .record-cut:nth-child(-n + 2) { border-bottom: 1px solid var(--chisel-soft); }
+}
+
+@media (max-width: 560px) {
+  .creed li { grid-template-columns: 54px minmax(0, 1fr); }
+  .portico { padding-top: 116px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .descend i { animation: none; }
+}
+
+/* The 2D candle canvas recedes once WebGL is up, so the colonnade is the only
+   backdrop competing for the headline. styles.css scopes this to .hero; the
+   portico needs its own rule, and a deeper fade because the colonnade already
+   fills the frame. */
+.portico.three-ready .hero-canvas {
+  opacity: 0.14;
+  transition: opacity 900ms var(--ease-out-quart);
+}
+
+/* ══ Telegram perks ═══════════════════════════════════════════════════════
+   The markup carried a `.four` class that was never defined, so the perks
+   fell back to a single column. Auto-fit rather than a fixed count: the list
+   is five now and may not stay five, and a hard `repeat(4, …)` would strand
+   the last card alone in its own row. */
+.perk-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+/* Five cards across a wide viewport leave an awkward 4+1 break, so the row is
+   held to three at the widest sizes, giving a clean 3+2. */
+@media (min-width: 1100px) {
+  .perk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* The book is the strongest single reason to join a free channel, so it gets
+   its own line under the lead rather than waiting at fifth place in a list. */
+.tg-hook {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-left: 2px solid var(--gold-leaf);
+  background: rgba(201, 162, 39, 0.07);
+  color: var(--stone);
+  font-size: 0.98rem;
+  line-height: 1.65;
+}
+
+.tg-hook strong {
+  color: var(--gold-lit);
+  font-weight: 600;
+}
+
+/* Page counts are figures: tabular, so they read as data not decoration. */
+.tg-facts dd { font-variant-numeric: tabular-nums; }
+
+/* ══ Reclaiming gradient-filled headings ══════════════════════════════════
+   styles.css paints every .h2 with an animated white/cyan/emerald gradient and
+   sets -webkit-text-fill-color: transparent. Because a transparent fill wins
+   over `color`, setting a colour in this theme was never going to take effect —
+   every section heading on the site was still rendering cyan.
+
+   Headings are reset to a solid fill here. The two places gradient text is
+   wanted (the portico inscription and the hero headline) opt back in below,
+   after this rule. */
+.h1, .h2, .h3, h1, h2, h3 {
+  background: none;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  -webkit-text-fill-color: currentColor;
+  animation: none;
+  color: var(--bone);
+}
+
+/* Opt back in: the inscription is the one heading meant to be gilded. */
+.inscription {
+  background: linear-gradient(176deg, #FFFDF7 0%, var(--bone) 34%, var(--gold-lit) 74%, var(--gold-leaf) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.hero .h1 {
+  background: linear-gradient(168deg, #ffffff 0%, #fafafa 30%, var(--gold-2) 68%, var(--gold) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* ══ The book, noted on the free stele ════════════════════════════════════
+   A single quiet line rather than another block: the stele's job is to make
+   the choice between free and paid legible, and a second panel inside it would
+   compete with the price. */
+.stele-note {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.stele-note::before {
+  content: "+";
+  flex: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--gold-leaf);
+}
+
+.stele-note strong {
+  color: var(--gold-lit);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
