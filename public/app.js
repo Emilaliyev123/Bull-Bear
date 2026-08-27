@@ -2456,9 +2456,28 @@ function profilePage() {
       </div>
       <div class="grid three account-grid" data-reveal>
         <div class="card pad">
-          <h2 class="h3">Active Subscription</h2>
-          <p class="muted">${activeSubscription ? `${esc(activeSubscription.planId)} until ${new Date(activeUntil).toLocaleDateString()}` : "No active subscription yet."}</p>
-          ${activeSubscription ? `<button class="btn danger small" data-cancel-subscription="${esc(activeSubscription.id)}">Cancel Auto-Renew</button>` : `<a href="/products" data-link class="btn primary small">View Plans</a>`}
+          <h2 class="h3">Access</h2>
+          ${(() => {
+            if (!activeSubscription) {
+              return `<p class="muted">No active access yet.</p>
+                      <a href="/products" data-link class="btn primary small">View Plans</a>`;
+            }
+            const endsAt = new Date(activeUntil);
+            const daysLeft = Math.ceil((endsAt.getTime() - Date.now()) / 86400000);
+            // Access is sold as a fixed period and does not recharge itself, so
+            // days remaining is the number that actually matters to a member.
+            // An end date alone buries it, and the card previously offered to
+            // "Cancel Auto-Renew" — a promise nothing in the system keeps.
+            const tone = daysLeft <= 3 ? "urgent" : daysLeft <= 7 ? "soon" : "ok";
+            return `
+              <p class="muted">${esc(activeSubscription.planId)} &middot; ends ${endsAt.toLocaleDateString()}</p>
+              <p class="access-countdown ${tone}"><strong>${daysLeft}</strong> day${daysLeft === 1 ? "" : "s"} remaining</p>
+              ${daysLeft <= 7
+                ? `<p class="access-note">Access does not renew by itself. Renew before it ends to keep the Market Hub.</p>
+                   ${checkoutCta(activeSubscription.planId, "Renew Access", "btn primary small")}`
+                : `<p class="access-note">A fixed access period. You will not be charged again automatically.</p>`}
+            `;
+          })()}
         </div>
         <div class="card pad">
           <h2 class="h3">Discord</h2>

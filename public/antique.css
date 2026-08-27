@@ -1025,3 +1025,52 @@ input, select, textarea,
   color: var(--gold-lit);
   font-weight: 600;
 }
+
+/* ══ Access countdown ═════════════════════════════════════════════════════
+   Access is sold as a fixed period that does not recharge itself, so the
+   member needs to see time remaining, not just an end date. Colour escalates
+   as the end approaches, and never carries the meaning alone — the number of
+   days is always spelled out. */
+.access-countdown {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 4px 0 0;
+  font-family: var(--font-data);
+  font-size: 0.92rem;
+  color: var(--stone);
+}
+
+.access-countdown strong {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--marble);
+}
+
+.access-countdown.soon strong   { color: var(--gold-lit); }
+.access-countdown.urgent strong { color: var(--oxblood-lit); }
+
+.access-countdown.urgent::after {
+  content: "Ending soon";
+  margin-left: auto;
+  align-self: center;
+  padding: 3px 9px;
+  border: 1px solid rgba(217, 106, 121, 0.45);
+  border-radius: 2px;
+  background: rgba(217, 106, 121, 0.1);
+  color: var(--oxblood-lit);
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.access-note {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--aged);
+}
