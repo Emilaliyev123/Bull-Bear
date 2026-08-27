@@ -48,7 +48,7 @@ const PAYMENT_PLANS = {
   },
   "arbitrage-only": {
     name: "Market Hub Pro",
-    amount: 99.9,
+    amount: 24.9,
     cadence: "monthly",
     accessDays: 30
   }
@@ -152,6 +152,14 @@ function readDb() {
   dbCache.auditLogs = Array.isArray(dbCache.auditLogs) ? dbCache.auditLogs : [];
   dbCache.announcements = Array.isArray(dbCache.announcements) ? dbCache.announcements : [];
   dbCache.notifications = Array.isArray(dbCache.notifications) ? dbCache.notifications : [];
+  dbCache.reviews = Array.isArray(dbCache.reviews) ? dbCache.reviews : [];
+  // Analytics is stored as daily aggregates rather than an event log. A single
+  // JSON file is the whole database here, so appending a row per pageview would
+  // grow it without bound and make every write slower.
+  dbCache.analytics = dbCache.analytics && typeof dbCache.analytics === "object"
+    ? dbCache.analytics
+    : { days: {} };
+  if (!dbCache.analytics.days || typeof dbCache.analytics.days !== "object") dbCache.analytics.days = {};
   dbCache.scannerControls = dbCache.scannerControls || {
     enabled: true,
     minSpread: 0.25,
@@ -2761,7 +2769,7 @@ function serializeContent(db, auth = {}) {
         title: "Analyzer & Market Hub Pro",
         subtitle: "The Ultimate Trading Arsenal",
         description: "Complete access to the AI Market Scanner, institutional risk engine, calculated entry zones, live crypto arbitrage scanner, and live price anchoring.",
-        price: 99.9,
+        price: 24.9,
         cadence: "monthly"
       }
     ]
@@ -2850,13 +2858,194 @@ app.get("/api/content", optionalAuth, (req, res) => {
 
 
 
+/* ══ Analytics ═════════════════════════════════════════════════════════════
+   First-party and deliberately minimal. A third-party tag would mean an
+   external account, a script on every page, and a cookie banner; this stores
+   daily counts on the server that already serves the site.
+
+   No cookies and no raw IP are stored. A visitor is counted via a hash of
+   IP + user-agent salted with the date, so the same person is one visitor for
+   one day and the value cannot be traced back or linked across days. That is
+   enough to answer "is anyone arriving, and from where" without collecting
+   anything personal. */
+const ANALYTICS_RETENTION_DAYS = 120;
+
+function analyticsDayKey(date = new Date()) {
+  return date.toISOString().slice(0, 10);
+}
+
+function visitorHash(req, dayKey) {
+  const ip = req.ip || "";
+  const ua = req.get("user-agent") || "";
+  return crypto.createHmac("sha256", `${ADMIN_SECRET}:${dayKey}`).update(`${ip}|${ua}`).digest("hex").slice(0, 16);
+}
+
+function referrerLabel(raw) {
+  const value = String(raw || "").trim();
+  if (!value) return "direct";
+  try {
+    const host = new URL(value).hostname.replace(/^www\./, "");
+    if (!host || host === "bullandbear.az") return "direct";
+    return host.slice(0, 60);
+  } catch (error) {
+    return "other";
+  }
+}
+
+function pruneAnalytics(analytics) {
+  const keys = Object.keys(analytics.days);
+  if (keys.length <= ANALYTICS_RETENTION_DAYS) return;
+  keys.sort();
+  for (const key of keys.slice(0, keys.length - ANALYTICS_RETENTION_DAYS)) delete analytics.days[key];
+}
+
+function recordAnalytics(req, { path: viewPath, referrer, event }) {
+  const db = readDb();
+  const dayKey = analyticsDayKey();
+  const day = db.analytics.days[dayKey] || (db.analytics.days[dayKey] = {
+    views: {}, referrers: {}, visitors: [], events: {}
+  });
+
+  if (viewPath) {
+    const clean = String(viewPath).split("?")[0].slice(0, 80) || "/";
+    day.views[clean] = (day.views[clean] || 0) + 1;
+    const label = referrerLabel(referrer);
+    day.referrers[label] = (day.referrers[label] || 0) + 1;
+  }
+  if (event) {
+    const name = String(event).slice(0, 40);
+    day.events[name] = (day.events[name] || 0) + 1;
+  }
+
+  const hash = visitorHash(req, dayKey);
+  if (!day.visitors.includes(hash)) day.visitors.push(hash);
+
+  pruneAnalytics(db.analytics);
+  writeDb(db);
+}
+
+// Public and unauthenticated by necessity — it is called by every visitor.
+// Rate limited so it cannot be used to inflate counts or grow the database.
+const analyticsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 40,
+  message: { ok: false }
+});
+
+app.post("/api/analytics/collect", analyticsLimiter, (req, res) => {
+  try {
+    recordAnalytics(req, {
+      path: req.body?.path,
+      referrer: req.body?.referrer,
+      event: req.body?.event
+    });
+  } catch (error) {
+    // Analytics must never break a page view.
+    console.warn("Analytics write failed:", error.message);
+  }
+  res.status(204).end();
+});
+
+app.get("/api/admin/analytics", requireAdmin, (req, res) => {
+  const db = readDb();
+  const days = Object.entries(db.analytics.days)
+    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+    .slice(0, 60)
+    .map(([date, d]) => ({
+      date,
+      visitors: (d.visitors || []).length,
+      pageviews: Object.values(d.views || {}).reduce((sum, n) => sum + n, 0),
+      views: d.views || {},
+      referrers: d.referrers || {},
+      events: d.events || {}
+    }));
+
+  const totals = days.reduce((acc, d) => {
+    acc.visitors += d.visitors;
+    acc.pageviews += d.pageviews;
+    for (const [k, v] of Object.entries(d.referrers)) acc.referrers[k] = (acc.referrers[k] || 0) + v;
+    for (const [k, v] of Object.entries(d.events)) acc.events[k] = (acc.events[k] || 0) + v;
+    return acc;
+  }, { visitors: 0, pageviews: 0, referrers: {}, events: {} });
+
+  res.json({ days, totals });
+});
+
+/* ══ Reviews ═══════════════════════════════════════════════════════════════
+   Entered by the admin from real customer feedback. There is no public submit
+   endpoint: reviews on a paid financial product carry weight, so they are only
+   ever added deliberately by the site owner from feedback they actually
+   received. */
+function publicReview(review) {
+  return {
+    id: review.id,
+    name: review.name,
+    role: review.role || "",
+    rating: review.rating,
+    body: review.body,
+    date: review.date
+  };
+}
+
+app.get("/api/reviews", (req, res) => {
+  const db = readDb();
+  const reviews = db.reviews
+    .filter((r) => r.published)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .map(publicReview);
+  const rated = reviews.filter((r) => Number(r.rating) > 0);
+  const average = rated.length
+    ? Math.round((rated.reduce((sum, r) => sum + Number(r.rating), 0) / rated.length) * 10) / 10
+    : null;
+  res.json({ reviews, count: reviews.length, average });
+});
+
+app.get("/api/admin/reviews", requireAdmin, (req, res) => {
+  res.json({ reviews: readDb().reviews });
+});
+
+app.post("/api/admin/reviews", requireAdmin, (req, res) => {
+  const name = String(req.body?.name || "").trim().slice(0, 60);
+  const body = String(req.body?.body || "").trim().slice(0, 900);
+  if (!name || !body) return res.status(400).json({ error: "name and body are required." });
+
+  const ratingRaw = Number(req.body?.rating);
+  const rating = Number.isFinite(ratingRaw) ? Math.min(5, Math.max(1, Math.round(ratingRaw))) : 5;
+
+  const review = {
+    id: crypto.randomUUID(),
+    name,
+    role: String(req.body?.role || "").trim().slice(0, 80),
+    rating,
+    body,
+    date: String(req.body?.date || "").trim() || nowIso().slice(0, 10),
+    published: req.body?.published !== false,
+    createdAt: nowIso()
+  };
+  const db = readDb();
+  db.reviews.unshift(review);
+  writeDb(db);
+  addAuditLog("review.created", req.admin.username, { reviewId: review.id, name });
+  res.status(201).json(review);
+});
+
+app.delete("/api/admin/reviews/:id", requireAdmin, (req, res) => {
+  const db = readDb();
+  const before = db.reviews.length;
+  db.reviews = db.reviews.filter((r) => r.id !== req.params.id);
+  if (db.reviews.length === before) return res.status(404).json({ error: "Review not found." });
+  writeDb(db);
+  addAuditLog("review.deleted", req.admin.username, { reviewId: req.params.id });
+  res.json({ success: true });
+});
+
 app.get("/api/plans", (req, res) => {
   res.json({
     plans: [
       {
         id: "arbitrage-only",
         name: "Market Hub Pro",
-        price: 99.9,
+        price: 24.9,
         cadence: "monthly",
         features: ["Arbitrage scanner", "Crypto analyzer", "Forex analyzer", "Gold and commodities analyzer", "Stock research", "Risk guide"]
       }

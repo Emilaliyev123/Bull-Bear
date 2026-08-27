@@ -93,6 +93,7 @@ const state = {
     }
   },
   adminPlatform: null,
+  reviews: null,
   message: ""
 };
 
@@ -311,6 +312,15 @@ async function loadContent() {
   state.content = await api("/api/content");
 }
 
+async function loadReviews() {
+  try {
+    state.reviews = await api("/api/reviews");
+  } catch (error) {
+    // Proof is a nice-to-have; the page must render without it.
+    state.reviews = null;
+  }
+}
+
 function navigate(path) {
   if (window.location.pathname !== path) {
     history.pushState({}, "", path);
@@ -343,9 +353,14 @@ async function startPlanCheckout(planId, button = null) {
     return;
   }
   if (!state.user) {
+    // A logged-out click on Subscribe is the clearest buying signal the site
+    // gets, and it is invisible in pageviews — the visitor is bounced to the
+    // login page having never reached checkout.
+    if (window.BullBearAnalytics) window.BullBearAnalytics.trackEvent("checkout_blocked_login");
     navigate("/login");
     return;
   }
+  if (window.BullBearAnalytics) window.BullBearAnalytics.trackEvent("checkout_started");
   const originalText = button?.textContent || "";
   if (button) {
     if (button.tagName === "BUTTON") button.disabled = true;
@@ -672,7 +687,7 @@ function scannerPricingCards() {
     {
       id: "arbitrage-only",
       name: "Market Hub Pro",
-      price: 99.9,
+      price: 24.9,
       badge: "Market Hub Pro",
       features: ["Live arbitrage scanner", "Crypto, forex, gold, and stocks analyzer UI", "Live crypto price anchoring", "How to Use mini-course", "Risk management guide"]
     }
@@ -711,6 +726,38 @@ function courseCard(course) {
         <p class="faint" style="margin-bottom:0;">${esc(course.duration || "Self paced")}</p>
       </div>
     </article>
+  `;
+}
+
+function reviewsChamber() {
+  const data = state.reviews;
+  // Deliberately renders nothing until real reviews exist. An empty state that
+  // says "no reviews yet" on a paid product advertises the absence; showing
+  // nothing simply omits the section.
+  if (!data || !data.count) return "";
+  const stars = (n) => "\u2605".repeat(n) + "\u2606".repeat(5 - n);
+  return `
+    <section class="chamber chamber-reviews" aria-labelledby="reviews-title">
+      <div class="chamber-inner">
+        <header class="chamber-head center" data-reveal>
+          <p class="eyebrow">Testimony</p>
+          <h2 class="h2" id="reviews-title">What Members Say</h2>
+          ${data.average ? `<p class="reviews-average"><span class="stars" aria-hidden="true">${stars(Math.round(data.average))}</span> <strong>${data.average}</strong> out of 5 from ${data.count} member${data.count === 1 ? "" : "s"}</p>` : ""}
+        </header>
+        <div class="testimony-grid">
+          ${data.reviews.slice(0, 6).map((r, i) => `
+            <figure class="testimony" data-reveal="scale" data-reveal-delay="${i * 80}">
+              <span class="stars" aria-label="${r.rating} out of 5">${stars(Number(r.rating) || 5)}</span>
+              <blockquote>${esc(r.body)}</blockquote>
+              <figcaption>
+                <strong>${esc(r.name)}</strong>
+                ${r.role ? `<span>${esc(r.role)}</span>` : ""}
+              </figcaption>
+            </figure>
+          `).join("")}
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -794,13 +841,16 @@ function homePage() {
               <p class="stele-kind">By subscription</p>
               <h3 class="h3">${esc(paid.title || "Market Hub Pro")}</h3>
               <p class="stele-copy">${esc(paid.description || "")}</p>
-              <p class="stele-price"><strong>$${money(paid.price || 99.9)}</strong><span>/ ${esc(paid.cadence || "monthly")}</span></p>
+              <p class="stele-price"><strong>$${money(paid.price || 24.9)}</strong><span>/ ${esc(paid.cadence || "monthly")}</span></p>
+              <p class="stele-note founding">Founding member rate &mdash; <strong>locked for as long as you stay subscribed</strong>.</p>
               ${checkoutCta(paid.planId || productPlanIds["market-hub"] || "arbitrage-only", state.user ? "Take the Hall" : "Log In to Subscribe", "btn primary small")}
             </div>
           </article>
         </div>
       </div>
     </section>
+
+    ${reviewsChamber()}
 
     <section class="chamber chamber-oracle" aria-labelledby="oracle-title">
       <div class="chamber-inner oracle-grid">
@@ -953,7 +1003,7 @@ function scannerAccessGate(checking = false) {
         <div class="card pad glow-card scanner-lock-card">
           <div class="badge" style="width:max-content;">MARKET HUB</div>
           <h2 class="h3" style="margin-top:18px;">Market Hub Pro</h2>
-          <div class="price">$99.90 <span>/ monthly</span></div>
+          <div class="price">$24.90 <span>/ monthly</span></div>
           <ul class="feature-list">
             <li>Live crypto arbitrage scanner</li>
             <li>Crypto, forex, gold, commodities, and stock analysis modules</li>
@@ -2802,6 +2852,8 @@ function render() {
     if (typeof initAdvancedTradingViewWidget === "function") initAdvancedTradingViewWidget();
     // Rebuild scroll choreography against the markup this render just produced.
     if (window.BullBearMotion) window.BullBearMotion.refresh(!isNavigation);
+    // Only a real navigation is a pageview; a background price refresh is not.
+    if (isNavigation && window.BullBearAnalytics) window.BullBearAnalytics.trackView(state.route);
   };
 
   if (isNavigation && document.startViewTransition) {
@@ -3569,6 +3621,9 @@ window.addEventListener("popstate", () => {
     applySessionFromUrl();
     await loadContent();
     render();
+    // Fetched after first paint: reviews are proof, not chrome, and must never
+    // delay the page appearing. The section re-renders itself once they land.
+    loadReviews().then(() => { if (state.reviews?.count) render(); });
   } catch (error) {
     document.getElementById("app").innerHTML = `<section class="section"><div class="empty">Could not load site content: ${esc(error.message)}</div></section>`;
   }

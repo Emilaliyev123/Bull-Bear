@@ -937,3 +937,91 @@ input, select, textarea,
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+
+/* ══ Testimony ════════════════════════════════════════════════════════════
+   Only rendered when real reviews exist — the section is absent entirely
+   otherwise, rather than showing an empty state that advertises having no
+   customers. */
+.testimony-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.testimony {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  margin: 0;
+  padding: 24px;
+  background: var(--plinth);
+  border: 1px solid var(--chisel);
+  border-radius: 3px;
+  box-shadow: var(--carve);
+}
+
+.testimony blockquote {
+  margin: 0;
+  color: var(--stone);
+  font-size: 0.98rem;
+  line-height: 1.72;
+}
+
+/* Open quote as a carved mark rather than a typographic flourish. */
+.testimony blockquote::before {
+  content: "\201C";
+  float: left;
+  margin: -6px 6px 0 -4px;
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  line-height: 1;
+  color: var(--gold-leaf);
+  opacity: 0.55;
+}
+
+.testimony figcaption {
+  display: grid;
+  gap: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--chisel-soft);
+}
+
+.testimony figcaption strong {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bone);
+}
+
+.testimony figcaption span {
+  font-size: 0.82rem;
+  color: var(--aged);
+}
+
+.stars {
+  color: var(--gold-lit);
+  font-size: 0.9rem;
+  letter-spacing: 0.16em;
+}
+
+.reviews-average {
+  margin: 12px 0 0;
+  color: var(--stone);
+  font-size: 0.94rem;
+}
+
+.reviews-average strong {
+  color: var(--marble);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Founding-member note: the price is the headline, this is the reassurance
+   under it, so it stays quiet. */
+.stele-note.founding::before { content: "\2726"; }
+
+.stele-note.founding strong {
+  color: var(--gold-lit);
+  font-weight: 600;
+}
