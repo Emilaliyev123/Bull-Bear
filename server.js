@@ -65,6 +65,13 @@ const PAYRIFF_LANGUAGE = process.env.PAYRIFF_LANGUAGE || "EN";
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+// Google retires model ids without warning — "gemini-2.0-flash-lite" was hardcoded
+// here and started returning 404, which silently took the advisor down. Keep the
+// model in config and carry a fallback list so a retirement degrades instead of breaks.
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash";
+const GEMINI_FALLBACK_MODELS = String(
+  process.env.GEMINI_FALLBACK_MODELS || "gemini-3.6-flash,gemini-flash-lite-latest"
+).split(",").map((name) => name.trim()).filter(Boolean);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-5";
 const OPENAI_BASE_URL = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
 const AI_USE_OPENAI = String(process.env.AI_USE_OPENAI || "false").toLowerCase() === "true" || Boolean(GEMINI_API_KEY);
@@ -2793,16 +2800,6 @@ ${liveContext}`;
 
   if (GEMINI_API_KEY) {
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const modelName = "gemini-2.0-flash-lite";
-    const model = genAI.getGenerativeModel({
-      model: modelName,
-      systemInstruction: systemPrompt,
-      generationConfig: {
-        temperature: 0.7,
-        topP: 0.9,
-        maxOutputTokens: 2048,
-      }
-    });
 
     // Build multi-turn chat history — use only the text content (not JSON blobs)
     const geminiHistory = history.map(msg => ({
@@ -2810,22 +2807,53 @@ ${liveContext}`;
       parts: [{ text: String(msg.text || "") }]
     }));
 
-    const chat = model.startChat({ history: geminiHistory });
-    const result = await chat.sendMessage(userMessage);
-    const rawText = result.response.text();
+    // Walk the configured model then its fallbacks: a retired id must not take
+    // the whole advisor offline the way "gemini-2.0-flash-lite" did.
+    const candidates = [GEMINI_MODEL, ...GEMINI_FALLBACK_MODELS];
+    let lastGeminiError = null;
 
-    return normalizeAiResult({
-      title: "Bull & Bear AI Pro",
-      chatAnswer: rawText,
-      summary: rawText.slice(0, 400),
-      marketModel: [],
-      watchlist: [],
-      signalScenarios: [],
-      lessonPlan: [],
-      riskRules: [],
-      nextSteps: [],
-      disclaimer: "Educational analysis only. This is not financial advice."
-    });
+    for (const modelName of candidates) {
+      try {
+        const model = genAI.getGenerativeModel({
+          model: modelName,
+          systemInstruction: systemPrompt,
+          generationConfig: {
+            temperature: 0.7,
+            topP: 0.9,
+            maxOutputTokens: 2048,
+          }
+        });
+
+        const chat = model.startChat({ history: geminiHistory });
+        const result = await chat.sendMessage(userMessage);
+        const rawText = result.response.text();
+
+        if (modelName !== GEMINI_MODEL) {
+          console.warn(`Gemini: "${GEMINI_MODEL}" unavailable, answered with "${modelName}". Update GEMINI_MODEL.`);
+        }
+
+        return normalizeAiResult({
+          title: "Bull & Bear AI Pro",
+          chatAnswer: rawText,
+          summary: rawText.slice(0, 400),
+          marketModel: [],
+          watchlist: [],
+          signalScenarios: [],
+          lessonPlan: [],
+          riskRules: [],
+          nextSteps: [],
+          disclaimer: "Educational analysis only. This is not financial advice."
+        });
+      } catch (error) {
+        lastGeminiError = error;
+        const message = String(error?.message || "");
+        const modelGone = /404|not found|no longer available|not supported/i.test(message);
+        if (!modelGone) throw error;
+        console.error(`Gemini model "${modelName}" is unavailable: ${message.slice(0, 160)}`);
+      }
+    }
+
+    throw lastGeminiError || new Error("No configured Gemini model is available.");
   }
 
 
@@ -3037,7 +3065,15 @@ app.post("/api/ai/advisor", requireAuth, async (req, res) => {
           console.warn("Gemini quota exceeded, using fallback model:", error.message.substring(0, 100));
           result = generatePaidAdvisorResponse(normalizedRequest, context);
         } else {
-          console.warn("Gemini advisor error, using built-in model:", error.message);
+          // 401/403/404 mean the key or model config is wrong — that is an outage
+          // to fix, not a transient blip, so log it at error level.
+          const message = String(error?.message || "");
+          const isConfigError = /401|403|404|API key|unauthenticated|permission/i.test(message);
+          if (isConfigError) {
+            console.error("Gemini MISCONFIGURED — advisor is running on the built-in model. Fix GEMINI_API_KEY / GEMINI_MODEL:", message.slice(0, 200));
+          } else {
+            console.warn("Gemini advisor error, using built-in model:", error.message);
+          }
         }
       }
     } else if (isOpenAiConfigured()) {
