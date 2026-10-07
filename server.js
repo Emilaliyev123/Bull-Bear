@@ -2865,10 +2865,28 @@ app.use((req, res, next) => {
 });
 app.use("/uploads/images", express.static(path.join(UPLOAD_DIR, "images")));
 app.use(express.static(PUBLIC_DIR, {
+  // "/" must fall through to the shell renderer below instead of being served
+  // as a plain file, or the homepage would be the one route that never gets
+  // its meta tags filled in.
+  index: false,
   setHeaders(res, filePath) {
-    if (/\.(?:html|js|css)$/i.test(filePath)) {
+    // HTML is never cached: index.html carries the ?v= stamps that point at
+    // every other asset, so one stale copy pins a whole stale build.
+    if (/\.html$/i.test(filePath)) {
       res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      return;
     }
+    // Everything index.html references carries a ?v= stamp, so a stamped URL
+    // is safe to cache forever -- editing the file changes the stamp, which
+    // changes the URL. An unstamped request gets a short cache instead: that
+    // URL never changes, so a long one would pin an old build in the browser
+    // with no way to bust it. Read the stamp off originalUrl rather than
+    // req.query, which the sanitizer above rewrites.
+    const stamped = /[?&]v=/.test((res.req && res.req.originalUrl) || "");
+    res.setHeader(
+      "Cache-Control",
+      stamped ? "public, max-age=31536000, immutable" : "public, max-age=300"
+    );
   }
 }));
 app.use("/api", (_req, res, next) => {
@@ -3835,8 +3853,139 @@ app.use((err, req, res, next) => {
   return next();
 });
 
+// An unmatched /api path used to fall through to the SPA shell below, so a
+// renamed or mistyped endpoint answered 200 with HTML. Callers then saw
+// response.ok and failed inside response.json() on "<", and uptime checks
+// pointed at an API path reported healthy. Answer as the API instead.
+app.use("/api", (req, res) => {
+  res.status(404).json({ error: `Unknown API endpoint: ${req.method} ${req.baseUrl}${req.path}` });
+});
+
+// Page titles and descriptions for the shell. app.js sets document.title and
+// the canonical link once it runs, which covers browsers and Google, but the
+// crawlers behind link previews (Telegram, WhatsApp, X, Facebook) never
+// execute JS -- they read the HTML as served. Without this every shared link
+// previewed as the homepage, whichever page was actually shared.
+const PAGE_META = {
+  "/": {
+    title: "Bull & Bear Trading Academy",
+    description: "Professional AI Market Analyzer, risk engine, and a free Telegram community for traders."
+  },
+  "/products": {
+    title: "Membership - Bull & Bear Trading Academy",
+    description: "Market Hub Pro: AI market analysis, arbitrage scanner, and risk engine for $24.90 a month."
+  },
+  "/how-to-use": {
+    title: "How to Use - Bull & Bear Trading Academy",
+    description: "A walkthrough of the Market Hub analyzer, the risk filters, and how to read a signal."
+  },
+  "/signals": {
+    title: "Free Telegram Community - Bull & Bear Trading Academy",
+    description: "Join the free Bull & Bear Telegram community and get the 233-page trading book at no cost."
+  },
+  "/discord": {
+    title: "Free Telegram Community - Bull & Bear Trading Academy",
+    description: "Join the free Bull & Bear Telegram community and get the 233-page trading book at no cost."
+  },
+  "/market-hub": {
+    title: "Market Hub - Bull & Bear Trading Academy",
+    description: "Crypto, forex, commodity and stock analysis with confidence scoring and risk filters."
+  },
+  "/arbitrage": {
+    title: "Market Hub - Bull & Bear Trading Academy",
+    description: "Real-time crypto arbitrage scanner across exchanges, with spread and liquidity checks."
+  },
+  "/scanner": {
+    title: "Market Hub - Bull & Bear Trading Academy",
+    description: "Real-time crypto arbitrage scanner across exchanges, with spread and liquidity checks."
+  },
+  "/ai": {
+    title: "Investor AI - Bull & Bear Trading Academy",
+    description: "Ask the Investor AI about a market, a setup, or a term you do not know yet."
+  },
+  "/support": {
+    title: "Support - Bull & Bear Trading Academy",
+    description: "Get help with your Bull & Bear account, membership, or payment."
+  },
+  "/login": {
+    title: "Log In - Bull & Bear Trading Academy",
+    description: "Log in to your Bull & Bear Trading Academy account."
+  },
+  "/register": {
+    title: "Sign Up - Bull & Bear Trading Academy",
+    description: "Create a free Bull & Bear Trading Academy account."
+  },
+  "/privacy-policy": {
+    title: "Privacy Policy - Bull & Bear Trading Academy",
+    description: "How Bull & Bear Trading Academy collects, uses and stores your data."
+  },
+  "/terms-and-conditions": {
+    title: "Terms of Service - Bull & Bear Trading Academy",
+    description: "The terms that govern your use of Bull & Bear Trading Academy."
+  },
+  "/refund-policy": {
+    title: "Refund & Exchange Policy - Bull & Bear Trading Academy",
+    description: "When a Bull & Bear membership can be refunded, and how to request one."
+  },
+  "/cancellation-policy": {
+    title: "Cancellation & Payment Policy - Bull & Bear Trading Academy",
+    description: "How Bull & Bear billing works and how to cancel your membership."
+  }
+};
+
+const SHELL_FILE = path.join(PUBLIC_DIR, "index.html");
+let shellCache = { mtimeMs: 0, html: "" };
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// Re-read only when index.html actually changes, so an edit shows up without a
+// restart and a normal request costs one stat() rather than a file read.
+function readShell() {
+  const { mtimeMs } = fs.statSync(SHELL_FILE);
+  if (mtimeMs !== shellCache.mtimeMs) {
+    shellCache = { mtimeMs, html: fs.readFileSync(SHELL_FILE, "utf8") };
+  }
+  return shellCache.html;
+}
+
+function renderShell(route) {
+  const meta = PAGE_META[route] || PAGE_META["/"];
+  const title = escapeAttribute(meta.title);
+  const description = escapeAttribute(meta.description);
+  const url = `https://bullandbear.az${route === "/" ? "/" : route}`;
+
+  return readShell()
+    .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
+    // The description tag is written across several lines in the source, so
+    // match the whole tag rather than a single-line form.
+    .replace(/<meta\s+name="description"[\s\S]*?\/>/i, `<meta name="description" content="${description}" />`)
+    .replace(/(<meta\s+property="og:title"\s+content=")[^"]*(")/i, `$1${title}$2`)
+    .replace(/(<meta\s+property="og:description"\s+content=")[^"]*(")/i, `$1${description}$2`)
+    .replace(/(<meta\s+property="og:url"\s+content=")[^"]*(")/i, `$1${url}$2`)
+    .replace(/(<meta\s+name="twitter:title"\s+content=")[^"]*(")/i, `$1${title}$2`)
+    .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*(")/i, `$1${description}$2`)
+    .replace(/(<link\s+rel="canonical"\s+id="canonical-link"\s+href=")[^"]*(")/i, `$1${url}$2`);
+}
+
 app.use((req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+  const route = req.path.replace(/\/+$/, "") || "/";
+  // The shell holds the ?v= stamps for every other asset, so a cached copy
+  // would pin an old build no matter how the assets are versioned.
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  try {
+    res.type("html").send(renderShell(route));
+  } catch (error) {
+    // A failed read or replace must still serve the app rather than an error
+    // page: a generic preview is a cosmetic loss, a blank site is not.
+    console.warn("Failed to render shell meta, serving file as-is:", error.message);
+    res.sendFile(SHELL_FILE);
+  }
 });
 
 scheduleScanner();

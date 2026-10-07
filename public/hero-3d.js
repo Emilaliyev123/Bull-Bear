@@ -3,7 +3,22 @@
 // nothing whenever that request failed, and some networks block public CDNs
 // outright. Served from our own origin it also skips an extra DNS and TLS
 // handshake. Update by replacing public/vendor/three.module.min.js.
-import * as THREE from "/vendor/three.module.min.js";
+// Loaded on demand rather than with a static import: the library is 659 KB
+// raw (~172 KB over the wire), and a static import made every page pay for it
+// — the support and policy pages downloaded a whole 3D engine they never
+// render. The ?v= stamp lets it be cached permanently.
+let THREE = null;
+let threeLoader = null;
+
+function loadThree() {
+  if (!threeLoader) {
+    threeLoader = import("/vendor/three.module.min.js?v=164").then((module) => {
+      THREE = module;
+      return module;
+    });
+  }
+  return threeLoader;
+}
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 let activeScene = null;
@@ -336,13 +351,39 @@ function initHero3D() {
   activeScene = { stage, destroy };
 }
 
+// Checks the cheap conditions before fetching three, so a page with no stage
+// — and a visitor who asked for reduced motion — never downloads it.
+async function bootHero3D() {
+  const stage = document.getElementById("market3dStage");
+  if (!stage || stage.dataset.ready === "true" || reduceMotion.matches) return;
+  try {
+    await loadThree();
+  } catch (error) {
+    console.warn("3D hero unavailable:", error.message);
+    return;
+  }
+  // A route change during the load can remove the stage we checked for, and
+  // initHero3D would then append a canvas to a detached element.
+  if (!document.getElementById("market3dStage")) return;
+  initHero3D();
+}
+
 function queueBoot() {
   if (bootQueued) return;
   bootQueued = true;
-  requestAnimationFrame(() => {
+  // requestAnimationFrame never fires while the tab is hidden, so a page opened
+  // in a background tab scheduled a boot that never ran -- and because the flag
+  // was only cleared inside that callback, it stayed true and every later route
+  // change no-oped. The hero then stayed missing for the whole session, even
+  // after the visitor switched to the tab. A timer fires in a hidden tab, so
+  // race the two and let whichever arrives first do the work.
+  const run = () => {
+    if (!bootQueued) return;
     bootQueued = false;
-    initHero3D();
-  });
+    bootHero3D();
+  };
+  requestAnimationFrame(run);
+  setTimeout(run, 250);
 }
 
 if (document.readyState === "loading") {
