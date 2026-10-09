@@ -2555,7 +2555,7 @@ function adminPage() {
         <div>
           <div class="eyebrow">Admin Panel</div>
           <h1 class="h2" style="margin-top:12px;">SaaS Management</h1>
-          <p class="lead">Manage users, subscriptions, payments, scanner controls, announcements, videos, and book PDF uploads.</p>
+          <p class="lead">Manage users, subscriptions, payments, scanner controls, and announcements.</p>
         </div>
         <button class="btn secondary small" data-logout>Logout</button>
       </div>

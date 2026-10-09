@@ -2774,13 +2774,53 @@ ${liveContext}`;
   return normalizeAiResult(parseAiJson(extractResponseText(payload)));
 }
 
-function serializeContent(db, auth = {}) {
-  const { users, signals, ...publicDb } = db;
-  const canSeeProtectedMedia = Boolean(auth?.admin);
-  
+function publicCourse(course) {
   return {
-    ...publicDb,
-    
+    id: course.id,
+    title: course.title,
+    description: course.description || "",
+    category: course.category || "",
+    duration: course.duration || "",
+    isFree: Boolean(course.isFree),
+    // courseModal() renders a <video> when this is set and a "coming soon"
+    // placeholder when it is not, so it stays in the public shape.
+    videoUrl: course.videoUrl || "",
+    thumbnailUrl: course.thumbnailUrl || "",
+    createdAt: course.createdAt || null
+  };
+}
+
+function publicBook(book) {
+  if (!book || typeof book !== "object") return null;
+  return {
+    title: book.title,
+    description: book.description,
+    price: book.price,
+    coverUrl: book.coverUrl || "",
+    pdfUrl: book.pdfUrl || "",
+    updatedAt: book.updatedAt || null
+  };
+}
+
+// Allowlist, not denylist. This used to destructure away `users` and `signals`
+// and spread the rest of the database into the response, so an unauthenticated
+// GET /api/content answered with payments, paymentLogs, auditLogs,
+// subscriptions, notifications, analytics, scannerControls and live
+// oauthStates -- an unexpired OAuth state is the CSRF token for a sign-in
+// flow. The shape also meant every collection added to the database in future
+// was published by default. Naming the public fields inverts that: a new
+// collection stays private until someone adds it here deliberately.
+//
+// Per-user and internal data already has an authenticated home: /api/dashboard
+// scopes subscriptions and notifications to the caller, and /api/admin/platform
+// serves users, payments and announcements behind requireAdmin.
+function serializeContent(db) {
+  const courses = Array.isArray(db.courses) ? db.courses : [];
+
+  return {
+    courses: courses.map(publicCourse),
+    book: publicBook(db.book),
+
     products: [
       {
         id: "discord",
@@ -2898,8 +2938,11 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/content", optionalAuth, (req, res) => {
-  res.json(serializeContent(readDb(), req.auth));
+// Public by design and identical for every caller, so it no longer runs
+// optionalAuth: the payload held nothing auth-dependent, and taking a token
+// here implied the response was gated when it was not.
+app.get("/api/content", (req, res) => {
+  res.json(serializeContent(readDb()));
 });
 
 
@@ -3317,6 +3360,32 @@ app.post("/api/payments/checkout", requireAuth, async (req, res) => {
   });
 });
 
+// Status-only shapes for the unauthenticated return leg below. The stored
+// records additionally hold userId, providerReference, checkoutUrl, the raw
+// provider amounts and any error text, none of which the payer's browser needs
+// to learn that a payment went through.
+function publicPaymentStatus(payment) {
+  if (!payment) return null;
+  return {
+    id: payment.id,
+    planId: payment.planId,
+    status: payment.status,
+    displayAmount: payment.displayAmount ?? payment.amount,
+    displayCurrency: payment.displayCurrency || payment.currency || "USD",
+    createdAt: payment.createdAt || null,
+    updatedAt: payment.updatedAt || null
+  };
+}
+
+function publicSubscriptionStatus(subscription) {
+  if (!subscription) return null;
+  return {
+    planId: subscription.planId,
+    status: subscription.status,
+    paidUntil: subscription.paid_until || subscription.paidUntil || subscription.expiresAt || ""
+  };
+}
+
 app.get("/api/payments/webhook/payriff", async (req, res) => {
   const reference = String(
     req.query.paymentId
@@ -3358,14 +3427,20 @@ app.get("/api/payments/webhook/payriff", async (req, res) => {
       const destination = payment.status === "failed" ? "failed" : "success";
       return res.redirect(`/payment/${destination}?paymentId=${encodeURIComponent(payment.id)}`);
     }
-    return res.json({ ok: true, payment, subscription });
+    // Anyone holding a reference reaches this route unauthenticated -- Payriff
+    // redirects the payer's browser here -- so it reports status only. Sending
+    // the stored records whole handed over userId, the provider reference and
+    // the live checkoutUrl to whoever presented the reference.
+    return res.json({ ok: true, payment: publicPaymentStatus(payment), subscription: publicSubscriptionStatus(subscription) });
   } catch (error) {
     payment.status = payment.status === "paid" ? "paid" : "status_check_failed";
     payment.error = error.message;
     payment.updatedAt = nowIso();
     addPaymentLog(db, "payriff", "status_check_failed", payment.id);
     writeDb(db);
-    return res.status(502).json({ ok: false, error: error.message });
+    // The provider's message can carry request URLs and configuration detail,
+    // and this route is public. The full text stays in the payment log above.
+    return res.status(502).json({ ok: false, error: "Could not verify payment status. Please try again shortly." });
   }
 });
 
