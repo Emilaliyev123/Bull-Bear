@@ -1,11 +1,30 @@
+# Blueprint for the live service. It had drifted from what actually runs:
+# plan: free (which cannot hold a disk at all), no disk, and no STORAGE_DIR.
+# Applying it in that state would have detached the database from its disk and
+# left the whole thing on an ephemeral filesystem, wiped on every deploy.
+#
+# BEFORE APPLYING THIS AS A BLUEPRINT: check that `disk.name` below matches the
+# name of the disk already attached to bull-bear-staging (Render dashboard ->
+# the service -> Disk). Render matches disks by name; a different name here
+# means a new, EMPTY disk, and the live database would disappear from view.
 services:
   - type: web
     name: bull-bear-staging
     runtime: node
-    plan: free
+    # Not `free`: the free plan cannot mount a disk, and the database lives on one.
+    plan: starter
     buildCommand: npm ci
     startCommand: npm start
+    healthCheckPath: /api/health
+    # The database and uploads live here, not in the image. server.js joins
+    # "data" onto STORAGE_DIR, so the file is /data/data/db.json.
+    disk:
+      name: bull-bear-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
+      - key: STORAGE_DIR
+        value: /data
       - key: APP_URL
         value: https://staging.bullandbear.az
       - key: PORT

@@ -763,13 +763,6 @@ function requireScannerAccess(req, res, next) {
   return next();
 }
 
-function optionalAuth(req, _res, next) {
-  const token = (req.headers.authorization || "").replace(/^Bearer\s+/i, "");
-  const payload = token ? verifyToken(token) : null;
-  req.auth = payload || { role: "guest", guest: true };
-  return next();
-}
-
 function requestBaseUrl(req) {
   return APP_URL || `${req.protocol}://${req.get("host")}`;
 }
@@ -2938,9 +2931,9 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
-// Public by design and identical for every caller, so it no longer runs
-// optionalAuth: the payload held nothing auth-dependent, and taking a token
-// here implied the response was gated when it was not.
+// Public by design and identical for every caller. It takes no auth
+// middleware: the payload holds nothing auth-dependent, and reading a token
+// here would imply the response was gated when it is not.
 app.get("/api/content", (req, res) => {
   res.json(serializeContent(readDb()));
 });

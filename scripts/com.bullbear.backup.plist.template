@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Optional daily partial admin export, at 03:30 local time. This is not a full database backup.
+
+  This is a template and does nothing where it sits. It becomes active only
+  once it is filled in, copied into ~/Library/LaunchAgents and loaded - the two
+  commands are in docs/BACKUPS.md.
+
+  Replace before use:
+    __REPO__        absolute path to this repository
+    __BACKUP_DIR__  absolute path to the export directory
+    __BULLBEAR_HOST__ exact HTTPS host for the optional partial export
+
+  No secret appears here: scripts/backup-db.sh reads the admin password from
+  the macOS Keychain at run time.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.bullbear.admin-export</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BULLBEAR_HOST</key>
+        <string>__BULLBEAR_HOST__</string>
+        <key>BULLBEAR_BACKUP_DIR</key>
+        <string>__BACKUP_DIR__</string>
+    </dict>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__REPO__/scripts/backup-db.sh</string>
+    </array>
+
+    <!-- StartCalendarInterval, unlike cron, does not silently drop a run the
+         Mac slept through: launchd fires it once the machine wakes. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>3</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <!-- False so logging in does not trigger an extra export; the schedule
+         above is the only trigger. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__BACKUP_DIR__/launchd.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__BACKUP_DIR__/launchd.err.log</string>
+</dict>
+</plist>
