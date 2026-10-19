@@ -4022,13 +4022,32 @@ function readShell() {
   return shellCache.html;
 }
 
+const HOMEPAGE_FALLBACK = `
+  <main class="main">
+    <section class="portico" aria-labelledby="portico-title">
+      <div class="portico-inner">
+        <p class="dedication">Established for the disciplined trader</p>
+        <h1 class="inscription" id="portico-title">Bull &amp; Bear Market Command</h1>
+        <p class="portico-lead">
+          Forex, crypto, equities and gold, read through an institutional risk engine.
+          Every result carries its source and the hour it was struck.
+        </p>
+        <nav class="portico-actions" aria-label="Explore Bull &amp; Bear">
+          <a href="/products" class="btn primary">Enter the Hall</a>
+          <a href="/market-hub" class="btn secondary">Explore Market Hub</a>
+        </nav>
+      </div>
+    </section>
+  </main>
+`.trim();
+
 function renderShell(route) {
   const meta = PAGE_META[route] || PAGE_META["/"];
   const title = escapeAttribute(meta.title);
   const description = escapeAttribute(meta.description);
   const url = `https://bullandbear.az${route === "/" ? "/" : route}`;
 
-  return readShell()
+  let html = readShell()
     .replace(/<title>[\s\S]*?<\/title>/i, `<title>${title}</title>`)
     // The description tag is written across several lines in the source, so
     // match the whole tag rather than a single-line form.
@@ -4039,6 +4058,11 @@ function renderShell(route) {
     .replace(/(<meta\s+name="twitter:title"\s+content=")[^"]*(")/i, `$1${title}$2`)
     .replace(/(<meta\s+name="twitter:description"\s+content=")[^"]*(")/i, `$1${description}$2`)
     .replace(/(<link\s+rel="canonical"\s+id="canonical-link"\s+href=")[^"]*(")/i, `$1${url}$2`);
+
+  if (route === "/") {
+    html = html.replace('<div id="app"></div>', `<div id="app">${HOMEPAGE_FALLBACK}</div>`);
+  }
+  return html;
 }
 
 app.use((req, res) => {
